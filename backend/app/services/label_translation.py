@@ -40,10 +40,12 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Computer keyboard": ("Tastatur", "DEVICE"),
 
     # Tiere
-    "Animal": ("Tiergeräusch", "ANIMAL"),
+    "Animal": ("Unklares Ruf-/Stimmgeräusch", "VOCALIZATION"),
     "Dog": ("Hund", "ANIMAL"),
     "Bark": ("Hundegebell", "ANIMAL"),
     "Cat": ("Katze", "ANIMAL"),
+    "Domestic animals, pets": ("Unklares Ruf-/Tiergeräusch", "VOCALIZATION"),
+    "Livestock, farm animals, working animals": ("Unklares Ruf-/Tiergeräusch", "VOCALIZATION"),
 
     # Verkehr
     "Vehicle": ("Fahrzeug", "VEHICLE"),
@@ -55,8 +57,33 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
 }
 
 
-def translate_label(label: str) -> tuple[str, str]:
+DEVICE_LABEL_OVERRIDES: dict[
+    str,
+    dict[str, tuple[str, str]],
+] = {
+    "ESP32-Garden": {
+        "Animal": (
+            "Lautes Schreien/Rufen",
+            "VOICE",
+        ),
+    },
+}
+
+
+def translate_label(
+    label: str,
+    device: str | None = None,
+) -> tuple[str, str]:
     normalized_label = label.strip()
+
+    if device:
+        device_overrides = DEVICE_LABEL_OVERRIDES.get(
+            device,
+            {},
+        )
+
+        if normalized_label in device_overrides:
+            return device_overrides[normalized_label]
 
     return LABEL_TRANSLATIONS.get(
         normalized_label,

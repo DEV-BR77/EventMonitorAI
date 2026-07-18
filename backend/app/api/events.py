@@ -27,10 +27,21 @@ def create_event(
     event_data: EventCreate,
     db: DatabaseSession,
 ) -> Event:
-    label_de, category = translate_label(event_data.label)
+    label_de, category = translate_label(
+        event_data.label,
+        event_data.device,
+    )
+
+    event_values = event_data.model_dump()
+
+    if event_values["end_timestamp"] is None:
+        event_values["end_timestamp"] = event_values["timestamp"]
+
+    if event_values["avg_db_level"] is None:
+        event_values["avg_db_level"] = event_values["db_level"]
 
     event = Event(
-        **event_data.model_dump(),
+        **event_values,
         label_de=label_de,
         category=category,
     )

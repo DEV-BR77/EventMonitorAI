@@ -1,4 +1,4 @@
-from sqlalchemy import inspect, or_, select, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.database.base import Base
@@ -32,33 +32,65 @@ def add_missing_event_columns() -> None:
             "ADD COLUMN category VARCHAR NOT NULL DEFAULT 'OTHER'"
         )
 
+    if "end_timestamp" not in column_names:
+        statements.append(
+            "ALTER TABLE events "
+            "ADD COLUMN end_timestamp VARCHAR"
+        )
+
+    if "duration_seconds" not in column_names:
+        statements.append(
+            "ALTER TABLE events "
+            "ADD COLUMN duration_seconds FLOAT NOT NULL DEFAULT 0.975"
+        )
+
+    if "avg_db_level" not in column_names:
+        statements.append(
+            "ALTER TABLE events "
+            "ADD COLUMN avg_db_level FLOAT"
+        )
+
     if statements:
         with engine.begin() as connection:
             for statement in statements:
                 connection.execute(text(statement))
 
 
-def backfill_event_labels() -> None:
+def backfill_events() -> None:
     with Session(engine) as db:
-        statement = select(Event).where(
-            or_(
-                Event.label_de == "",
-                Event.label_de.is_(None),
-                Event.category == "",
-                Event.category.is_(None),
-            )
-        )
-
-        events = list(db.scalars(statement).all())
+        events = list(db.scalars(select(Event)).all())
+        changed = False
 
         for event in events:
-            event.label_de, event.category = translate_label(event.label)
+            translated_label, translated_category = translate_label(
+                event.label,
+                event.device,
+            )
 
-        if events:
+            if (
+                event.label_de != translated_label
+                or event.category != translated_category
+            ):
+                event.label_de = translated_label
+                event.category = translated_category
+                changed = True
+
+            if event.end_timestamp is None:
+                event.end_timestamp = event.timestamp
+                changed = True
+
+            if event.duration_seconds is None:
+                event.duration_seconds = 0.975
+                changed = True
+
+            if event.avg_db_level is None:
+                event.avg_db_level = event.db_level
+                changed = True
+
+        if changed:
             db.commit()
-
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     add_missing_event_columns()
-    backfill_event_labels()
+    backfill_events()

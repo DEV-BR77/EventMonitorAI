@@ -9,7 +9,20 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
+    # Startzeit des Ereignisses
     timestamp: Mapped[str] = mapped_column(String)
+
+    # Ende und Dauer des zusammengefassten Ereignisses
+    end_timestamp: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
+
+    duration_seconds: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.975,
+    )
 
     event_type: Mapped[str] = mapped_column(String)
 
@@ -17,7 +30,11 @@ class Event(Base):
     label: Mapped[str] = mapped_column(String)
 
     # Deutsche Anzeige und stabile Kategorie
-    label_de: Mapped[str] = mapped_column(String, nullable=False, default="")
+    label_de: Mapped[str] = mapped_column(
+        String,
+        nullable=False,
+        default="",
+    )
 
     category: Mapped[str] = mapped_column(
         String,
@@ -27,6 +44,13 @@ class Event(Base):
 
     confidence: Mapped[float] = mapped_column(Float)
 
+    # Höchster Pegel während des Ereignisses
     db_level: Mapped[float] = mapped_column(Float)
+
+    # Durchschnittlicher Pegel aller Ereignisfenster
+    avg_db_level: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
 
     device: Mapped[str] = mapped_column(String)
