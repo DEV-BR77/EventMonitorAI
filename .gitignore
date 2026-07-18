@@ -5,3 +5,11 @@ venv/
 data/*.db
 *.wav
 *.mp3
+# NoiseMonitorAI backend runtime data
+backend/venv/
+backend/data/*.db
+
+# PlatformIO build files and local credentials
+firmware/**/.pio/
+firmware/**/.vscode/
+firmware/**/include/secrets.h
