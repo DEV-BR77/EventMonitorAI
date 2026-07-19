@@ -7,6 +7,6 @@ router = APIRouter(tags=["System"])
 def health():
     return {
         "status": "ok",
-        "version": "0.1.0-alpha1",
-        "service": "NoiseMonitorAI"
+        "version": "0.2.0-alpha",
+        "service": "EventMonitorAI"
     }

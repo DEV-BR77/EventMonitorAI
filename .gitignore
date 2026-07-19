@@ -1,15 +1,73 @@
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.code-workspace
+
+# Python
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
 venv/
-data/*.db
+env/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+**/secrets.h
+**/secrets.ini
+
+# Runtime databases and data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+backend/data/*
+!backend/data/.gitkeep
+tools/audio-lab/data/*
+!tools/audio-lab/data/.gitkeep
+
+# Audio and measurement material
 *.wav
 *.mp3
-# NoiseMonitorAI backend runtime data
-backend/venv/
-backend/data/*.db
+*.flac
+*.ogg
+*.m4a
+*.aac
+*.csv
+*.zip
 
-# PlatformIO build files and local credentials
+# Models, exports, logs and caches
+models/*
+!models/.gitkeep
+exports/*
+!exports/.gitkeep
+logs/*
+!logs/.gitkeep
+cache/
+*.log
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
 firmware/**/.pio/
 firmware/**/.vscode/
-firmware/**/include/secrets.h
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+~$*

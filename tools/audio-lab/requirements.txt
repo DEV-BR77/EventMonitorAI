@@ -1,0 +1,7 @@
+streamlit>=1.36
+pandas>=2.2
+numpy>=1.26
+soundfile>=0.12
+scikit-learn>=1.5
+librosa>=0.10
+joblib>=1.4

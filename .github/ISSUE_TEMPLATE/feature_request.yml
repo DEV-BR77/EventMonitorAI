@@ -1,0 +1,29 @@
+name: Feature request
+description: Verbesserung oder neue Funktion vorschlagen
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem oder Bedarf
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Lösungsvorschlag
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Komponente
+      options:
+        - Backend/API
+        - AudioLab
+        - Raspberry Pi / Edge
+        - ESP32-Firmware
+        - AI/Modelle
+        - Dokumentation
+        - Sonstiges
