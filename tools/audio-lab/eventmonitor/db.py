@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import sqlite3
 from pathlib import Path
 
@@ -32,12 +33,15 @@ CREATE TABLE IF NOT EXISTS predictions (
 );
 """
 
+
 def connect(path: str | Path) -> sqlite3.Connection:
-    p = Path(path); p.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(p); conn.row_factory = sqlite3.Row
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(p)
+    conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
-    cols = {r[1] for r in conn.execute('PRAGMA table_info(segments)')}
-    if 'event_score' not in cols:
-        conn.execute('ALTER TABLE segments ADD COLUMN event_score REAL')
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(segments)")}
+    if "event_score" not in cols:
+        conn.execute("ALTER TABLE segments ADD COLUMN event_score REAL")
     conn.commit()
     return conn

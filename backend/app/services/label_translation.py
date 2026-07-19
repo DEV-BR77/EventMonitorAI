@@ -3,7 +3,6 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Silence": ("Stille", "SILENCE"),
     "Inside, small room": ("Innenraum", "AMBIENT"),
     "White noise": ("Weißes Rauschen", "AMBIENT"),
-
     # Sprache und menschliche Stimmen
     "Speech": ("Sprache", "VOICE"),
     "Conversation": ("Gespräch", "VOICE"),
@@ -14,7 +13,6 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Yell": ("Schreien", "VOICE"),
     "Whispering": ("Flüstern", "VOICE"),
     "Humming": ("Summen", "VOICE"),
-
     # Menschliche Geräusche
     "Cough": ("Husten", "HUMAN_SOUND"),
     "Sneeze": ("Niesen", "HUMAN_SOUND"),
@@ -22,7 +20,6 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Crying, sobbing": ("Weinen", "HUMAN_SOUND"),
     "Snoring": ("Schnarchen", "HUMAN_SOUND"),
     "Breathing": ("Atmen", "HUMAN_SOUND"),
-
     # Hand-, Schlag- und Impulsgeräusche
     "Hands": ("Handgeräusch", "IMPACT"),
     "Clapping": ("Klatschen", "IMPACT"),
@@ -34,11 +31,9 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Cap gun": ("Knall-/Impulsgeräusch", "IMPACT"),
     "Gunshot, gunfire": ("Schussgeräusch", "IMPACT"),
     "Fireworks": ("Feuerwerk", "IMPACT"),
-
     # Geräte und Tastatur
     "Typing": ("Tippen", "DEVICE"),
     "Computer keyboard": ("Tastatur", "DEVICE"),
-
     # Tiere
     "Animal": ("Unklares Ruf-/Stimmgeräusch", "VOCALIZATION"),
     "Dog": ("Hund", "ANIMAL"),
@@ -46,12 +41,10 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Cat": ("Katze", "ANIMAL"),
     "Domestic animals, pets": ("Unklares Ruf-/Tiergeräusch", "VOCALIZATION"),
     "Livestock, farm animals, working animals": ("Unklares Ruf-/Tiergeräusch", "VOCALIZATION"),
-
     # Verkehr
     "Vehicle": ("Fahrzeug", "VEHICLE"),
     "Car": ("Auto", "VEHICLE"),
     "Vehicle horn, car horn, honking": ("Fahrzeughupe", "VEHICLE"),
-
     # Musik
     "Music": ("Musik", "MUSIC"),
 }

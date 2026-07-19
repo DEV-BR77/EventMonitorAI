@@ -9,7 +9,6 @@ from app.models.event import Event
 from app.schemas.event import EventCreate, EventRead
 from app.services.label_translation import translate_label
 
-
 router = APIRouter(
     prefix="/events",
     tags=["Events"],
@@ -61,10 +60,6 @@ def list_events(
     db: DatabaseSession,
     limit: int = Query(default=100, ge=1, le=1000),
 ) -> list[Event]:
-    statement = (
-        select(Event)
-        .order_by(desc(Event.id))
-        .limit(limit)
-    )
+    statement = select(Event).order_by(desc(Event.id)).limit(limit)
 
     return list(db.scalars(statement).all())

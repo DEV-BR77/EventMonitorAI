@@ -1,6 +1,5 @@
 import requests
 
-
 API_URL = "http://192.168.178.88:8000/events"
 
 
@@ -22,11 +21,7 @@ def send_event(
         "label": label,
         "confidence": confidence,
         "db_level": db_level,
-        "avg_db_level": (
-            avg_db_level
-            if avg_db_level is not None
-            else db_level
-        ),
+        "avg_db_level": (avg_db_level if avg_db_level is not None else db_level),
         "device": device,
     }
 

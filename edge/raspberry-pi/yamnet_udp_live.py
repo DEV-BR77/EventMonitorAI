@@ -6,7 +6,6 @@ import numpy as np
 from noise_api import send_event
 from tflite_runtime.interpreter import Interpreter
 
-
 UDP_PORT = 12345
 SAMPLE_RATE = 16000
 WINDOW_SECONDS = 0.975
@@ -44,9 +43,7 @@ def load_labels() -> list[str]:
 
 
 def calc_db(frame: np.ndarray) -> float:
-    rms = np.sqrt(
-        np.mean(frame.astype(np.float32) ** 2)
-    )
+    rms = np.sqrt(np.mean(frame.astype(np.float32) ** 2))
 
     if rms <= 0:
         return 0.0
@@ -63,9 +60,7 @@ def is_relevant_event(
     db_level: float,
 ) -> bool:
     return (
-        confidence >= SCORE_THRESHOLD
-        and label not in IGNORED_LABELS
-        and db_level >= MIN_DB_LEVEL
+        confidence >= SCORE_THRESHOLD and label not in IGNORED_LABELS and db_level >= MIN_DB_LEVEL
     )
 
 
@@ -76,10 +71,7 @@ def start_event(
     confidence: float,
     db_level: float,
 ) -> dict:
-    print(
-        f"▶ Ereignis gestartet: {label} "
-        f"| {db_level:.1f} dB"
-    )
+    print(f"▶ Ereignis gestartet: {label} " f"| {db_level:.1f} dB")
 
     return {
         "start_time": frame_start,
@@ -120,9 +112,7 @@ def finish_event(event: dict) -> bool:
         WINDOW_SECONDS,
     )
 
-    avg_db_level = (
-        event["db_sum"] / event["window_count"]
-    )
+    avg_db_level = event["db_sum"] / event["window_count"]
 
     print(
         f"■ Ereignis abgeschlossen: "
@@ -155,13 +145,8 @@ output_details = interpreter.get_output_details()
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(("0.0.0.0", UDP_PORT))
 
-print(
-    f"YAMNet UDP aggregation listening on {UDP_PORT}"
-)
-print(
-    f"Schwellwert={MIN_DB_LEVEL:.1f} dB "
-    f"| Ende nach {EVENT_END_SILENCE_SECONDS:.1f}s Ruhe"
-)
+print(f"YAMNet UDP aggregation listening on {UDP_PORT}")
+print(f"Schwellwert={MIN_DB_LEVEL:.1f} dB " f"| Ende nach {EVENT_END_SILENCE_SECONDS:.1f}s Ruhe")
 
 audio = np.array([], dtype=np.int16)
 active_event = None
@@ -178,9 +163,7 @@ try:
             audio = audio[SAMPLES_PER_WINDOW:]
 
             frame_end = datetime.now()
-            frame_start = frame_end - timedelta(
-                seconds=WINDOW_SECONDS
-            )
+            frame_start = frame_end - timedelta(seconds=WINDOW_SECONDS)
 
             db_level = calc_db(frame)
             waveform = frame.astype(np.float32) / 32768.0
@@ -191,9 +174,7 @@ try:
             )
             interpreter.invoke()
 
-            scores = interpreter.get_tensor(
-                output_details[0]["index"]
-            )[0]
+            scores = interpreter.get_tensor(output_details[0]["index"])[0]
 
             best_idx = int(np.argmax(scores))
             best_label = labels[best_idx]
@@ -231,10 +212,7 @@ try:
                     )
 
             elif active_event is not None:
-                quiet_seconds = (
-                    frame_end
-                    - active_event["last_relevant_end"]
-                ).total_seconds()
+                quiet_seconds = (frame_end - active_event["last_relevant_end"]).total_seconds()
 
                 if quiet_seconds >= EVENT_END_SILENCE_SECONDS:
                     if finish_event(active_event):

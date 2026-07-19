@@ -1,16 +1,31 @@
 # Changelog
 
+All notable changes to EventMonitorAI are documented in this file.
+
+The project follows Semantic Versioning from the first tagged release onward.
+
 ## [Unreleased]
 
+### Planned
+
+- Historical bulk-import management
+- Interactive dB timeline and spectrogram
+- Model-assisted labeling and similarity search
+- Case grouping and reporting
+
+## [0.1.0] - 2026-07-19
+
 ### Added
-- professionelle Open-Source-Repository-Struktur
-- aussagekräftige Projekt-README und zentrale Installationsanleitung
-- Coding Guidelines, Security Policy und Branch-/Release-Prozess
-- GitHub CI, Release-Workflow, Dependabot sowie Issue- und PR-Vorlagen
-- lokale Projektprüfung für Syntax und Repository-Hygiene
 
-### Changed
-- einheitliche Benennung als EventMonitorAI
-- deutlich erweiterte `.gitignore` für Messdaten, Datenbanken und Build-Artefakte
-- Roadmap nach technischen Entwicklungsphasen strukturiert
+- FastAPI backend foundation and event endpoints
+- Raspberry Pi edge processing prototype
+- ESP32-S3 UDP audio firmware prototype
+- EventMonitor AudioLab for importing and labeling historical measurements
+- GitHub Actions for CI and tagged release archives
+- Contribution, security, privacy and development documentation
+- Architecture overview, event model and initial AI learning concept
 
+### Security
+
+- Removed local credentials from tracked firmware files
+- Added safe `secrets.example.h` workflow and repository ignore rules

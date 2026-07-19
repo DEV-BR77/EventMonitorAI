@@ -1,0 +1,41 @@
+[project]
+name = "eventmonitorai"
+version = "0.1.0"
+description = "Open-source platform for acoustic event detection, analysis and learning."
+requires-python = ">=3.12,<3.13"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [
+    ".venv",
+    "venv",
+    ".git",
+    ".pio",
+    "__pycache__",
+    "backend/data",
+    "tools/audio-lab/data",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = [
+    "^\\.venv/",
+    "^backend/data/",
+    "^tools/audio-lab/data/",
+]

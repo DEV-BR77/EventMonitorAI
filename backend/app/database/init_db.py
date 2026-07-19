@@ -13,42 +13,28 @@ def add_missing_event_columns() -> None:
     if "events" not in inspector.get_table_names():
         return
 
-    column_names = {
-        column["name"]
-        for column in inspector.get_columns("events")
-    }
+    column_names = {column["name"] for column in inspector.get_columns("events")}
 
     statements: list[str] = []
 
     if "label_de" not in column_names:
-        statements.append(
-            "ALTER TABLE events "
-            "ADD COLUMN label_de VARCHAR NOT NULL DEFAULT ''"
-        )
+        statements.append("ALTER TABLE events " "ADD COLUMN label_de VARCHAR NOT NULL DEFAULT ''")
 
     if "category" not in column_names:
         statements.append(
-            "ALTER TABLE events "
-            "ADD COLUMN category VARCHAR NOT NULL DEFAULT 'OTHER'"
+            "ALTER TABLE events " "ADD COLUMN category VARCHAR NOT NULL DEFAULT 'OTHER'"
         )
 
     if "end_timestamp" not in column_names:
-        statements.append(
-            "ALTER TABLE events "
-            "ADD COLUMN end_timestamp VARCHAR"
-        )
+        statements.append("ALTER TABLE events " "ADD COLUMN end_timestamp VARCHAR")
 
     if "duration_seconds" not in column_names:
         statements.append(
-            "ALTER TABLE events "
-            "ADD COLUMN duration_seconds FLOAT NOT NULL DEFAULT 0.975"
+            "ALTER TABLE events " "ADD COLUMN duration_seconds FLOAT NOT NULL DEFAULT 0.975"
         )
 
     if "avg_db_level" not in column_names:
-        statements.append(
-            "ALTER TABLE events "
-            "ADD COLUMN avg_db_level FLOAT"
-        )
+        statements.append("ALTER TABLE events " "ADD COLUMN avg_db_level FLOAT")
 
     if statements:
         with engine.begin() as connection:
@@ -67,10 +53,7 @@ def backfill_events() -> None:
                 event.device,
             )
 
-            if (
-                event.label_de != translated_label
-                or event.category != translated_category
-            ):
+            if event.label_de != translated_label or event.category != translated_category:
                 event.label_de = translated_label
                 event.category = translated_category
                 changed = True
@@ -89,6 +72,7 @@ def backfill_events() -> None:
 
         if changed:
             db.commit()
+
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)

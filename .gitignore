@@ -71,3 +71,6 @@ firmware/**/.vscode/
 *.temp
 *.bak
 ~$*
+
+# Keep credential templates
+!**/secrets.example.h
