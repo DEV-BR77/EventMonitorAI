@@ -9,6 +9,7 @@ from time import monotonic
 
 import numpy as np
 from audio_protocol import decode_packet, sequence_gap
+from clip_receiver import start_clip_server
 from noise_api import send_event, send_telemetry
 from tflite_runtime.interpreter import Interpreter
 
@@ -204,8 +205,10 @@ receiver_process = process_context.Process(
     daemon=True,
 )
 receiver_process.start()
+clip_server, clip_thread = start_clip_server()
 
 print(f"YAMNet UDP aggregation listening on {UDP_PORT}")
+print(f"Authenticated WAV clip receiver listening on {clip_server.server_port}")
 print(f"Schwellwert={MIN_DB_LEVEL:.1f} dB " f"| Ende nach {EVENT_END_SILENCE_SECONDS:.1f}s Ruhe")
 for source_ip, device_name in device_names.items():
     print(f"Quelle {source_ip} -> {device_name}")
@@ -361,6 +364,9 @@ except KeyboardInterrupt:
         finish_event(active_event, device_name)
 
 finally:
+    clip_server.shutdown()
+    clip_server.server_close()
+    clip_thread.join(timeout=2)
     receiver_stop.set()
     receiver_process.join(timeout=2)
     if receiver_process.is_alive():

@@ -32,6 +32,12 @@ Copy-Item include\secrets.example.h include\secrets.h
 
 Enter the local WLAN credentials in `include/secrets.h`. This file is ignored by Git.
 Set `UDP_TARGET_IP` in `src/main.cpp` to the Raspberry Pi address.
+Generate the shared clip-upload token and optionally provision it on the Pi without
+printing the secret:
+
+```powershell
+python ..\..\scripts\provision_clip_token.py --ssh-target admin@192.168.178.64
+```
 
 ## Build and flash
 
@@ -46,6 +52,20 @@ $env:PYTHONIOENCODING='utf-8'
 Replace `COM3` if `device list` reports another port. The project no longer hard-codes
 a workstation-specific serial port.
 
-The firmware streams signed 16-bit mono PCM at 16 kHz via UDP port 12345. It currently
-targets `192.168.178.64` and reports status every two seconds on the UART serial output
-at 115200 baud.
+The firmware streams signed 16-bit mono PCM at 16 kHz via UDP port 12345. It targets
+`192.168.178.64` and reports status every two seconds on the UART serial output at
+115200 baud.
+
+## PSRAM event clips
+
+The N16R8 PSRAM holds a continuously rotating two-second PCM ring buffer. Once a
+packet peak reaches `EVENT_TRIGGER_PEAK`, the firmware snapshots the complete
+pre-trigger buffer, appends three seconds after the trigger and creates a five-second
+WAV clip (80,000 samples, 160,044 bytes). Triggering starts only after the ring is
+fully populated and has a ten-second cooldown.
+
+Clip upload runs in a separate FreeRTOS task, so the UDP live stream continues while
+the board sends the WAV to the Pi on TCP port 12346. The upload uses the same stable
+device ID as UDP, a shared secret header and up to three delivery attempts. The Pi
+validates authentication, size, WAV format, channel count, bit depth, sample rate and
+duration before atomically storing the clip and its SHA-256 metadata sidecar.

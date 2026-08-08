@@ -32,3 +32,20 @@ Alle Mehrbyte-Werte verwenden Little Endian. Die Nutzlast enthält
 | sample_count | uint16 | Samples in der Nutzlast |
 | peak | uint16 | höchster Absolutwert im Paket |
 | firmware_version | uint16 | komprimiertes SemVer |
+
+## Ereignisclips mit Vorlauf
+
+Parallel zum Live-Stream hält der ESP32-S3 im PSRAM die letzten zwei Sekunden
+16-kHz-Mono-PCM. Ein Peak-Trigger übernimmt diesen vollständigen Ringpuffer und
+zeichnet drei Sekunden Nachlauf auf. Der resultierende WAV-Clip besitzt exakt
+80.000 Samples beziehungsweise fünf Sekunden Dauer.
+
+Der Clip wird nicht als fragmentiertes UDP-Paket, sondern in einem getrennten
+FreeRTOS-Task per HTTP an Port 12346 des Raspberry Pi übertragen. Dadurch läuft der
+UDP-Audiostream während des Uploads weiter. Der Request enthält stabile Geräte-ID,
+lokale Ereignisnummer, Trigger-Uptime und einen gemeinsamen geheimen Token.
+
+Der Pi akzeptiert ausschließlich authentifizierte 16-Bit-Mono-WAVs mit 16 kHz und
+einer Dauer zwischen einer und zehn Sekunden. Erfolgreiche Uploads werden atomar
+unter `/var/lib/eventmonitor/clips` abgelegt. Eine JSON-Sidecar-Datei dokumentiert
+Gerät, Ereignis, Quell-IP, Empfangszeit, Audioformat und SHA-256-Prüfsumme.

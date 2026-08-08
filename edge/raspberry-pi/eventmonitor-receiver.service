@@ -11,6 +11,7 @@ WorkingDirectory=/home/admin/yamnet
 Environment=PYTHONUNBUFFERED=1
 Environment=EVENTMONITOR_DEVICES=192.168.178.193=ESP32-Quelle-1,192.168.178.190=ESP32-Quelle-2
 Environment=EVENTMONITOR_API_URL=http://192.168.178.197:8015/events
+Environment=EVENTMONITOR_CLIP_DIR=/var/lib/eventmonitor/clips
 EnvironmentFile=-/home/admin/yamnet/eventmonitor.env
 ExecStart=/home/admin/yamnet/venv/bin/python /home/admin/yamnet/yamnet_udp_live.py
 Restart=on-failure
@@ -20,6 +21,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=read-only
+ReadWritePaths=/var/lib/eventmonitor/clips
 
 [Install]
 WantedBy=multi-user.target

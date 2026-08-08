@@ -51,7 +51,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Case-Modell mit Beginn, Ende, Dauer und Teilereignissen
 - [x] Notizen, Bestätigungsstatus und revisionssichere Änderungshistorie
 - [x] Lärmprotokoll als CSV und PDF
-- [ ] Ringpuffer im PSRAM
+- [x] Ringpuffer im PSRAM
     2 Sekunden Audio vor dem Ereignis mit speichern
     Ereignistrigger
     WAV-Clip an den Pi übertragen
