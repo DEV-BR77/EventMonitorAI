@@ -14,6 +14,7 @@ import streamlit as st
 from eventmonitor.backup import create_backup, restore_backup
 from eventmonitor.db import connect
 from eventmonitor.embeddings import generate_segment_embeddings, similar_segments
+from eventmonitor.events import EVENT_GROUPING_VERSION, rebuild_events
 from eventmonitor.features import FeaturePipelineConfig
 from eventmonitor.importer import import_folder, import_package, resume_imports
 from eventmonitor.inference import (
@@ -76,6 +77,7 @@ page = st.sidebar.radio(
         "Übersicht",
         "Import",
         "Ereignisse lernen",
+        "Ereignisse",
         "Auswertung",
         "Personen",
         "Modelltraining",
@@ -146,6 +148,36 @@ elif page == "Übersicht":
         )
     else:
         st.info("Noch keine Messungen importiert.")
+
+elif page == "Ereignisse":
+    st.title("Zusammenhängende Ereignisse")
+    st.caption(
+        f"Gruppierungsversion {EVENT_GROUPING_VERSION}: Rufen/Schreien bis 3,0 s Abstand, "
+        "Impulse bis 1,5 s und gleiche sonstige Klassen bis 1,0 s."
+    )
+    if st.button("Ereignisse aus bestätigten Segmenten neu aufbauen", type="primary"):
+        count = rebuild_events(conn)
+        st.success(f"{count} zusammenhängende Ereignisse erzeugt.")
+    events = pd.read_sql_query(
+        """
+        SELECT e.id,r.started_at,e.start_seconds,e.end_seconds,
+               ROUND(e.end_seconds-e.start_seconds,3) AS duration_seconds,
+               e.primary_label,e.event_family,e.segment_count,e.peak_dba,e.mean_dba,
+               e.grouping_version
+        FROM events e JOIN recordings r ON r.id=e.recording_id
+        ORDER BY r.started_at,e.start_seconds
+        """,
+        conn,
+    )
+    if events.empty:
+        st.info("Noch keine Ereignisse aufgebaut.")
+    else:
+        metrics = st.columns(4)
+        metrics[0].metric("Ereignisse", len(events))
+        metrics[1].metric("Verknüpfte Segmente", int(events.segment_count.sum()))
+        metrics[2].metric("Rufen / Schreien", int((events.event_family == "voice").sum()))
+        metrics[3].metric("Impulsgruppen", int((events.event_family == "impulse").sum()))
+        st.dataframe(events, width="stretch", hide_index=True)
 
 elif page == "Personen":
     st.title("Personenverwaltung und Statistik")

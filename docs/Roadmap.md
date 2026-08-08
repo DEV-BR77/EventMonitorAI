@@ -46,8 +46,8 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 
 ## Phase 4 – Ereignisse und Cases
 
-- [ ] einzelne Segmente zu zusammenhängenden Ereignissen verbinden
-- [ ] Schreien, Rufen und Impulse zeitlich gruppieren
+- [x] einzelne Segmente zu zusammenhängenden Ereignissen verbinden
+- [x] Schreien, Rufen und Impulse zeitlich gruppieren
 - [ ] Case-Modell mit Beginn, Ende, Dauer und Teilereignissen
 - [ ] Notizen, Bestätigungsstatus und revisionssichere Änderungshistorie
 - [ ] Lärmprotokoll als CSV und PDF

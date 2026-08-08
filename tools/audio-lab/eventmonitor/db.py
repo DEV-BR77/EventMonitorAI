@@ -70,6 +70,21 @@ CREATE TABLE IF NOT EXISTS model_activations (
 );
 CREATE INDEX IF NOT EXISTS idx_model_activations_time
 ON model_activations(activated_at DESC,id DESC);
+CREATE TABLE IF NOT EXISTS events (
+ id INTEGER PRIMARY KEY, recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
+ start_seconds REAL NOT NULL, end_seconds REAL NOT NULL, primary_label TEXT NOT NULL,
+ event_family TEXT NOT NULL, grouping_version TEXT NOT NULL, segment_count INTEGER NOT NULL,
+ peak_dba REAL, mean_dba REAL, source TEXT NOT NULL DEFAULT 'automatic',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_events_recording_time
+ON events(recording_id,start_seconds,end_seconds);
+CREATE TABLE IF NOT EXISTS event_segments (
+ event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+ segment_id INTEGER NOT NULL UNIQUE REFERENCES segments(id) ON DELETE CASCADE,
+ position INTEGER NOT NULL, PRIMARY KEY(event_id,segment_id)
+);
 CREATE TABLE IF NOT EXISTS import_jobs (
  id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,
