@@ -98,6 +98,7 @@ python import_data.py "D:\Laermmessungen" --folder
 - [Personenverwaltung und personenbezogene Ereignisse](docs/PEOPLE.md)
 - [Lokale Modellverwaltung und Rollback](docs/MODEL_REGISTRY.md)
 - [Zeitliche Ereignisgruppierung](docs/EVENT_GROUPING.md)
+- [Cases und Teilereignisse](docs/CASES.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Grenzen und verantwortungsvolle Nutzung

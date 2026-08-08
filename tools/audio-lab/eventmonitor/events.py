@@ -117,14 +117,23 @@ def rebuild_events(conn: Any, policy: GroupingPolicy | None = None) -> int:
         FROM segments s WHERE label IS NOT NULL
           AND NOT EXISTS (
               SELECT 1 FROM event_segments es JOIN events e ON e.id=es.event_id
-              WHERE es.segment_id=s.id AND e.source<>'automatic'
+              WHERE es.segment_id=s.id AND (
+                  e.source<>'automatic' OR EXISTS (
+                      SELECT 1 FROM case_events ce WHERE ce.event_id=e.id
+                  )
+              )
           )
         ORDER BY recording_id,start_seconds,id
         """
     ).fetchall()
     groups = group_segments(rows, policy)
     try:
-        conn.execute("DELETE FROM events WHERE source='automatic'")
+        conn.execute(
+            """
+            DELETE FROM events WHERE source='automatic'
+              AND NOT EXISTS (SELECT 1 FROM case_events ce WHERE ce.event_id=events.id)
+            """
+        )
         for group in groups:
             cursor = conn.execute(
                 """

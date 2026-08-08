@@ -85,6 +85,18 @@ CREATE TABLE IF NOT EXISTS event_segments (
  segment_id INTEGER NOT NULL UNIQUE REFERENCES segments(id) ON DELETE CASCADE,
  position INTEGER NOT NULL, PRIMARY KEY(event_id,segment_id)
 );
+CREATE TABLE IF NOT EXISTS cases (
+ id INTEGER PRIMARY KEY, title TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT NOT NULL,
+ duration_seconds REAL NOT NULL, status TEXT NOT NULL DEFAULT 'open', notes TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS case_events (
+ case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+ event_id INTEGER NOT NULL UNIQUE REFERENCES events(id) ON DELETE RESTRICT,
+ position INTEGER NOT NULL, PRIMARY KEY(case_id,event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cases_time ON cases(started_at,ended_at);
 CREATE TABLE IF NOT EXISTS import_jobs (
  id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,

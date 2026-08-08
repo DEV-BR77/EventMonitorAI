@@ -12,6 +12,7 @@ import pandas as pd
 import soundfile as sf
 import streamlit as st
 from eventmonitor.backup import create_backup, restore_backup
+from eventmonitor.cases import case_events, create_case
 from eventmonitor.db import connect
 from eventmonitor.embeddings import generate_segment_embeddings, similar_segments
 from eventmonitor.events import EVENT_GROUPING_VERSION, rebuild_events
@@ -178,6 +179,47 @@ elif page == "Ereignisse":
         metrics[2].metric("Rufen / Schreien", int((events.event_family == "voice").sum()))
         metrics[3].metric("Impulsgruppen", int((events.event_family == "impulse").sum()))
         st.dataframe(events, width="stretch", hide_index=True)
+    st.subheader("Case aus Ereignissen erstellen")
+    available_events = conn.execute(
+        """
+        SELECT e.id,e.primary_label,e.start_seconds,r.started_at
+        FROM events e JOIN recordings r ON r.id=e.recording_id
+        WHERE NOT EXISTS (SELECT 1 FROM case_events ce WHERE ce.event_id=e.id)
+        ORDER BY r.started_at,e.start_seconds
+        """
+    ).fetchall()
+    event_options = {
+        f"#{row['id']} · {row['started_at']} + {row['start_seconds']:.1f}s · "
+        f"{row['primary_label']}": row["id"]
+        for row in available_events
+    }
+    case_title = st.text_input("Case-Titel")
+    selected_events = st.multiselect("Teilereignisse", list(event_options))
+    if st.button("Case erstellen", disabled=not (case_title and selected_events), type="primary"):
+        try:
+            case_id = create_case(
+                conn, case_title, [event_options[label] for label in selected_events]
+            )
+        except ValueError as error:
+            st.error(str(error))
+        else:
+            st.success(f"Case #{case_id} erstellt.")
+            st.rerun()
+    cases = conn.execute("SELECT * FROM cases ORDER BY started_at DESC,id DESC").fetchall()
+    st.subheader("Cases")
+    if cases:
+        case_frame = pd.DataFrame([dict(row) for row in cases])
+        st.dataframe(
+            case_frame[["id", "title", "started_at", "ended_at", "duration_seconds", "status"]],
+            width="stretch",
+            hide_index=True,
+        )
+        case_map = {f"#{row['id']} · {row['title']}": row for row in cases}
+        selected_case = case_map[st.selectbox("Case-Details", list(case_map))]
+        subevents = pd.DataFrame([dict(row) for row in case_events(conn, selected_case["id"])])
+        st.dataframe(subevents, width="stretch", hide_index=True)
+    else:
+        st.info("Noch keine Cases vorhanden.")
 
 elif page == "Personen":
     st.title("Personenverwaltung und Statistik")
