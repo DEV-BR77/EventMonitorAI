@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.3.0-live-levels">
+  <link rel="stylesheet" href="/styles.css?v=0.3.0-mobile-audio">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -97,10 +97,12 @@
           <div class="panel-head"><h2>Live-Soundausgabe</h2><span>Nur administrativ freigegebene Mikrofone</span></div>
           <div class="audio-controls">
             <label>Mikrofon<select id="audio-device"></select></label>
+            <label>Lautstärke<input id="audio-volume" type="range" min="0" max="2" value="1" step="0.05"></label>
             <button id="audio-toggle" type="button">Wiedergabe starten</button>
+            <button id="audio-test" type="button" class="ghost">Testton</button>
             <span id="audio-status">Bereit</span>
           </div>
-          <p class="management-help">Die Wiedergabe bleibt lokal im Browser und wird beim Wechsel des Mikrofons sofort beendet.</p>
+          <p class="management-help">Die Wiedergabe bleibt lokal im Browser. Auf dem Handy Medienlautstärke aktivieren und den Stummmodus ausschalten. Mit „Testton“ lässt sich die Browserausgabe unabhängig vom Mikrofon prüfen.</p>
         </article>
       </section>
 
@@ -213,6 +215,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-live-levels"></script>
+  <script src="/app.js?v=0.3.0-mobile-audio"></script>
 </body>
 </html>

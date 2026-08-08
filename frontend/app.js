@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null, reviewClass: "", reviewEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioElement: null, audioDestination: null, audioPackets: 0, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null, reviewClass: "", reviewEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 
@@ -205,12 +205,42 @@ async function loadEventClasses() {
     </form>`).join("");
 }
 
+async function initializeAudioOutput() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) throw new Error("Dieser Browser unterstützt keine Audioausgabe.");
+  if (state.audioContext) return;
+  state.audioContext = new AudioContextClass({ sampleRate: 16000 });
+  state.audioGain = state.audioContext.createGain();
+  state.audioGain.gain.value = Number($("#audio-volume").value);
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (mobile && state.audioContext.createMediaStreamDestination) {
+    try {
+      state.audioDestination = state.audioContext.createMediaStreamDestination();
+      state.audioGain.connect(state.audioDestination);
+      state.audioElement = new Audio();
+      state.audioElement.autoplay = true;
+      state.audioElement.playsInline = true;
+      state.audioElement.srcObject = state.audioDestination.stream;
+      await state.audioElement.play();
+    } catch (_) {
+      state.audioGain.disconnect();
+      state.audioGain.connect(state.audioContext.destination);
+      state.audioElement = null;
+      state.audioDestination = null;
+    }
+  } else {
+    state.audioGain.connect(state.audioContext.destination);
+  }
+  await state.audioContext.resume();
+  if (state.audioContext.state !== "running") throw new Error("Audio wurde vom Browser blockiert. Bitte erneut tippen.");
+}
+
 async function startAudio() {
   const deviceId = $("#audio-device").value;
   if (!deviceId) return;
   stopAudio();
-  state.audioContext = new AudioContext();
-  await state.audioContext.resume();
+  await initializeAudioOutput();
+  state.audioPackets = 0;
   state.nextAudioTime = state.audioContext.currentTime + 0.1;
   const scheme = location.protocol === "https:" ? "wss" : "ws";
   state.audioSocket = new WebSocket(`${scheme}://${location.host}/ws/audio/${encodeURIComponent(deviceId)}?token=${encodeURIComponent(state.token)}`);
@@ -218,18 +248,21 @@ async function startAudio() {
   state.audioSocket.onopen = () => { $("#audio-status").textContent = "Verbunden – Audiopuffer wird gefüllt"; $("#audio-toggle").textContent = "Wiedergabe stoppen"; };
   state.audioSocket.onmessage = (message) => {
     if (typeof message.data === "string" || !state.audioContext) return;
-    const samples = new Int16Array(message.data);
-    const buffer = state.audioContext.createBuffer(1, samples.length, 16000);
+    const data = new DataView(message.data);
+    const sampleCount = Math.floor(data.byteLength / 2);
+    const buffer = state.audioContext.createBuffer(1, sampleCount, 16000);
     const channel = buffer.getChannelData(0);
-    for (let index = 0; index < samples.length; index++) channel[index] = samples[index] / 32768;
+    for (let index = 0; index < sampleCount; index++) channel[index] = data.getInt16(index * 2, true) / 32768;
     const source = state.audioContext.createBufferSource();
     source.buffer = buffer;
-    source.connect(state.audioContext.destination);
+    source.connect(state.audioGain);
     state.nextAudioTime = Math.max(state.nextAudioTime, state.audioContext.currentTime + 0.05);
     source.start(state.nextAudioTime);
     state.nextAudioTime += buffer.duration;
-    $("#audio-status").textContent = "Live-Wiedergabe aktiv";
+    state.audioPackets += 1;
+    $("#audio-status").textContent = `Live-Wiedergabe aktiv · ${state.audioPackets} Audiopakete`;
   };
+  state.audioSocket.onerror = () => { $("#audio-status").textContent = "Fehler bei der Audioverbindung"; };
   state.audioSocket.onclose = () => { if (state.audioContext) stopAudio("Verbindung beendet"); };
 }
 
@@ -238,11 +271,33 @@ function stopAudio(message = "Wiedergabe gestoppt") {
   state.audioSocket = null;
   if (socket) socket.onclose = null;
   socket?.close();
+  if (state.audioElement) {
+    state.audioElement.pause();
+    state.audioElement.srcObject = null;
+  }
   state.audioContext?.close();
   state.audioContext = null;
+  state.audioGain = null;
+  state.audioElement = null;
+  state.audioDestination = null;
+  state.audioPackets = 0;
   state.nextAudioTime = 0;
   if ($("#audio-status")) $("#audio-status").textContent = message;
   if ($("#audio-toggle")) $("#audio-toggle").textContent = "Wiedergabe starten";
+}
+
+async function playAudioTestTone() {
+  if (!state.audioContext) await initializeAudioOutput();
+  const oscillator = state.audioContext.createOscillator();
+  const gain = state.audioContext.createGain();
+  oscillator.frequency.value = 440;
+  gain.gain.setValueAtTime(0.12, state.audioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, state.audioContext.currentTime + 0.6);
+  oscillator.connect(gain);
+  gain.connect(state.audioGain);
+  oscillator.start();
+  oscillator.stop(state.audioContext.currentTime + 0.6);
+  $("#audio-status").textContent = "Testton wird abgespielt";
 }
 
 async function preparePush() {
@@ -502,6 +557,8 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
   if (button.dataset.view === "live") loadLiveLevels().catch(() => {});
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
+$("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
+$("#audio-volume").addEventListener("input", () => { if (state.audioGain) state.audioGain.gain.value = Number($("#audio-volume").value); });
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
 $("#map-stage").addEventListener("click", async (e) => {
   if (state.role !== "admin") return;
