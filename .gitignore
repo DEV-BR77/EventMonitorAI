@@ -69,6 +69,8 @@ firmware/**/.pio/
 firmware/**/.vscode/
 
 # Temporary files
+/tmp/
+/output/pdf/*.pdf
 *.tmp
 *.temp
 *.bak

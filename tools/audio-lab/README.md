@@ -100,6 +100,7 @@ python import_data.py "D:\Laermmessungen" --folder
 - [Zeitliche Ereignisgruppierung](docs/EVENT_GROUPING.md)
 - [Cases und Teilereignisse](docs/CASES.md)
 - [Case-Notizen, Status und Änderungshistorie](docs/CASE_AUDIT.md)
+- [Lärmprotokoll als CSV und PDF](docs/NOISE_LOG.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Grenzen und verantwortungsvolle Nutzung

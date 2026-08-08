@@ -50,7 +50,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Schreien, Rufen und Impulse zeitlich gruppieren
 - [x] Case-Modell mit Beginn, Ende, Dauer und Teilereignissen
 - [x] Notizen, Bestätigungsstatus und revisionssichere Änderungshistorie
-- [ ] Lärmprotokoll als CSV und PDF
+- [x] Lärmprotokoll als CSV und PDF
 - [ ] Ringpuffer im PSRAM
     2 Sekunden Audio vor dem Ereignis mit speichern
     Ereignistrigger

@@ -47,6 +47,7 @@ from eventmonitor.people import (
     set_person_active,
     suggest_person,
 )
+from eventmonitor.reports import build_noise_log_csv, build_noise_log_pdf
 from eventmonitor.segments import update_boundaries, wav_excerpt
 from eventmonitor.training import build_labeled_dataset, load_model, save_model, train_baseline
 from eventmonitor.visualization import calculate_spectrogram, spectrogram_records
@@ -295,6 +296,21 @@ elif page == "Ereignisse":
         )
     else:
         st.info("Noch keine Cases vorhanden.")
+    st.subheader("Lärmprotokoll exportieren")
+    include_unconfirmed = st.checkbox("Entwürfe und abgelehnte Cases mit exportieren")
+    export_columns = st.columns(2)
+    export_columns[0].download_button(
+        "Lärmprotokoll als CSV",
+        build_noise_log_csv(conn, confirmed_only=not include_unconfirmed),
+        file_name="eventmonitor-laermprotokoll.csv",
+        mime="text/csv",
+    )
+    export_columns[1].download_button(
+        "Lärmprotokoll als PDF",
+        build_noise_log_pdf(conn, confirmed_only=not include_unconfirmed),
+        file_name="eventmonitor-laermprotokoll.pdf",
+        mime="application/pdf",
+    )
 
 elif page == "Personen":
     st.title("Personenverwaltung und Statistik")

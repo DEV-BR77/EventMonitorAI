@@ -5,3 +5,4 @@ soundfile>=0.12
 scikit-learn>=1.5
 librosa>=0.10
 joblib>=1.4
+reportlab>=4.2
