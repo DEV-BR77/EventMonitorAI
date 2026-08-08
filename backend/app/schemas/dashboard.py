@@ -87,6 +87,14 @@ class DeviceTelemetryRead(DeviceTelemetryWrite):
     last_seen: str
 
 
+class DeviceLevelPoint(BaseModel):
+    device_id: str
+    name: str
+    timestamp: str
+    average_db: float
+    maximum_db: float
+
+
 class SoundMapPoint(BaseModel):
     device_id: str
     name: str

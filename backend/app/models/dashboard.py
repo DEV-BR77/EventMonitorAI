@@ -61,6 +61,15 @@ class DeviceTelemetry(Base):
     last_seen: Mapped[str] = mapped_column(String, default=utc_now)
 
 
+class DeviceLevelSample(Base):
+    __tablename__ = "device_level_samples"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(120), index=True)
+    timestamp: Mapped[str] = mapped_column(String, index=True)
+    db_level: Mapped[float] = mapped_column(Float)
+
+
 class DeviceCalibration(Base):
     __tablename__ = "device_calibrations"
 

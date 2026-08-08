@@ -11,6 +11,7 @@ from app.database.session import get_db
 from app.models.dashboard import (
     Device,
     DeviceCalibration,
+    DeviceLevelSample,
     DeviceTelemetry,
     EventClass,
     LiveAudioAccess,
@@ -22,6 +23,7 @@ from app.schemas.dashboard import (
     CalibrationCapture,
     DeviceCalibrationRead,
     DeviceCreate,
+    DeviceLevelPoint,
     DeviceRead,
     DeviceTelemetryRead,
     DeviceUpdate,
@@ -114,6 +116,38 @@ def list_devices(db: DatabaseSession, _: CurrentUser) -> list[Device]:
 @router.get("/device-telemetry", response_model=list[DeviceTelemetryRead])
 def list_device_telemetry(db: DatabaseSession, _: CurrentUser) -> list[DeviceTelemetry]:
     return list(db.scalars(select(DeviceTelemetry).order_by(DeviceTelemetry.device_id)).all())
+
+
+@router.get("/device-levels", response_model=list[DeviceLevelPoint])
+def device_levels(
+    db: DatabaseSession,
+    _: CurrentUser,
+    hours: int = Query(default=2, ge=1, le=24),
+    device: str | None = None,
+) -> list[DeviceLevelPoint]:
+    cutoff = (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
+    statement = select(DeviceLevelSample).where(DeviceLevelSample.timestamp >= cutoff)
+    if device:
+        statement = statement.where(DeviceLevelSample.device_id == device)
+    samples = list(db.scalars(statement.order_by(DeviceLevelSample.timestamp)))
+    names = {
+        item.device_id: item.name
+        for item in db.scalars(select(Device).where(Device.enabled.is_(True)))
+    }
+    buckets: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for sample in samples:
+        if sample.device_id in names:
+            buckets[(sample.device_id, sample.timestamp[:16])].append(sample.db_level)
+    return [
+        DeviceLevelPoint(
+            device_id=device_id,
+            name=names[device_id],
+            timestamp=f"{minute}:00+00:00",
+            average_db=round(sum(levels) / len(levels), 1),
+            maximum_db=round(max(levels), 1),
+        )
+        for (device_id, minute), levels in sorted(buckets.items(), key=lambda item: item[0][1])
+    ]
 
 
 @router.get("/sound-map", response_model=list[SoundMapPoint])

@@ -1,9 +1,9 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, Query, status
 from fastapi.responses import FileResponse
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -12,6 +12,7 @@ from app.database.session import get_db
 from app.models.dashboard import (
     AudioClip,
     Device,
+    DeviceLevelSample,
     DeviceTelemetry,
     EventClass,
     EventClassificationRevision,
@@ -93,6 +94,29 @@ def update_device_telemetry(
     else:
         for key, value in values.items():
             setattr(telemetry, key, value)
+
+    previous_sample = db.scalar(
+        select(DeviceLevelSample)
+        .where(DeviceLevelSample.device_id == data.device_id)
+        .order_by(desc(DeviceLevelSample.id))
+        .limit(1)
+    )
+    if (
+        previous_sample is None
+        or (
+            datetime.fromisoformat(now) - datetime.fromisoformat(previous_sample.timestamp)
+        ).total_seconds()
+        >= 5
+    ):
+        db.add(
+            DeviceLevelSample(
+                device_id=data.device_id,
+                timestamp=now,
+                db_level=data.db_level,
+            )
+        )
+        cutoff = (datetime.now(UTC) - timedelta(days=7)).isoformat()
+        db.execute(delete(DeviceLevelSample).where(DeviceLevelSample.timestamp < cutoff))
 
     device = db.scalar(select(Device).where(Device.device_id == data.device_id))
     if device is None:

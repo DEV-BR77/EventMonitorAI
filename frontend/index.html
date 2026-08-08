@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.3.0-map-positioning">
+  <link rel="stylesheet" href="/styles.css?v=0.3.0-live-levels">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -81,6 +81,11 @@
       </section>
 
       <section id="live" class="view hidden">
+        <article class="panel live-level-panel">
+          <div class="panel-head"><h2>Lautstärkepegel – letzte 2 Stunden</h2><span id="level-chart-status">Aktualisierung alle 10 Sekunden</span></div>
+          <div id="level-chart" class="level-chart"></div>
+          <div id="level-legend" class="level-legend"></div>
+        </article>
         <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><span id="connection">Verbindung wird aufgebaut…</span></div>
           <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span></div>
           <div id="events" class="events"></div>
@@ -208,6 +213,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-map-positioning"></script>
+  <script src="/app.js?v=0.3.0-live-levels"></script>
 </body>
 </html>

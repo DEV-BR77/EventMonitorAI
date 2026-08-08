@@ -55,7 +55,7 @@ async function start() {
     $("#map-stage").classList.toggle("positioning", me.role === "admin");
     await loadDevices();
     await loadEventClasses();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -304,10 +304,64 @@ async function refresh() {
 }
 
 function renderTimeline(data) {
-  const max = Math.max(1, ...data.map((d) => d.total));
-  $("#timeline").innerHTML = data.length ? data.map((d) =>
-    `<div class="bar" style="height:${Math.max(3, d.total / max * 100)}%" data-tip="${d.date}: ${d.total}"></div>`
-  ).join("") : "<span>Keine Ereignisse im Zeitraum</span>";
+  const countByDate = new Map(data.map((item) => [item.date, item.total]));
+  const entries = [];
+  const today = new Date();
+  for (let offset = Number(days()) - 1; offset >= 0; offset--) {
+    const date = new Date(today);
+    date.setHours(12, 0, 0, 0);
+    date.setDate(today.getDate() - offset);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    entries.push({ date, key, total: countByDate.get(key) || 0 });
+  }
+  const width = 800, height = 145, left = 38, right = 12, top = 10, bottom = 25;
+  const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const maximum = Math.max(1, ...entries.map((item) => item.total));
+  const points = entries.map((item, index) => ({
+    ...item,
+    x: left + (entries.length === 1 ? plotWidth / 2 : index / (entries.length - 1) * plotWidth),
+    y: top + plotHeight - item.total / maximum * plotHeight,
+  }));
+  const line = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+  const area = `${left},${top + plotHeight} ${line} ${left + plotWidth},${top + plotHeight}`;
+  const labelIndexes = new Set([0, Math.floor((entries.length - 1) / 2), entries.length - 1]);
+  $("#timeline").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Ereignisse pro Tag">
+    <defs><linearGradient id="timeline-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#70e0ae" stop-opacity=".45"/><stop offset="1" stop-color="#70e0ae" stop-opacity=".02"/></linearGradient></defs>
+    ${[0, .5, 1].map((ratio) => `<line class="chart-grid" x1="${left}" y1="${top + ratio * plotHeight}" x2="${left + plotWidth}" y2="${top + ratio * plotHeight}"/><text class="chart-axis" x="0" y="${top + ratio * plotHeight + 4}">${Math.round(maximum * (1 - ratio))}</text>`).join("")}
+    <polygon class="timeline-area" points="${area}"/><polyline class="timeline-line" points="${line}"/>
+    ${points.map((point, index) => `<circle class="timeline-point" cx="${point.x}" cy="${point.y}" r="3"><title>${point.date.toLocaleDateString("de-DE")}: ${point.total} Ereignisse</title></circle>${labelIndexes.has(index) ? `<text class="chart-axis" text-anchor="${index === 0 ? "start" : index === entries.length - 1 ? "end" : "middle"}" x="${point.x}" y="${height - 5}">${point.date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}</text>` : ""}`).join("")}
+  </svg>`;
+}
+
+async function loadLiveLevels() {
+  const query = device() ? `?hours=2&device=${encodeURIComponent(device())}` : "?hours=2";
+  const points = await api(`/api/device-levels${query}`);
+  renderLiveLevels(points);
+}
+
+function renderLiveLevels(points) {
+  const width = 900, height = 260, left = 42, right = 12, top = 12, bottom = 28;
+  const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const end = Date.now(), start = end - 2 * 60 * 60 * 1000;
+  const maximum = Math.max(80, ...points.map((point) => point.maximum_db));
+  const minimum = Math.min(30, ...points.map((point) => point.average_db));
+  const range = Math.max(20, maximum - minimum);
+  const colors = ["#70e0ae", "#f6bd60", "#72a7ff", "#ee6c67"];
+  const groups = new Map();
+  points.forEach((point) => {
+    if (!groups.has(point.device_id)) groups.set(point.device_id, { name: point.name, points: [] });
+    groups.get(point.device_id).points.push(point);
+  });
+  const x = (timestamp) => left + Math.max(0, Math.min(1, (new Date(timestamp).valueOf() - start) / (end - start))) * plotWidth;
+  const y = (level) => top + plotHeight - (level - minimum) / range * plotHeight;
+  const lines = Array.from(groups.values()).map((group, index) => `<polyline class="level-line" stroke="${colors[index % colors.length]}" points="${group.points.map((point) => `${x(point.timestamp).toFixed(1)},${y(point.average_db).toFixed(1)}`).join(" ")}"/>`).join("");
+  $("#level-chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lautstärkepegel der letzten zwei Stunden">
+    ${[0, .25, .5, .75, 1].map((ratio) => `<line class="chart-grid" x1="${left}" y1="${top + ratio * plotHeight}" x2="${left + plotWidth}" y2="${top + ratio * plotHeight}"/><text class="chart-axis" x="0" y="${top + ratio * plotHeight + 4}">${Math.round(maximum - ratio * range)} dB</text>`).join("")}
+    ${[0, .5, 1].map((ratio) => `<text class="chart-axis" text-anchor="${ratio === 0 ? "start" : ratio === 1 ? "end" : "middle"}" x="${left + ratio * plotWidth}" y="${height - 5}">${new Date(start + ratio * (end - start)).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</text>`).join("")}
+    ${lines}
+  </svg>`;
+  $("#level-legend").innerHTML = Array.from(groups.values()).map((group, index) => `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(group.name)}</span>`).join("") || "Messwerte werden gesammelt …";
+  $("#level-chart-status").textContent = `${points.length} Minutenwerte · aktualisiert ${new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 function renderCategories(categories, total) {
@@ -439,12 +493,13 @@ $("#bootstrap").addEventListener("click", () => authenticate("/auth/bootstrap"))
 $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 $("#days-filter").addEventListener("change", () => Promise.all([refresh(), loadSoundMap()]));
-$("#device-filter").addEventListener("change", () => Promise.all([refresh(), loadEvents()]));
+$("#device-filter").addEventListener("change", () => Promise.all([refresh(), loadEvents(), loadLiveLevels()]));
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("active", n === button));
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   $(`#${button.dataset.view}`).classList.remove("hidden");
   $("#title").textContent = button.textContent.trim();
+  if (button.dataset.view === "live") loadLiveLevels().catch(() => {});
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
@@ -614,4 +669,5 @@ function formatTime(value) { const date = new Date(value); return Number.isNaN(d
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }
 if (state.token) start();
 setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
+setInterval(() => { if (state.token) loadLiveLevels().catch(() => {}); }, 10000);
 window.addEventListener("resize", () => { if (state.token) renderSoundMap(); });
