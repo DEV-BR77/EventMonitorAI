@@ -2,8 +2,14 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from app.api.auth import update_user
 from app.core.security import create_token, decode_token, hash_password, verify_password
+from app.database.base import Base
+from app.models.dashboard import User
+from app.schemas.dashboard import UserUpdate
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 
 def test_password_hash_round_trip() -> None:
@@ -30,3 +36,34 @@ def test_modified_token_is_rejected() -> None:
 
     with pytest.raises(HTTPException):
         decode_token(f"{token}changed")
+
+
+def test_admin_can_update_another_user_but_not_demote_self() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        admin = User(username="admin", password_hash=hash_password("admin-password"), role="admin")
+        viewer = User(
+            username="viewer", password_hash=hash_password("viewer-password"), role="viewer"
+        )
+        db.add_all([admin, viewer])
+        db.commit()
+
+        updated = update_user(
+            viewer.id,
+            UserUpdate(role="operator", active=False, password="changed-password"),
+            db,
+            admin,
+        )
+        assert updated.role == "operator"
+        assert updated.active is False
+        assert verify_password("changed-password", updated.password_hash)
+
+        with pytest.raises(HTTPException) as error:
+            update_user(
+                admin.id,
+                UserUpdate(role="viewer", active=True),
+                db,
+                admin,
+            )
+        assert error.value.status_code == 409

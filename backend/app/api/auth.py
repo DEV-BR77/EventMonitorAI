@@ -13,7 +13,7 @@ from app.core.security import (
 )
 from app.database.session import get_db
 from app.models.dashboard import User
-from app.schemas.dashboard import LoginRequest, TokenResponse, UserCreate, UserRead
+from app.schemas.dashboard import LoginRequest, TokenResponse, UserCreate, UserRead, UserUpdate
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -65,6 +65,30 @@ def create_user(
         raise HTTPException(status_code=422, detail="Password must contain at least 10 characters")
     user = User(username=data.username, password_hash=hash_password(data.password), role=data.role)
     db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch("/users/{user_id}", response_model=UserRead)
+def update_user(
+    user_id: int,
+    data: UserUpdate,
+    db: DatabaseSession,
+    current_user: Annotated[User, Depends(require_roles("admin"))],
+) -> User:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    if user.id == current_user.id and (not data.active or data.role != "admin"):
+        raise HTTPException(
+            status_code=409,
+            detail="Das eigene Administratorkonto kann nicht deaktiviert oder herabgestuft werden",
+        )
+    user.role = data.role
+    user.active = data.active
+    if data.password:
+        user.password_hash = hash_password(data.password)
     db.commit()
     db.refresh(user)
     return user

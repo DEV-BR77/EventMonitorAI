@@ -19,6 +19,12 @@ class UserCreate(LoginRequest):
     role: Literal["admin", "operator", "viewer"] = "viewer"
 
 
+class UserUpdate(BaseModel):
+    role: Literal["admin", "operator", "viewer"]
+    active: bool = True
+    password: str | None = Field(default=None, min_length=10, max_length=256)
+
+
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

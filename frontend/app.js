@@ -49,8 +49,9 @@ async function start() {
     $("#calibration-form").classList.toggle("hidden", me.role === "viewer");
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
+    $("#admin-nav").classList.toggle("hidden", me.role !== "admin");
     await loadDevices();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -166,6 +167,18 @@ async function loadAudioPermissions() {
       <div><strong>${escapeHtml(permission.username)}</strong><small>${escapeHtml(permission.role)}</small></div>
       <div class="permission-devices">${state.devices.map((device) => `<label><input type="checkbox" name="device_ids" value="${escapeHtml(device.device_id)}" ${permission.device_ids.includes(device.device_id) ? "checked" : ""}> ${escapeHtml(device.name)}</label>`).join("")}</div>
       <button type="submit">Freigaben speichern</button>
+    </form>`).join("");
+}
+
+async function loadUsers() {
+  const users = await api("/auth/users");
+  $("#user-list").innerHTML = users.map((user) => `
+    <form class="user-editor" data-user-id="${user.id}">
+      <div><strong>${escapeHtml(user.username)}</strong><small>Seit ${formatTime(user.created_at)}</small></div>
+      <label>Rolle<select name="role"><option value="viewer" ${user.role === "viewer" ? "selected" : ""}>Betrachter</option><option value="operator" ${user.role === "operator" ? "selected" : ""}>Operator</option><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrator</option></select></label>
+      <label class="active-toggle"><input name="active" type="checkbox" ${user.active ? "checked" : ""}> Aktiv</label>
+      <label>Neues Passwort<input name="password" type="password" minlength="10" placeholder="unverändert"></label>
+      <button type="submit">Speichern</button>
     </form>`).join("");
 }
 
@@ -370,6 +383,25 @@ $("#audio-permission-list").addEventListener("submit", async (e) => {
     $("#audio-permission-status").textContent = "Freigaben gespeichert.";
     await loadAudioPermissions();
   } catch (error) { $("#audio-permission-status").textContent = error.message; }
+});
+$("#user-create-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/auth/users", { method: "POST", body: JSON.stringify({ username: $("#new-username").value, password: $("#new-password").value, role: $("#new-role").value }) });
+    e.target.reset();
+    $("#user-create-status").textContent = "Benutzer angelegt.";
+    await Promise.all([loadUsers(), loadAudioPermissions()]);
+  } catch (error) { $("#user-create-status").textContent = error.message; }
+});
+$("#user-list").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".user-editor");
+  if (!form) return;
+  try {
+    await api(`/auth/users/${form.dataset.userId}`, { method: "PATCH", body: JSON.stringify({ role: form.elements.role.value, active: form.elements.active.checked, password: form.elements.password.value || null }) });
+    $("#user-status").textContent = "Benutzer aktualisiert.";
+    await Promise.all([loadUsers(), loadAudioPermissions()]);
+  } catch (error) { $("#user-status").textContent = error.message; }
 });
 $("#rule-form").addEventListener("submit", async (e) => {
   e.preventDefault();

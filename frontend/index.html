@@ -33,6 +33,7 @@
         <button id="audio-nav" class="nav hidden" data-view="audio">Live-Sound</button>
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
+        <button id="admin-nav" class="nav hidden" data-view="administration">Administration</button>
       </nav>
       <div class="account"><span id="identity"></span><button id="push-enable" class="ghost hidden">Push aktivieren</button><button id="logout" class="ghost">Abmelden</button></div>
     </aside>
@@ -136,6 +137,20 @@
             <button type="submit">Regel speichern</button>
           </form>
           <article class="panel"><div class="panel-head"><h2>Aktive Regeln</h2><span>Home Assistant</span></div><div id="rule-list"></div></article>
+        </div>
+      </section>
+
+      <section id="administration" class="view hidden">
+        <div class="rules-layout">
+          <form id="user-create-form" class="panel">
+            <h2>Benutzer anlegen</h2>
+            <label>Benutzername<input id="new-username" maxlength="80" required></label>
+            <label>Passwort<input id="new-password" type="password" minlength="10" required></label>
+            <label>Rolle<select id="new-role"><option value="viewer">Betrachter</option><option value="operator">Operator</option><option value="admin">Administrator</option></select></label>
+            <button type="submit">Benutzer anlegen</button>
+            <span id="user-create-status"></span>
+          </form>
+          <article class="panel"><div class="panel-head"><h2>Rollen und Zugriff</h2><span>Admin · Operator · Betrachter</span></div><div id="user-list"></div><span id="user-status"></span></article>
         </div>
       </section>
     </main>

@@ -72,7 +72,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
   - [x] Karte Bild für Positionierung der Mikrofone und Darstellung von Messergebnissen ![Messbereich](image-1.png) Die Mikrofone sollen auf dem Bild positioniert werden und Messergebnisse und Anzahl Überschreitungen darstellen, zusäzlich Erstellung einer Heatmap der Schallpegelausbreitung
 - [x] Bereitstellung einer Progressive Web App mit Pushnachrichten bei Lärmereignissen mit Bestätigung oder Ablehnungsbutton als Antwort - Antwort mit Angabe User, Ereignis ID speichern und als Zeuge in Lärmprotokoll einbinden
 - [x] Darstellung der letzten 5 Ereignisse
-- [ ] Rollen, Authentifizierung und Zugriffsschutz
+- [x] Rollen, Authentifizierung und Zugriffsschutz
 
 ## Phase 7 - KI
 
