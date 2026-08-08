@@ -63,6 +63,12 @@
       </section>
 
       <section id="devices" class="view hidden">
+        <article id="device-management" class="panel device-management">
+          <div class="panel-head"><h2>Mikrofonverwaltung</h2><span>Name · Position · Status</span></div>
+          <p class="management-help">Die Position wird in Prozent relativ zur später hinterlegten Messbereichskarte angegeben.</p>
+          <div id="device-management-list"></div>
+          <span id="device-management-status"></span>
+        </article>
         <form id="calibration-form" class="panel calibration-controls">
           <div><h2>Gemeinsame Pegelkalibrierung</h2><p>Alle Mikrofone derselben Referenzquelle aussetzen und den tatsächlichen Referenzpegel eintragen.</p></div>
           <label>Pegelbereich<select id="calibration-level"><option value="low">Leise</option><option value="medium">Mittel</option><option value="high">Laut</option></select></label>

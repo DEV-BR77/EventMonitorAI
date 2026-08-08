@@ -46,7 +46,9 @@ async function start() {
     $("#auth").classList.add("hidden");
     $("#app").classList.remove("hidden");
     $("#calibration-form").classList.toggle("hidden", me.role === "viewer");
-    await Promise.all([loadDevices(), loadTelemetry(), loadCalibrations(), refresh(), loadEvents(), loadRules()]);
+    $("#device-management").classList.toggle("hidden", me.role !== "admin");
+    await loadDevices();
+    await Promise.all([loadTelemetry(), loadCalibrations(), refresh(), loadEvents(), loadRules()]);
     connectLive();
   } catch (_) {
     logout();
@@ -58,12 +60,13 @@ async function loadTelemetry() {
   state.telemetry = telemetry;
   const now = Date.now();
   $("#device-health").innerHTML = telemetry.length ? telemetry.map((item) => {
+    const configured = state.devices.find((device) => device.device_id === item.device_id);
     const ageSeconds = Math.max(0, Math.round((now - new Date(item.last_seen).valueOf()) / 1000));
     const online = ageSeconds < 90;
     const total = item.packets_received + item.packets_lost;
     return `<div class="device-card">
-      <div><i class="status-dot ${online ? "online" : "offline"}"></i><strong>${escapeHtml(item.device_id)}</strong></div>
-      <span>${online ? "Online" : `Seit ${ageSeconds} s ohne Signal`}</span>
+      <div><i class="status-dot ${online && configured?.enabled !== false ? "online" : "offline"}"></i><strong>${escapeHtml(configured?.name || item.device_id)}</strong></div>
+      <span>${configured?.enabled === false ? "Administrativ inaktiv" : online ? "Online" : `Seit ${ageSeconds} s ohne Signal`} · ${escapeHtml(configured?.location || item.device_id)}</span>
       <dl><dt>Firmware</dt><dd>${escapeHtml(item.firmware_version || "Legacy")}</dd><dt>Quelle</dt><dd>${escapeHtml(item.source_ip)}</dd><dt>Aktueller Pegel</dt><dd>${item.db_level.toFixed(1)} dB</dd><dt>Pakete</dt><dd>${total.toLocaleString("de-DE")}</dd><dt>Verlust</dt><dd>${(item.loss_rate * 100).toFixed(3)} %</dd><dt>Samplerate</dt><dd>${item.sample_rate.toLocaleString("de-DE")} Hz</dd><dt>Peak</dt><dd>${item.peak}</dd></dl>
     </div>`;
   }).join("") : "<p>Noch keine Telemetriedaten. Legacy-Firmware sendet weiterhin Audio, aber noch keinen Gerätestatus.</p>";
@@ -82,6 +85,20 @@ async function loadDevices() {
   const options = state.devices.map((d) => `<option value="${escapeHtml(d.device_id)}">${escapeHtml(d.name)}</option>`).join("");
   $("#device-filter").innerHTML = `<option value="">Alle Geräte</option>${options}`;
   $("#rule-device").innerHTML = `<option value="*">Alle Geräte</option>${options}`;
+  renderDeviceManagement();
+}
+
+function renderDeviceManagement() {
+  $("#device-management-list").innerHTML = state.devices.length ? state.devices.map((d) => `
+    <form class="device-editor" data-device-id="${escapeHtml(d.device_id)}">
+      <div class="device-identity"><strong>${escapeHtml(d.device_id)}</strong><small>${d.last_seen ? `Zuletzt gesehen: ${formatTime(d.last_seen)}` : "Noch nicht gesehen"}</small></div>
+      <label>Name<input name="name" value="${escapeHtml(d.name)}" maxlength="120" required></label>
+      <label>Standort<input name="location" value="${escapeHtml(d.location)}" maxlength="160"></label>
+      <label>Position X (%)<input name="position_x" type="number" min="0" max="100" step="0.1" value="${d.position_x ?? ""}"></label>
+      <label>Position Y (%)<input name="position_y" type="number" min="0" max="100" step="0.1" value="${d.position_y ?? ""}"></label>
+      <label class="active-toggle"><input name="enabled" type="checkbox" ${d.enabled ? "checked" : ""}> Aktiv</label>
+      <button type="submit">Speichern</button>
+    </form>`).join("") : "<p>Noch keine Mikrofone registriert.</p>";
 }
 
 async function refresh() {
@@ -196,13 +213,31 @@ $("#rule-list").addEventListener("click", async (e) => {
 });
 $("#calibration-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const onlineIds = state.telemetry.filter((item) => Date.now() - new Date(item.last_seen).valueOf() < 90000).map((item) => item.device_id);
+  const enabledIds = new Set(state.devices.filter((item) => item.enabled).map((item) => item.device_id));
+  const onlineIds = state.telemetry.filter((item) => enabledIds.has(item.device_id) && Date.now() - new Date(item.last_seen).valueOf() < 90000).map((item) => item.device_id);
   if (!onlineIds.length) { $("#calibration-status").textContent = "Keine Online-Mikrofone gefunden."; return; }
   try {
     await api("/api/device-calibrations/capture", { method: "POST", body: JSON.stringify({ level: $("#calibration-level").value, reference_db: Number($("#calibration-reference").value), device_ids: onlineIds }) });
     $("#calibration-status").textContent = `${onlineIds.length} Mikrofone erfasst.`;
     await loadCalibrations();
   } catch (error) { $("#calibration-status").textContent = error.message; }
+});
+$("#device-management-list").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".device-editor");
+  if (!form) return;
+  const nullableNumber = (name) => form.elements[name].value === "" ? null : Number(form.elements[name].value);
+  try {
+    await api(`/api/devices/${encodeURIComponent(form.dataset.deviceId)}`, { method: "PATCH", body: JSON.stringify({
+      name: form.elements.name.value,
+      location: form.elements.location.value,
+      position_x: nullableNumber("position_x"),
+      position_y: nullableNumber("position_y"),
+      enabled: form.elements.enabled.checked,
+    }) });
+    $("#device-management-status").textContent = `${form.elements.name.value} gespeichert.`;
+    await loadDevices();
+  } catch (error) { $("#device-management-status").textContent = error.message; }
 });
 function formatTime(value) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("de-DE"); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }

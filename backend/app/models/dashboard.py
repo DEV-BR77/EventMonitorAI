@@ -28,6 +28,8 @@ class Device(Base):
     device_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(120))
     location: Mapped[str] = mapped_column(String(160), default="")
+    position_x: Mapped[float | None] = mapped_column(Float, nullable=True)
+    position_y: Mapped[float | None] = mapped_column(Float, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     last_seen: Mapped[str | None] = mapped_column(String, nullable=True)
 

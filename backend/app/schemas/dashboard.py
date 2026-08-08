@@ -29,9 +29,19 @@ class UserRead(BaseModel):
 
 
 class DeviceCreate(BaseModel):
-    device_id: str
-    name: str
-    location: str = ""
+    device_id: str = Field(min_length=1, max_length=120)
+    name: str = Field(min_length=1, max_length=120)
+    location: str = Field(default="", max_length=160)
+    position_x: float | None = Field(default=None, ge=0, le=100)
+    position_y: float | None = Field(default=None, ge=0, le=100)
+    enabled: bool = True
+
+
+class DeviceUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    location: str = Field(default="", max_length=160)
+    position_x: float | None = Field(default=None, ge=0, le=100)
+    position_y: float | None = Field(default=None, ge=0, le=100)
     enabled: bool = True
 
 

@@ -59,6 +59,17 @@ def ensure_telemetry_counter_capacity() -> None:
                 )
 
 
+def ensure_device_position_columns() -> None:
+    inspector = inspect(engine)
+    if "devices" not in inspector.get_table_names():
+        return
+    column_names = {column["name"] for column in inspector.get_columns("devices")}
+    with engine.begin() as connection:
+        for column in ("position_x", "position_y"):
+            if column not in column_names:
+                connection.execute(text(f"ALTER TABLE devices ADD COLUMN {column} FLOAT"))
+
+
 def backfill_events() -> None:
     with Session(engine) as db:
         events = list(db.scalars(select(Event)).all())
@@ -94,5 +105,6 @@ def backfill_events() -> None:
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_telemetry_counter_capacity()
+    ensure_device_position_columns()
     add_missing_event_columns()
     backfill_events()

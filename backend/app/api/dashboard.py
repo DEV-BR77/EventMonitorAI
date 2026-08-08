@@ -22,6 +22,7 @@ from app.schemas.dashboard import (
     DeviceCreate,
     DeviceRead,
     DeviceTelemetryRead,
+    DeviceUpdate,
     RuleCreate,
     RuleRead,
 )
@@ -162,6 +163,23 @@ def create_device(
         raise HTTPException(status_code=409, detail="Device already exists")
     device = Device(**data.model_dump())
     db.add(device)
+    db.commit()
+    db.refresh(device)
+    return device
+
+
+@router.patch("/devices/{device_id}", response_model=DeviceRead)
+def update_device(
+    device_id: str,
+    data: DeviceUpdate,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> Device:
+    device = db.scalar(select(Device).where(Device.device_id == device_id))
+    if device is None:
+        raise HTTPException(status_code=404, detail="Mikrofon nicht gefunden")
+    for field, value in data.model_dump().items():
+        setattr(device, field, value)
     db.commit()
     db.refresh(device)
     return device
