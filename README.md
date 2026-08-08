@@ -14,10 +14,15 @@ Aktuell vorhanden:
 - Raspberry-Pi-Empfänger mit YAMNet-basierter Klassifizierung
 - FastAPI-Backend mit SQLite-Ereignisdatenbank
 - REST-Endpunkte für Health-Check und Ereignisse
+- geschütztes Dashboard mit Kalender, Timeline, Heatmap, Statistiken und Live-Ansicht
+- lokale Benutzerrollen, Mehrgerätebetrieb und Benachrichtigungsregeln
+- Home-Assistant-Webhook und optionale PostgreSQL-Datenbank
 - deutsche Label- und Kategoriezuordnung
 - EventMonitor AudioLab für ZIP-Massenimport, Segmentierung, Anhören, Labeling und CSV-Export
 
-Noch nicht produktionsreif sind insbesondere die automatische Modellnachschulung, belastbare Ereigniszusammenfassung, Benutzerverwaltung, Beweissicherung und ein vollständiges Dashboard.
+Noch nicht produktionsreif sind insbesondere die automatische Modellnachschulung,
+belastbare Ereigniszusammenfassung, Beweissicherung, Datenbankmigrationen und das
+abschließende Security-/Datenschutzreview.
 
 ## Schwerpunkt der Erkennung
 
@@ -97,6 +102,7 @@ Danach:
 
 - API-Dokumentation: `http://127.0.0.1:8000/docs`
 - Health-Check: `http://127.0.0.1:8000/health`
+- Dashboard: `http://127.0.0.1:8000/`
 
 Ausführliche Anleitung: [docs/getting-started/INSTALLATION.md](docs/getting-started/INSTALLATION.md)
 
@@ -132,6 +138,7 @@ Die GitHub-CI prüft Python-Syntax, Tests, sensible Dateien und grundlegende Rep
 |---|---|
 | Installation | [docs/getting-started/INSTALLATION.md](docs/getting-started/INSTALLATION.md) |
 | Architektur | [docs/Architecture.md](docs/Architecture.md) |
+| Dashboard und Integrationen | [docs/PHASE5_DASHBOARD.md](docs/PHASE5_DASHBOARD.md) |
 | AudioLab | [tools/audio-lab/README.md](tools/audio-lab/README.md) |
 | Roadmap | [docs/Roadmap.md](docs/Roadmap.md) |
 | Produkt-Backlog | [docs/ProductBacklog.md](docs/ProductBacklog.md) |

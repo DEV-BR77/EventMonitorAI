@@ -1,4 +1,5 @@
 import csv
+import os
 import socket
 from datetime import datetime, timedelta
 
@@ -14,7 +15,10 @@ SAMPLES_PER_WINDOW = int(SAMPLE_RATE * WINDOW_SECONDS)
 MODEL_PATH = "/home/admin/yamnet/model/yamnet.tflite"
 CLASS_MAP = "/home/admin/yamnet/model/yamnet_class_map.csv"
 
-DEVICE_NAME = "ESP32-Garden"
+DEFAULT_DEVICE_NAMES = {
+    "192.168.178.193": "ESP32-Quelle-1",
+    "192.168.178.190": "ESP32-Quelle-2",
+}
 
 SCORE_THRESHOLD = 0.20
 MIN_DB_LEVEL = 45.0
@@ -103,7 +107,22 @@ def update_event(
         event["best_confidence"] = confidence
 
 
-def finish_event(event: dict) -> bool:
+def load_device_names() -> dict[str, str]:
+    """Load optional `ip=name,ip=name` overrides from the environment."""
+    configured = os.getenv("EVENTMONITOR_DEVICES", "").strip()
+    if not configured:
+        return DEFAULT_DEVICE_NAMES
+
+    devices: dict[str, str] = {}
+    for entry in configured.split(","):
+        address, separator, name = entry.partition("=")
+        if not separator or not address.strip() or not name.strip():
+            raise ValueError("EVENTMONITOR_DEVICES must use the format ip=name,ip=name")
+        devices[address.strip()] = name.strip()
+    return devices
+
+
+def finish_event(event: dict, device_name: str) -> bool:
     start_time = event["start_time"]
     end_time = event["last_relevant_end"]
 
@@ -127,7 +146,7 @@ def finish_event(event: dict) -> bool:
         confidence=event["best_confidence"],
         db_level=event["max_db_level"],
         avg_db_level=round(avg_db_level, 1),
-        device=DEVICE_NAME,
+        device=device_name,
         timestamp=start_time.isoformat(timespec="seconds"),
         end_timestamp=end_time.isoformat(timespec="seconds"),
         duration_seconds=round(duration_seconds, 3),
@@ -135,6 +154,7 @@ def finish_event(event: dict) -> bool:
 
 
 labels = load_labels()
+device_names = load_device_names()
 
 interpreter = Interpreter(model_path=MODEL_PATH)
 interpreter.allocate_tensors()
@@ -147,16 +167,22 @@ sock.bind(("0.0.0.0", UDP_PORT))
 
 print(f"YAMNet UDP aggregation listening on {UDP_PORT}")
 print(f"Schwellwert={MIN_DB_LEVEL:.1f} dB " f"| Ende nach {EVENT_END_SILENCE_SECONDS:.1f}s Ruhe")
+for source_ip, device_name in device_names.items():
+    print(f"Quelle {source_ip} -> {device_name}")
 
-audio = np.array([], dtype=np.int16)
-active_event = None
+audio_by_source: dict[str, np.ndarray] = {}
+active_events: dict[str, dict] = {}
 
 try:
     while True:
         data, address = sock.recvfrom(4096)
+        source_ip = address[0]
+        device_name = device_names.get(source_ip, f"ESP32-{source_ip}")
 
         chunk = np.frombuffer(data, dtype=np.int16)
-        audio = np.concatenate((audio, chunk))
+        audio = np.concatenate(
+            (audio_by_source.get(source_ip, np.array([], dtype=np.int16)), chunk)
+        )
 
         while len(audio) >= SAMPLES_PER_WINDOW:
             frame = audio[:SAMPLES_PER_WINDOW]
@@ -182,6 +208,7 @@ try:
             if best_score >= SCORE_THRESHOLD:
                 print(
                     f"{frame_end.isoformat(timespec='seconds')} "
+                    f"| {device_name:20s} "
                     f"| {best_label:30s} "
                     f"| score={best_score:.3f} "
                     f"| db={db_level:.1f}"
@@ -194,8 +221,8 @@ try:
             )
 
             if relevant:
-                if active_event is None:
-                    active_event = start_event(
+                if source_ip not in active_events:
+                    active_events[source_ip] = start_event(
                         frame_start,
                         frame_end,
                         best_label,
@@ -204,25 +231,29 @@ try:
                     )
                 else:
                     update_event(
-                        active_event,
+                        active_events[source_ip],
                         frame_end,
                         best_label,
                         best_score,
                         db_level,
                     )
 
-            elif active_event is not None:
+            elif source_ip in active_events:
+                active_event = active_events[source_ip]
                 quiet_seconds = (frame_end - active_event["last_relevant_end"]).total_seconds()
 
                 if quiet_seconds >= EVENT_END_SILENCE_SECONDS:
-                    if finish_event(active_event):
-                        active_event = None
+                    if finish_event(active_event, device_name):
+                        del active_events[source_ip]
+
+        audio_by_source[source_ip] = audio
 
 except KeyboardInterrupt:
     print("\nYAMNet wird beendet.")
 
-    if active_event is not None:
-        finish_event(active_event)
+    for source_ip, active_event in active_events.items():
+        device_name = device_names.get(source_ip, f"ESP32-{source_ip}")
+        finish_event(active_event, device_name)
 
 finally:
     sock.close()

@@ -1,6 +1,9 @@
+import os
+
 import requests
 
-API_URL = "http://192.168.178.88:8000/events"
+API_URL = os.getenv("EVENTMONITOR_API_URL", "http://127.0.0.1:8000/events")
+API_KEY = os.getenv("EVENTMONITOR_API_KEY", "")
 
 
 def send_event(
@@ -29,6 +32,7 @@ def send_event(
         response = requests.post(
             API_URL,
             json=payload,
+            headers={"X-API-Key": API_KEY} if API_KEY else None,
             timeout=5,
         )
 

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>EventMonitorAI Dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <section id="auth" class="auth-shell">
+    <form id="login-form" class="panel auth-card">
+      <div class="brand-mark">EM</div>
+      <h1>EventMonitorAI</h1>
+      <p>Lokale Ereignisanalyse</p>
+      <label>Benutzername<input id="username" autocomplete="username" required></label>
+      <label>Passwort<input id="password" type="password" autocomplete="current-password" required minlength="10"></label>
+      <button type="submit">Anmelden</button>
+      <button type="button" id="bootstrap" class="ghost">Ersten Admin anlegen</button>
+      <span id="auth-error" class="error"></span>
+    </form>
+  </section>
+
+  <div id="app" class="app hidden">
+    <aside>
+      <div class="brand"><span class="brand-mark">EM</span><strong>EventMonitorAI</strong></div>
+      <nav>
+        <button class="nav active" data-view="overview">Übersicht</button>
+        <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
+        <button class="nav" data-view="rules">Benachrichtigungen</button>
+      </nav>
+      <div class="account"><span id="identity"></span><button id="logout" class="ghost">Abmelden</button></div>
+    </aside>
+    <main>
+      <header>
+        <div><p class="eyebrow">AKUSTISCHE LAGE</p><h1 id="title">Übersicht</h1></div>
+        <div class="filters">
+          <select id="device-filter"><option value="">Alle Geräte</option></select>
+          <select id="days-filter"><option value="7">7 Tage</option><option value="30" selected>30 Tage</option><option value="90">90 Tage</option></select>
+        </div>
+      </header>
+
+      <section id="overview" class="view">
+        <div class="metrics">
+          <article><span>Ereignisse</span><strong id="m-total">–</strong><small>im Zeitraum</small></article>
+          <article><span>Ø Lautstärke</span><strong id="m-average">–</strong><small>dB</small></article>
+          <article><span>Spitzenpegel</span><strong id="m-max">–</strong><small>dB</small></article>
+          <article><span>Ø Konfidenz</span><strong id="m-confidence">–</strong><small>Modellwert</small></article>
+        </div>
+        <div class="grid">
+          <article class="panel span2"><div class="panel-head"><h2>Timeline</h2><span>tägliche Ereignisse</span></div><div id="timeline" class="timeline"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="categories"></div></article>
+          <article class="panel span3"><div class="panel-head"><h2>Aktivitäts-Heatmap</h2><span>Wochentag × Stunde</span></div><div id="heatmap" class="heatmap"></div></article>
+          <article class="panel span3"><div class="panel-head"><h2>Kalender</h2></div><div id="calendar" class="calendar"></div></article>
+        </div>
+      </section>
+
+      <section id="live" class="view hidden">
+        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><span id="connection">Verbindung wird aufgebaut…</span></div>
+          <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span></div>
+          <div id="events" class="events"></div>
+        </article>
+      </section>
+
+      <section id="rules" class="view hidden">
+        <div class="rules-layout">
+          <form id="rule-form" class="panel">
+            <h2>Neue Regel</h2>
+            <label>Name<input id="rule-name" required></label>
+            <label>Kategorie<input id="rule-category" value="*" placeholder="*"></label>
+            <label>Gerät<select id="rule-device"><option value="*">Alle Geräte</option></select></label>
+            <label>Mindest-Konfidenz<input id="rule-confidence" type="number" min="0" max="1" step=".05" value=".7"></label>
+            <label>Mindestpegel (dB)<input id="rule-db" type="number" value="0"></label>
+            <label>Cooldown (Sekunden)<input id="rule-cooldown" type="number" min="0" value="60"></label>
+            <button type="submit">Regel speichern</button>
+          </form>
+          <article class="panel"><div class="panel-head"><h2>Aktive Regeln</h2><span>Home Assistant</span></div><div id="rule-list"></div></article>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

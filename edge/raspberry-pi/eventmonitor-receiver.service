@@ -1,0 +1,25 @@
+[Unit]
+Description=EventMonitorAI multi-device YAMNet UDP receiver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=admin
+Group=admin
+WorkingDirectory=/home/admin/yamnet
+Environment=PYTHONUNBUFFERED=1
+Environment=EVENTMONITOR_DEVICES=192.168.178.193=ESP32-Quelle-1,192.168.178.190=ESP32-Quelle-2
+Environment=EVENTMONITOR_API_URL=http://192.168.178.197:8015/events
+EnvironmentFile=-/home/admin/yamnet/eventmonitor.env
+ExecStart=/home/admin/yamnet/venv/bin/python /home/admin/yamnet/yamnet_udp_live.py
+Restart=on-failure
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
