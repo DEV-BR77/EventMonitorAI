@@ -72,6 +72,16 @@ den neuen Bereich. **Auf Ursprung zurücksetzen** stellt die beim Import erzeugt
 Grenzen wieder her. Der Download liefert nur den exakt markierten Bereich als WAV;
 der eingestellte Hör-Vor-/Nachlauf wird nicht exportiert.
 
+## Backup und Datenmigration
+
+Unter **Sicherung** erzeugt AudioLab eine portable `.emabackup`-Datei mit einer
+konsistenten SQLite-Kopie, allen importierten Audiodateien, Formatversion und
+SHA-256-Prüfsummen. Vor einer Wiederherstellung werden sämtliche Inhalte und die
+Datenbankintegrität geprüft. Die vorhandene Datenbank wird zusätzlich als
+zeitgestempelte `.pre-restore-…sqlite3`-Rückfallkopie aufbewahrt. Damit kann die
+Sicherung auch zur Migration auf einen anderen Rechner verwendet werden; die
+gespeicherten Audiopfade werden dabei auf die neue Bibliothek umgestellt.
+
 ## 4. Empfohlene Arbeitsweise
 
 Zuerst die auffälligsten Segmente bearbeiten. Dadurch werden relevante Ereignisse schneller gefunden als bei rein chronologischer Prüfung.

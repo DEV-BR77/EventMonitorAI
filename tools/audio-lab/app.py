@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
+import tempfile
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 import soundfile as sf
 import streamlit as st
+from eventmonitor.backup import create_backup, restore_backup
 from eventmonitor.db import connect
 from eventmonitor.importer import import_folder, import_package, resume_imports
 from eventmonitor.segments import update_boundaries, wav_excerpt
@@ -41,7 +45,9 @@ def format_metric(value: float | None, suffix: str = "") -> str:
 
 
 conn = connect(DB)
-page = st.sidebar.radio("Bereich", ["Übersicht", "Import", "Ereignisse lernen", "Auswertung"])
+page = st.sidebar.radio(
+    "Bereich", ["Übersicht", "Import", "Ereignisse lernen", "Auswertung", "Sicherung"]
+)
 
 if page == "Import":
     st.title("Messungen importieren")
@@ -106,6 +112,50 @@ elif page == "Übersicht":
         )
     else:
         st.info("Noch keine Messungen importiert.")
+
+elif page == "Sicherung":
+    st.title("Backup und Datenmigration")
+    st.write(
+        "Die Sicherung enthält Datenbank, Labels, Segmentgrenzen und alle "
+        "importierten Audiodateien."
+    )
+    backup_dir = Path("data/backups")
+    if st.button("Neue Sicherung erstellen", type="primary"):
+        name = f"eventmonitor-audiolab-{datetime.now():%Y%m%d-%H%M%S}.emabackup"
+        try:
+            backup = create_backup(DB, backup_dir / name)
+        except (OSError, ValueError) as error:
+            st.error(str(error))
+        else:
+            st.session_state["latest-backup"] = str(backup)
+    latest = st.session_state.get("latest-backup")
+    if latest and Path(latest).is_file():
+        st.download_button(
+            "Sicherung herunterladen",
+            Path(latest).read_bytes(),
+            file_name=Path(latest).name,
+            mime="application/zip",
+        )
+
+    st.subheader("Sicherung wiederherstellen / migrieren")
+    upload = st.file_uploader("AudioLab-Sicherung auswählen", type=["emabackup", "zip"])
+    confirmed = st.checkbox("Bestehende AudioLab-Daten durch diese Sicherung ersetzen")
+    if st.button("Geprüft wiederherstellen", disabled=not (upload and confirmed)):
+        with tempfile.NamedTemporaryFile(suffix=".emabackup", delete=False) as temporary:
+            temporary.write(upload.getbuffer())
+            restore_source = Path(temporary.name)
+        try:
+            conn.close()
+            count, recovery = restore_backup(restore_source, DB, LIB)
+        except (OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as error:
+            st.error(f"Wiederherstellung abgebrochen: {error}")
+        else:
+            st.success(
+                f"{count} Aufnahmen wiederhergestellt. Rückfallkopie: {recovery or 'nicht nötig'}"
+            )
+            st.rerun()
+        finally:
+            restore_source.unlink(missing_ok=True)
 
 elif page == "Ereignisse lernen":
     st.title("Ereignisse anhören und zuordnen")

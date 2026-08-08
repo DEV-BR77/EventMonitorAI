@@ -31,7 +31,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Importprotokoll und Wiederaufnahme abgebrochener Imports
 - [x] interaktiver dB-Verlauf, Spektrogramm und Segmentnavigation
 - [x] variable Segmentgrenzen und Ereigniszuschnitt
-- [ ] Backup und Datenmigration
+- [x] Backup und Datenmigration
 
 ## Phase 3 – Lernende Klassifizierung
 
