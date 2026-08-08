@@ -163,7 +163,8 @@ async def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
-    associate_nearest_clip(db, event)
+    linked_clip = associate_nearest_clip(db, event)
+    event.audio_available = linked_clip is not None
     device = db.scalar(select(Device).where(Device.device_id == event.device))
     if device is None:
         db.add(Device(device_id=event.device, name=event.device, last_seen=event.timestamp))
@@ -243,7 +244,7 @@ def training_example_audio(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_roles("admin", "operator"))],
 ) -> FileResponse:
-    clip = db.scalar(select(AudioClip).where(AudioClip.event_id == event_id))
+    clip = db.scalars(select(AudioClip).where(AudioClip.event_id == event_id)).first()
     event = db.get(Event, event_id)
     if (
         clip is None
@@ -252,6 +253,20 @@ def training_example_audio(
         or event.subclass_code is None
     ):
         raise HTTPException(status_code=404, detail="Trainingsbeispiel nicht gefunden")
+    return FileResponse(clip.path, media_type="audio/wav", filename=f"event-{event_id}.wav")
+
+
+@router.get("/{event_id}/audio")
+def event_audio(
+    event_id: int,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> FileResponse:
+    clip = db.scalar(select(AudioClip).where(AudioClip.event_id == event_id))
+    if clip is None:
+        raise HTTPException(
+            status_code=404, detail="Für dieses Ereignis ist kein Audioclip vorhanden"
+        )
     return FileResponse(clip.path, media_type="audio/wav", filename=f"event-{event_id}.wav")
 
 
@@ -497,4 +512,13 @@ def list_events(
         statement = statement.where(Event.timestamp <= end)
     statement = statement.order_by(desc(Event.id)).limit(limit)
 
-    return list(db.scalars(statement).all())
+    events = list(db.scalars(statement).all())
+    event_ids = {event.id for event in events}
+    audio_event_ids = (
+        set(db.scalars(select(AudioClip.event_id).where(AudioClip.event_id.in_(event_ids))).all())
+        if event_ids
+        else set()
+    )
+    for event in events:
+        event.audio_available = event.id in audio_event_ids
+    return events

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database.base import Base
 from app.database.session import engine
 from app.models import Event
+from app.services.clips import reconcile_clip_links
 from app.services.label_translation import translate_label
 from app.services.taxonomy import base_class_for_detection, seed_event_classes
 
@@ -126,4 +127,5 @@ def init_db() -> None:
     add_missing_event_columns()
     with Session(engine) as db:
         seed_event_classes(db)
+        reconcile_clip_links(db)
     backfill_events()

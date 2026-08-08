@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioElement: null, audioDestination: null, audioPackets: 0, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null, reviewClass: "", reviewEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioElement: null, audioDestination: null, audioPackets: 0, clipAudio: null, clipUrl: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null, reviewClass: "", reviewEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 
@@ -35,6 +35,7 @@ function logout() {
   state.token = null;
   state.socket?.close();
   stopAudio();
+  stopEventClip();
   $("#app").classList.add("hidden");
   $("#auth").classList.remove("hidden");
 }
@@ -511,7 +512,7 @@ function updateReviewSelection() {
 }
 
 async function loadEvents() {
-  const query = `${device() ? `?device=${encodeURIComponent(device())}&` : "?"}limit=200`;
+  const query = `${device() ? `?device=${encodeURIComponent(device())}&` : "?"}limit=1000`;
   const events = await api(`/events${query}`);
   $("#events").innerHTML = "";
   events.reverse().forEach(addEvent);
@@ -520,9 +521,42 @@ async function loadEvents() {
 function addEvent(event) {
   const row = document.createElement("div");
   row.className = "event-row";
-  row.innerHTML = `<span>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>`;
+  row.dataset.eventId = event.id;
+  const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
+  const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${event.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
+  const actions = state.role === "viewer" ? "" : `<form class="live-actions" data-event-id="${event.id}">
+    ${event.audio_available ? `<button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>` : `<button type="button" class="ghost clip-unavailable" disabled>▶ Kein Clip</button>`}
+    <select name="primary_class_code">${primaryOptions}</select>
+    <select name="subclass_code" data-current="${escapeHtml(event.subclass_code || "")}"></select>
+    <button type="submit">Bestätigen</button>
+  </form>`;
+  row.innerHTML = `<span>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>${actions}`;
+  const classification = row.querySelector(".live-actions");
+  if (classification) populateSubclassOptions(classification);
   $("#events").prepend(row);
   while ($("#events").children.length > 200) $("#events").lastElementChild.remove();
+}
+
+function stopEventClip() {
+  state.clipAudio?.pause();
+  state.clipAudio = null;
+  if (state.clipUrl) URL.revokeObjectURL(state.clipUrl);
+  state.clipUrl = null;
+}
+
+async function playEventClip(eventId, button) {
+  stopEventClip();
+  button.textContent = "Lädt …";
+  const response = await fetch(`/events/${eventId}/audio`, { headers: { Authorization: `Bearer ${state.token}` } });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.detail || `HTTP ${response.status}`);
+  }
+  state.clipUrl = URL.createObjectURL(await response.blob());
+  state.clipAudio = new Audio(state.clipUrl);
+  state.clipAudio.onended = () => { button.textContent = "▶ Anhören"; stopEventClip(); };
+  await state.clipAudio.play();
+  button.textContent = "■ Stoppen";
 }
 
 function connectLive() {
@@ -563,6 +597,31 @@ $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio
 $("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
 $("#audio-volume").addEventListener("input", () => { if (state.audioGain) state.audioGain.gain.value = Number($("#audio-volume").value); });
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
+$("#events").addEventListener("change", (e) => {
+  const form = e.target.closest(".live-actions");
+  if (form && e.target.name === "primary_class_code") {
+    form.elements.subclass_code.dataset.current = "";
+    populateSubclassOptions(form);
+  }
+});
+$("#events").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-play-event]");
+  if (!button) return;
+  if (state.clipAudio && !state.clipAudio.paused) { stopEventClip(); button.textContent = "▶ Anhören"; return; }
+  try { await playEventClip(button.dataset.playEvent, button); }
+  catch (error) { button.textContent = error.message; }
+});
+$("#events").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".live-actions");
+  if (!form) return;
+  const submit = form.querySelector("button[type=submit]");
+  try {
+    await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: form.elements.primary_class_code.value, subclass_code: form.elements.subclass_code.value || null, reason: "Im Live-Ereignisstrom bestätigt" }) });
+    submit.textContent = "Bestätigt ✓";
+    await Promise.all([loadRecentEvents(), loadReview()]);
+  } catch (error) { submit.textContent = error.message; }
+});
 $("#map-stage").addEventListener("click", async (e) => {
   if (state.role !== "admin") return;
   const deviceId = $("#map-position-device").value;

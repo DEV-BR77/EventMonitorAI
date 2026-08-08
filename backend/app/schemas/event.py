@@ -27,6 +27,7 @@ class EventRead(EventCreate):
     classification_status: str
     corrected_by: str | None
     corrected_at: str | None
+    audio_available: bool = False
 
 
 class EventClassificationUpdate(BaseModel):

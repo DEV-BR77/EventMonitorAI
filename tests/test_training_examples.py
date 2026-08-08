@@ -5,12 +5,12 @@ import wave
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from app.api.events import training_examples
+from app.api.events import event_audio, list_events, training_examples
 from app.core.config import settings
 from app.database.base import Base
 from app.models.dashboard import User
 from app.models.event import Event
-from app.services.clips import associate_nearest_clip, store_training_clip
+from app.services.clips import associate_nearest_clip, normalized_utc, store_training_clip
 from app.services.taxonomy import seed_event_classes
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -30,6 +30,12 @@ def _wav() -> bytes:
         audio.setframerate(16_000)
         audio.writeframes(b"\x00\x00" * 16_000 * 5)
     return output.getvalue()
+
+
+def test_naive_event_time_is_interpreted_as_berlin_local_time() -> None:
+    assert normalized_utc("2026-08-08T16:24:17") == datetime.fromisoformat(
+        "2026-08-08T14:24:17+00:00"
+    )
 
 
 def test_confirmed_live_clip_becomes_downloadable_training_example(
@@ -77,6 +83,9 @@ def test_confirmed_live_clip_becomes_downloadable_training_example(
             assert examples[0].subclass_code == "BALL_METAL"
             assert examples[0].label == "Fußball gegen Metall"
             assert examples[0].clip_sha256 == hashlib.sha256(_wav()).hexdigest()
+            assert event_audio(event.id, db, user).path == clip.path
+            listed = list_events(db, user, 100, None, None, None, None)
+            assert listed[0].audio_available is True
     finally:
         settings.clip_directory = original_directory
 

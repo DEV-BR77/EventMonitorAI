@@ -3,8 +3,9 @@ import io
 import os
 import tempfile
 import wave
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,6 +15,14 @@ from app.models.dashboard import AudioClip
 from app.models.event import Event
 
 MAX_CLIP_BYTES = 16_000 * 2 * 10 + 44
+BERLIN = ZoneInfo("Europe/Berlin")
+
+
+def normalized_utc(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=BERLIN)
+    return parsed.astimezone(UTC)
 
 
 def validate_training_clip(payload: bytes) -> tuple[int, int]:
@@ -76,6 +85,9 @@ def store_training_clip(
 def associate_nearest_clip(
     db: Session, event: Event, max_seconds: float = 20.0
 ) -> AudioClip | None:
+    existing = db.scalars(select(AudioClip).where(AudioClip.event_id == event.id)).first()
+    if existing is not None:
+        return existing
     candidates = list(
         db.scalars(
             select(AudioClip).where(
@@ -84,14 +96,10 @@ def associate_nearest_clip(
             )
         ).all()
     )
-    event_time = datetime.fromisoformat(event.timestamp).replace(tzinfo=None)
+    event_time = normalized_utc(event.timestamp)
     distances = [
         (
-            abs(
-                (
-                    datetime.fromisoformat(clip.received_at).replace(tzinfo=None) - event_time
-                ).total_seconds()
-            ),
+            abs((normalized_utc(clip.received_at) - event_time).total_seconds()),
             clip,
         )
         for clip in candidates
@@ -102,6 +110,7 @@ def associate_nearest_clip(
     if distance > max_seconds:
         return None
     clip.event_id = event.id
+    db.flush()
     return clip
 
 
@@ -110,20 +119,16 @@ def associate_nearest_event(
 ) -> Event | None:
     events = list(
         db.scalars(
-            select(Event).where(Event.device == clip.device_id).order_by(Event.id.desc()).limit(20)
+            select(Event).where(Event.device == clip.device_id).order_by(Event.id.desc())
         ).all()
     )
     linked_event_ids = set(
         db.scalars(select(AudioClip.event_id).where(AudioClip.event_id.is_not(None))).all()
     )
-    clip_time = datetime.fromisoformat(clip.received_at).replace(tzinfo=None)
+    clip_time = normalized_utc(clip.received_at)
     distances = [
         (
-            abs(
-                (
-                    datetime.fromisoformat(event.timestamp).replace(tzinfo=None) - clip_time
-                ).total_seconds()
-            ),
+            abs((normalized_utc(event.timestamp) - clip_time).total_seconds()),
             event,
         )
         for event in events
@@ -135,4 +140,37 @@ def associate_nearest_event(
     if distance > max_seconds:
         return None
     clip.event_id = event.id
+    db.flush()
     return event
+
+
+def reconcile_clip_links(db: Session) -> int:
+    linked = list(db.scalars(select(AudioClip).where(AudioClip.event_id.is_not(None))))
+    by_event: dict[int, list[AudioClip]] = {}
+    for clip in linked:
+        by_event.setdefault(clip.event_id, []).append(clip)
+    changed = 0
+    for event_id, clips in by_event.items():
+        if len(clips) < 2:
+            continue
+        event = db.get(Event, event_id)
+        if event is None:
+            continue
+        keep = min(
+            clips,
+            key=lambda clip: abs(
+                (normalized_utc(clip.received_at) - normalized_utc(event.timestamp)).total_seconds()
+            ),
+        )
+        for clip in clips:
+            if clip is not keep:
+                clip.event_id = None
+                changed += 1
+    db.flush()
+    for clip in db.scalars(
+        select(AudioClip).where(AudioClip.event_id.is_(None)).order_by(AudioClip.received_at)
+    ):
+        if associate_nearest_event(db, clip) is not None:
+            changed += 1
+    db.commit()
+    return changed
