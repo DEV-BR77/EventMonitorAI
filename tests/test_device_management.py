@@ -1,9 +1,11 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-from app.api.dashboard import update_device
+from app.api.dashboard import sound_map, update_device
 from app.database.base import Base
-from app.models.dashboard import Device
+from app.models.dashboard import Device, DeviceTelemetry
+from app.models.event import Event
 from app.schemas.dashboard import DeviceUpdate
 from pydantic import ValidationError
 from sqlalchemy import create_engine
@@ -43,3 +45,33 @@ def test_microphone_position_must_stay_inside_map(field: str, value: float) -> N
 
     with pytest.raises(ValidationError):
         DeviceUpdate(**data)
+
+
+def test_sound_map_combines_position_live_level_and_event_statistics() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add(Device(device_id="mic", name="Garten", position_x=25, position_y=75))
+        db.add(DeviceTelemetry(device_id="mic", db_level=48.5))
+        db.add_all(
+            Event(
+                timestamp=datetime.now(UTC).isoformat(),
+                event_type="AUDIO",
+                label="Noise",
+                label_de="Geräusch",
+                category="OTHER",
+                confidence=0.9,
+                db_level=level,
+                device="mic",
+            )
+            for level in (50.0, 60.0, 70.0)
+        )
+        db.commit()
+
+        point = sound_map(db, SimpleNamespace(), days=30, threshold_db=55)[0]
+
+        assert (point.position_x, point.position_y) == (25, 75)
+        assert point.current_db == 48.5
+        assert point.average_db == 60.0
+        assert point.maximum_db == 70.0
+        assert point.exceedances == 2

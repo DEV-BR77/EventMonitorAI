@@ -28,6 +28,7 @@ from app.schemas.dashboard import (
     LiveAudioPermissionUpdate,
     RuleCreate,
     RuleRead,
+    SoundMapPoint,
 )
 from app.services.calibration import calculate_recommended_offset
 
@@ -109,6 +110,37 @@ def list_devices(db: DatabaseSession, _: CurrentUser) -> list[Device]:
 @router.get("/device-telemetry", response_model=list[DeviceTelemetryRead])
 def list_device_telemetry(db: DatabaseSession, _: CurrentUser) -> list[DeviceTelemetry]:
     return list(db.scalars(select(DeviceTelemetry).order_by(DeviceTelemetry.device_id)).all())
+
+
+@router.get("/sound-map", response_model=list[SoundMapPoint])
+def sound_map(
+    db: DatabaseSession,
+    _: CurrentUser,
+    days: int = Query(default=30, ge=1, le=365),
+    threshold_db: float = Query(default=55, ge=0, le=140),
+) -> list[SoundMapPoint]:
+    devices = list(db.scalars(select(Device).where(Device.enabled.is_(True)).order_by(Device.name)))
+    events = _events_since(db, days)
+    telemetry = {item.device_id: item for item in db.scalars(select(DeviceTelemetry)).all()}
+    points: list[SoundMapPoint] = []
+    for device in devices:
+        device_events = [event for event in events if event.device == device.device_id]
+        levels = [event.db_level for event in device_events]
+        current = telemetry.get(device.device_id)
+        points.append(
+            SoundMapPoint(
+                device_id=device.device_id,
+                name=device.name,
+                location=device.location,
+                position_x=device.position_x,
+                position_y=device.position_y,
+                current_db=current.db_level if current else None,
+                average_db=round(sum(levels) / len(levels), 1) if levels else None,
+                maximum_db=round(max(levels), 1) if levels else None,
+                exceedances=sum(level >= threshold_db for level in levels),
+            )
+        )
+    return points
 
 
 @router.get("/device-calibrations", response_model=list[DeviceCalibrationRead])

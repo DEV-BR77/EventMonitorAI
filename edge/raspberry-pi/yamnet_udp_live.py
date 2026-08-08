@@ -231,10 +231,9 @@ try:
             continue
 
         source_key = metadata.device_id if metadata else source_ip
-        device_name = device_names.get(
-            source_key,
-            device_names.get(source_ip, f"ESP32-{source_key}"),
-        )
+        # Framed firmware carries the stable hardware ID. Persist it as the
+        # canonical device key; friendly names are maintained by the dashboard.
+        device_name = source_key if metadata else device_names.get(source_ip, f"ESP32-{source_key}")
         state = transport_by_source.setdefault(
             source_key,
             {

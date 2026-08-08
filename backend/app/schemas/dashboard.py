@@ -81,6 +81,18 @@ class DeviceTelemetryRead(DeviceTelemetryWrite):
     last_seen: str
 
 
+class SoundMapPoint(BaseModel):
+    device_id: str
+    name: str
+    location: str
+    position_x: float | None
+    position_y: float | None
+    current_db: float | None
+    average_db: float | None
+    maximum_db: float | None
+    exceedances: int
+
+
 class CalibrationCapture(BaseModel):
     level: Literal["low", "medium", "high"]
     reference_db: float = Field(ge=0, le=140)

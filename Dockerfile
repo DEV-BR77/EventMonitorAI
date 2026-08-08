@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY backend/app /app/app
 COPY VERSION /app/VERSION
 COPY frontend /frontend
+COPY docs/image-1.png /frontend/messbereich.png
 
 USER eventmonitor
 

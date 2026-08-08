@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], telemetry: [], role: null };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], soundMap: [], telemetry: [], role: null };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 
@@ -50,7 +50,7 @@ async function start() {
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     await loadDevices();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions()] : [])]);
     connectLive();
   } catch (_) {
     logout();
@@ -107,6 +107,55 @@ async function loadLiveAudioDevices() {
   state.audioDevices = await api("/api/live-audio/devices");
   $("#audio-nav").classList.toggle("hidden", !state.audioDevices.length);
   $("#audio-device").innerHTML = state.audioDevices.map((item) => `<option value="${escapeHtml(item.device_id)}">${escapeHtml(item.name)}</option>`).join("");
+}
+
+async function loadSoundMap() {
+  state.soundMap = await api(`/api/sound-map?days=${days()}&threshold_db=55`);
+  renderSoundMap();
+}
+
+function renderSoundMap() {
+  const stage = $("#map-stage");
+  const canvas = $("#map-heatmap");
+  if (!stage.clientWidth) return;
+  const scale = 0.3;
+  canvas.width = Math.max(1, Math.round(stage.clientWidth * scale));
+  canvas.height = Math.max(1, Math.round(stage.clientHeight * scale));
+  const context = canvas.getContext("2d");
+  const image = context.createImageData(canvas.width, canvas.height);
+  const positioned = state.soundMap.filter((item) => item.position_x != null && item.position_y != null);
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      let weightedLevel = 0;
+      let weightSum = 0;
+      for (const point of positioned) {
+        const dx = x / canvas.width - point.position_x / 100;
+        const dy = y / canvas.height - point.position_y / 100;
+        const weight = Math.exp(-(dx * dx + dy * dy) / 0.025);
+        const level = point.current_db ?? point.average_db ?? 0;
+        weightedLevel += level * weight;
+        weightSum += weight;
+      }
+      if (!weightSum) continue;
+      const level = weightedLevel / weightSum;
+      const intensity = Math.max(0, Math.min(1, (level - 35) / 45));
+      const offset = (y * canvas.width + x) * 4;
+      image.data[offset] = Math.round(57 + intensity * 187);
+      image.data[offset + 1] = Math.round(217 - intensity * 126);
+      image.data[offset + 2] = Math.round(138 - intensity * 33);
+      image.data[offset + 3] = Math.round(Math.min(175, weightSum * 150));
+    }
+  }
+  context.putImageData(image, 0, 0);
+  $("#map-markers").innerHTML = positioned.map((point) => `
+    <div class="map-marker" style="left:${point.position_x}%;top:${point.position_y}%">
+      <strong>${escapeHtml(point.name)}</strong>
+      <span>${point.current_db == null ? "Kein Live-Pegel" : `${point.current_db.toFixed(1)} dB aktuell`}</span>
+      <span>${point.exceedances} Überschreitungen · Max ${point.maximum_db?.toFixed(1) ?? "–"} dB</span>
+    </div>`).join("");
+  const unpositioned = state.soundMap.filter((item) => item.position_x == null || item.position_y == null);
+  $("#map-unpositioned").textContent = unpositioned.length ? `Noch ohne Kartenposition: ${unpositioned.map((item) => item.name).join(", ")}` : "";
+  $("#sound-map-period").textContent = `letzte ${days()} Tage · Überschreitung ab 55 dB`;
 }
 
 async function loadAudioPermissions() {
@@ -248,7 +297,7 @@ async function loadRules() {
 $("#login-form").addEventListener("submit", (e) => { e.preventDefault(); authenticate("/auth/login"); });
 $("#bootstrap").addEventListener("click", () => authenticate("/auth/bootstrap"));
 $("#logout").addEventListener("click", logout);
-$("#days-filter").addEventListener("change", refresh);
+$("#days-filter").addEventListener("change", () => Promise.all([refresh(), loadSoundMap()]));
 $("#device-filter").addEventListener("change", () => Promise.all([refresh(), loadEvents()]));
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("active", n === button));
@@ -308,9 +357,11 @@ $("#device-management-list").addEventListener("submit", async (e) => {
     }) });
     $("#device-management-status").textContent = `${form.elements.name.value} gespeichert.`;
     await loadDevices();
+    await loadSoundMap();
   } catch (error) { $("#device-management-status").textContent = error.message; }
 });
 function formatTime(value) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("de-DE"); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }
 if (state.token) start();
 setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
+window.addEventListener("resize", () => { if (state.token) renderSoundMap(); });

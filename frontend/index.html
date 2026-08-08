@@ -25,6 +25,7 @@
       <div class="brand"><span class="brand-mark">EM</span><strong>EventMonitorAI</strong></div>
       <nav>
         <button class="nav active" data-view="overview">Übersicht</button>
+        <button class="nav" data-view="sound-map">Messbereich</button>
         <button class="nav" data-view="devices">Mikrofone</button>
         <button id="audio-nav" class="nav hidden" data-view="audio">Live-Sound</button>
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
@@ -54,6 +55,19 @@
           <article class="panel span3"><div class="panel-head"><h2>Aktivitäts-Heatmap</h2><span>Wochentag × Stunde</span></div><div id="heatmap" class="heatmap"></div></article>
           <article class="panel span3"><div class="panel-head"><h2>Kalender</h2></div><div id="calendar" class="calendar"></div></article>
         </div>
+      </section>
+
+      <section id="sound-map" class="view hidden">
+        <article class="panel">
+          <div class="panel-head"><h2>Schallausbreitung im Messbereich</h2><span id="sound-map-period">letzte 30 Tage · Überschreitung ab 55 dB</span></div>
+          <div id="map-stage" class="map-stage">
+            <img src="/messbereich.png" alt="Messbereich aus der Roadmap">
+            <canvas id="map-heatmap"></canvas>
+            <div id="map-markers"></div>
+          </div>
+          <div id="map-legend" class="map-legend"><span>Leiser</span><i></i><span>Lauter</span></div>
+          <div id="map-unpositioned" class="management-help"></div>
+        </article>
       </section>
 
       <section id="live" class="view hidden">
