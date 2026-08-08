@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], soundMap: [], telemetry: [], role: null };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 
@@ -51,7 +51,7 @@ async function start() {
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     $("#admin-nav").classList.toggle("hidden", me.role !== "admin");
     await loadDevices();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadEventClasses()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -178,6 +178,23 @@ async function loadUsers() {
       <label>Rolle<select name="role"><option value="viewer" ${user.role === "viewer" ? "selected" : ""}>Betrachter</option><option value="operator" ${user.role === "operator" ? "selected" : ""}>Operator</option><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrator</option></select></label>
       <label class="active-toggle"><input name="active" type="checkbox" ${user.active ? "checked" : ""}> Aktiv</label>
       <label>Neues Passwort<input name="password" type="password" minlength="10" placeholder="unverändert"></label>
+      <button type="submit">Speichern</button>
+    </form>`).join("");
+}
+
+async function loadEventClasses() {
+  state.eventClasses = await api("/api/event-classes");
+  const bases = state.eventClasses.filter((item) => item.level === "base");
+  const parentOptions = `<option value="">Keine</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("")}`;
+  $("#class-parent").innerHTML = parentOptions;
+  $("#class-list").innerHTML = state.eventClasses.map((item) => `
+    <form class="class-editor" data-class-id="${item.id}" data-sort-order="${item.sort_order}">
+      <strong>${escapeHtml(item.code)}</strong>
+      <label>Name<input name="name" value="${escapeHtml(item.name)}" maxlength="120" required></label>
+      <label>Ebene<select name="level"><option value="base" ${item.level === "base" ? "selected" : ""}>Basis</option><option value="fine" ${item.level === "fine" ? "selected" : ""}>Fein</option></select></label>
+      <label>Basisklasse<select name="parent_code">${parentOptions.replace(`value="${item.parent_code || ""}"`, `value="${item.parent_code || ""}" selected`)}</select></label>
+      <label class="active-toggle"><input name="active" type="checkbox" ${item.active ? "checked" : ""}> Aktiv</label>
+      <label class="active-toggle"><input name="trainable" type="checkbox" ${item.trainable ? "checked" : ""}> Trainierbar</label>
       <button type="submit">Speichern</button>
     </form>`).join("");
 }
@@ -402,6 +419,25 @@ $("#user-list").addEventListener("submit", async (e) => {
     $("#user-status").textContent = "Benutzer aktualisiert.";
     await Promise.all([loadUsers(), loadAudioPermissions()]);
   } catch (error) { $("#user-status").textContent = error.message; }
+});
+$("#class-create-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/event-classes", { method: "POST", body: JSON.stringify({ code: $("#class-code").value.toUpperCase(), name: $("#class-name").value, level: $("#class-level").value, parent_code: $("#class-parent").value || null }) });
+    e.target.reset();
+    $("#class-status").textContent = "Klasse angelegt.";
+    await loadEventClasses();
+  } catch (error) { $("#class-status").textContent = error.message; }
+});
+$("#class-list").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".class-editor");
+  if (!form) return;
+  try {
+    await api(`/api/event-classes/${form.dataset.classId}`, { method: "PATCH", body: JSON.stringify({ name: form.elements.name.value, level: form.elements.level.value, parent_code: form.elements.parent_code.value || null, active: form.elements.active.checked, trainable: form.elements.trainable.checked, sort_order: Number(form.dataset.sortOrder) }) });
+    $("#class-status").textContent = "Klasse aktualisiert.";
+    await loadEventClasses();
+  } catch (error) { $("#class-status").textContent = error.message; }
 });
 $("#rule-form").addEventListener("submit", async (e) => {
   e.preventDefault();

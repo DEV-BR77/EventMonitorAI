@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import requests
 import soundfile as sf
 import streamlit as st
 from eventmonitor.backup import create_backup, restore_backup
@@ -49,6 +50,7 @@ from eventmonitor.people import (
 )
 from eventmonitor.reports import build_noise_log_csv, build_noise_log_pdf
 from eventmonitor.segments import update_boundaries, wav_excerpt
+from eventmonitor.taxonomy import active_class_names, sync_class_definitions
 from eventmonitor.training import build_labeled_dataset, load_model, save_model, train_baseline
 from eventmonitor.visualization import calculate_spectrogram, spectrogram_records
 
@@ -56,23 +58,6 @@ st.set_page_config(page_title="EventMonitor AudioLab", page_icon="🎧", layout=
 DB = Path("data/eventmonitor.sqlite3")
 LIB = Path("data/library")
 INBOX = Path("data/inbox")
-LABELS = [
-    "Schreien",
-    "Rufen",
-    "Streit / mehrere Stimmen",
-    "Schlagen / Aufprall",
-    "Türknallen",
-    "Auto / Vorbeifahrt",
-    "Motorrad",
-    "Hupe",
-    "Normales Sprechen",
-    "Hund",
-    "Musik",
-    "Maschine",
-    "Wind / Regen",
-    "Hintergrund",
-    "Unklar",
-]
 
 
 def format_metric(value: float | None, suffix: str = "") -> str:
@@ -80,6 +65,7 @@ def format_metric(value: float | None, suffix: str = "") -> str:
 
 
 conn = connect(DB)
+LABELS = active_class_names(conn)
 ensure_case_histories(conn)
 page = st.sidebar.radio(
     "Bereich",
@@ -90,12 +76,53 @@ page = st.sidebar.radio(
         "Ereignisse",
         "Auswertung",
         "Personen",
+        "Klassen",
         "Modelltraining",
         "Sicherung",
     ],
 )
 
-if page == "Import":
+if page == "Klassen":
+    st.title("Gemeinsamer Klassenkatalog")
+    st.caption(
+        "Die Taxonomie wird vom EventMonitorAI-Dashboard verwaltet "
+        "und hier explizit synchronisiert."
+    )
+    class_rows = conn.execute(
+        """
+        SELECT code,name,level,parent_code,active,trainable,synced_at
+        FROM event_classes ORDER BY sort_order,name
+        """
+    ).fetchall()
+    st.dataframe(pd.DataFrame([dict(row) for row in class_rows]), width="stretch")
+    with st.form("class-sync"):
+        dashboard_url = st.text_input("Dashboard-URL", "https://dashboard.eventmonitor.eu")
+        username = st.text_input("Benutzername")
+        password = st.text_input("Passwort", type="password")
+        synchronize = st.form_submit_button("Klassen vom Dashboard synchronisieren")
+    if synchronize:
+        try:
+            base_url = dashboard_url.rstrip("/")
+            login_response = requests.post(
+                f"{base_url}/auth/login",
+                json={"username": username, "password": password},
+                timeout=10,
+            )
+            login_response.raise_for_status()
+            token = login_response.json()["access_token"]
+            class_response = requests.get(
+                f"{base_url}/api/event-classes",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            class_response.raise_for_status()
+            count = sync_class_definitions(conn, class_response.json())
+            st.success(f"{count} Klassen synchronisiert.")
+            st.rerun()
+        except (requests.RequestException, KeyError, ValueError) as error:
+            st.error(f"Synchronisierung fehlgeschlagen: {error}")
+
+elif page == "Import":
     st.title("Messungen importieren")
     uploads = st.file_uploader("ZIP-Dateien auswählen", type=["zip"], accept_multiple_files=True)
     if st.button("Ausgewählte Dateien importieren", type="primary", disabled=not uploads):

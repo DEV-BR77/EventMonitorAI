@@ -109,6 +109,21 @@ class EventWitnessResponse(Base):
     responded_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
+class EventClass(Base):
+    __tablename__ = "event_classes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    level: Mapped[str] = mapped_column(String(20))
+    parent_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    trainable: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
 class NotificationRule(Base):
     __tablename__ = "notification_rules"
 

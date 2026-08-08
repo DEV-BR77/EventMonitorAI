@@ -12,6 +12,7 @@ from app.models.dashboard import (
     Device,
     DeviceCalibration,
     DeviceTelemetry,
+    EventClass,
     LiveAudioAccess,
     NotificationRule,
     User,
@@ -24,6 +25,9 @@ from app.schemas.dashboard import (
     DeviceRead,
     DeviceTelemetryRead,
     DeviceUpdate,
+    EventClassRead,
+    EventClassUpdate,
+    EventClassWrite,
     LiveAudioPermissionRead,
     LiveAudioPermissionUpdate,
     RuleCreate,
@@ -277,6 +281,67 @@ def update_live_audio_permission(
     db.add_all(LiveAudioAccess(user_id=user_id, device_id=item) for item in device_ids)
     db.commit()
     return _audio_permission(db, user)
+
+
+def _validate_event_class_parent(
+    db: Session,
+    level: str,
+    parent_code: str | None,
+) -> None:
+    if level == "base" and parent_code is not None:
+        raise HTTPException(status_code=422, detail="Basisklassen dürfen keine Elternklasse haben")
+    if parent_code is None:
+        return
+    parent = db.scalar(select(EventClass).where(EventClass.code == parent_code))
+    if parent is None or parent.level != "base":
+        raise HTTPException(status_code=422, detail="Elternklasse muss eine Basisklasse sein")
+
+
+@router.get("/event-classes", response_model=list[EventClassRead])
+def list_event_classes(db: DatabaseSession, _: CurrentUser) -> list[EventClass]:
+    return list(db.scalars(select(EventClass).order_by(EventClass.sort_order, EventClass.name)))
+
+
+@router.post("/event-classes", response_model=EventClassRead, status_code=status.HTTP_201_CREATED)
+def create_event_class(
+    data: EventClassWrite,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> EventClass:
+    if db.scalar(
+        select(EventClass).where((EventClass.code == data.code) | (EventClass.name == data.name))
+    ):
+        raise HTTPException(status_code=409, detail="Code oder Klassenname ist bereits vorhanden")
+    _validate_event_class_parent(db, data.level, data.parent_code)
+    event_class = EventClass(**data.model_dump())
+    db.add(event_class)
+    db.commit()
+    db.refresh(event_class)
+    return event_class
+
+
+@router.patch("/event-classes/{class_id}", response_model=EventClassRead)
+def update_event_class(
+    class_id: int,
+    data: EventClassUpdate,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> EventClass:
+    event_class = db.get(EventClass, class_id)
+    if event_class is None:
+        raise HTTPException(status_code=404, detail="Ereignisklasse nicht gefunden")
+    duplicate = db.scalar(
+        select(EventClass).where(EventClass.name == data.name, EventClass.id != class_id)
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="Klassenname ist bereits vorhanden")
+    _validate_event_class_parent(db, data.level, data.parent_code)
+    for field, value in data.model_dump().items():
+        setattr(event_class, field, value)
+    event_class.updated_at = datetime.now(UTC).isoformat()
+    db.commit()
+    db.refresh(event_class)
+    return event_class
 
 
 @router.get("/notification-rules", response_model=list[RuleRead])

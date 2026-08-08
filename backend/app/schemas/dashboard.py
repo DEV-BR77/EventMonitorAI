@@ -128,6 +128,32 @@ class NoiseLogEntry(BaseModel):
     witnesses: list[WitnessResponseRead]
 
 
+class EventClassWrite(BaseModel):
+    code: str = Field(pattern=r"^[A-Z0-9_]{2,80}$")
+    name: str = Field(min_length=2, max_length=120)
+    level: Literal["base", "fine"]
+    parent_code: str | None = Field(default=None, pattern=r"^[A-Z0-9_]{2,80}$")
+    active: bool = True
+    trainable: bool = True
+    sort_order: int = Field(default=0, ge=0, le=10_000)
+
+
+class EventClassRead(EventClassWrite):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    created_at: str
+    updated_at: str
+
+
+class EventClassUpdate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    level: Literal["base", "fine"]
+    parent_code: str | None = Field(default=None, pattern=r"^[A-Z0-9_]{2,80}$")
+    active: bool = True
+    trainable: bool = True
+    sort_order: int = Field(default=0, ge=0, le=10_000)
+
+
 class CalibrationCapture(BaseModel):
     level: Literal["low", "medium", "high"]
     reference_db: float = Field(ge=0, le=140)

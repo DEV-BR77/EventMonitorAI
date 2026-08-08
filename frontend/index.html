@@ -152,6 +152,18 @@
           </form>
           <article class="panel"><div class="panel-head"><h2>Rollen und Zugriff</h2><span>Admin · Operator · Betrachter</span></div><div id="user-list"></div><span id="user-status"></span></article>
         </div>
+        <article class="panel class-management">
+          <div class="panel-head"><h2>KI-Klassenkatalog</h2><span>Gemeinsam für Live-Analyse und AudioLab</span></div>
+          <form id="class-create-form" class="class-create">
+            <label>Code<input id="class-code" pattern="[A-Z0-9_]{2,80}" placeholder="BALL_WOOD" required></label>
+            <label>Name<input id="class-name" maxlength="120" required></label>
+            <label>Ebene<select id="class-level"><option value="base">Basisklasse</option><option value="fine">Feinzuordnung</option></select></label>
+            <label>Basisklasse<select id="class-parent"><option value="">Keine</option></select></label>
+            <button type="submit">Klasse anlegen</button>
+          </form>
+          <span id="class-status"></span>
+          <div id="class-list"></div>
+        </article>
       </section>
     </main>
   </div>

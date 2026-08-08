@@ -5,6 +5,7 @@ from app.database.base import Base
 from app.database.session import engine
 from app.models import Event
 from app.services.label_translation import translate_label
+from app.services.taxonomy import seed_event_classes
 
 
 def add_missing_event_columns() -> None:
@@ -107,4 +108,6 @@ def init_db() -> None:
     ensure_telemetry_counter_capacity()
     ensure_device_position_columns()
     add_missing_event_columns()
+    with Session(engine) as db:
+        seed_event_classes(db)
     backfill_events()

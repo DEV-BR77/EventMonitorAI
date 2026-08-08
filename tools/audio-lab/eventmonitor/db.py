@@ -105,6 +105,14 @@ CREATE TABLE IF NOT EXISTS case_revisions (
  created_at TEXT NOT NULL, UNIQUE(case_id,revision_number), UNIQUE(revision_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_case_revisions_case ON case_revisions(case_id,revision_number);
+CREATE TABLE IF NOT EXISTS event_classes (
+ code TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, level TEXT NOT NULL,
+ parent_code TEXT, active INTEGER NOT NULL DEFAULT 1,
+ trainable INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+ synced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_event_classes_level_order
+ON event_classes(level,sort_order,name);
 CREATE TRIGGER IF NOT EXISTS case_revisions_prevent_update
 BEFORE UPDATE ON case_revisions BEGIN
  SELECT RAISE(ABORT,'case revisions are immutable');
@@ -158,5 +166,8 @@ def connect(path: str | Path) -> sqlite3.Connection:
         if name not in prediction_cols:
             conn.execute(f"ALTER TABLE predictions ADD COLUMN {name} {definition}")
     conn.execute("UPDATE cases SET status='draft' WHERE status='open'")
+    from eventmonitor.taxonomy import seed_local_classes
+
+    seed_local_classes(conn)
     conn.commit()
     return conn

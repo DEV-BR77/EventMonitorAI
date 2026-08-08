@@ -48,6 +48,14 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Gemeinsamer Klassenkatalog
+
+Die Basisklassen und manuellen Feinzuordnungen werden im Dashboard unter
+**Administration → KI-Klassenkatalog** gepflegt. AudioLab besitzt unter **Klassen** eine explizite
+Synchronisierung über die Dashboard-URL und ein gültiges Benutzerkonto. Die Zugangsdaten werden
+nur für diesen Abruf verwendet und nicht in der AudioLab-Datenbank gespeichert. Deaktivierte
+Klassen bleiben historisch erhalten, werden aber nicht mehr zur neuen Zuordnung angeboten.
+
 ## Empfohlene Repository-Struktur
 
 ```text
