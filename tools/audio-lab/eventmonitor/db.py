@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS predictions (
 );
 CREATE INDEX IF NOT EXISTS idx_predictions_segment_created
 ON predictions(segment_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS segment_embeddings (
+ id INTEGER PRIMARY KEY, segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+ model_name TEXT NOT NULL, pipeline_fingerprint TEXT NOT NULL, dimension INTEGER NOT NULL,
+ vector BLOB NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(segment_id, model_name)
+);
+CREATE INDEX IF NOT EXISTS idx_segment_embeddings_model
+ON segment_embeddings(model_name, pipeline_fingerprint);
 CREATE TABLE IF NOT EXISTS import_jobs (
  id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,

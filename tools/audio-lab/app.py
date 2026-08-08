@@ -13,6 +13,7 @@ import soundfile as sf
 import streamlit as st
 from eventmonitor.backup import create_backup, restore_backup
 from eventmonitor.db import connect
+from eventmonitor.embeddings import generate_segment_embeddings, similar_segments
 from eventmonitor.features import FeaturePipelineConfig
 from eventmonitor.importer import import_folder, import_package, resume_imports
 from eventmonitor.inference import (
@@ -175,6 +176,16 @@ elif page == "Modelltraining":
                 st.error(str(error))
             else:
                 st.success(f"{count} Modellvorschläge gespeichert.")
+        if st.button("Audio-Embeddings für Ähnlichkeitssuche berechnen"):
+            try:
+                with st.spinner("Audio-Embeddings berechnen …"):
+                    count = generate_segment_embeddings(
+                        conn, load_model(selected_model), selected_model.name
+                    )
+            except (OSError, ValueError) as error:
+                st.error(str(error))
+            else:
+                st.success(f"{count} Segment-Embeddings gespeichert.")
     else:
         st.info("Zuerst ein Basismodell trainieren.")
 
@@ -288,6 +299,14 @@ elif page == "Ereignisse lernen":
             f"Active-Learning-Priorität: "
             f"{format_metric(prediction['active_learning_score'])}"
         )
+    neighbours = similar_segments(conn, seg["id"], limit=5)
+    if neighbours:
+        with st.expander("Ähnliche Audioereignisse"):
+            similarity_frame = pd.DataFrame(neighbours)
+            similarity_frame["similarity"] = similarity_frame["similarity"].map(
+                lambda value: f"{value:.1%}"
+            )
+            st.dataframe(similarity_frame, width="stretch", hide_index=True)
     st.subheader("Ereignis zuschneiden")
     boundary_start, boundary_end, boundary_actions = st.columns([2, 2, 2])
     start_seconds = boundary_start.number_input(
