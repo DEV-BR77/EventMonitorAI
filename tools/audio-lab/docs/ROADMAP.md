@@ -22,9 +22,9 @@
 
 ## v0.4 – Ereignisvisualisierung
 
-- dB-Zeitreihe je Aufnahme
+- [x] dB-Zeitreihe je Aufnahme
 - klickbare Peaks
-- Spektrogramm je Segment
+- [x] Spektrogramm je Segment
 - Frequenzmerkmale
 - zusammenhängende Ereignisse statt isolierter Segmente
 - Start-/Endgrenzen manuell korrigieren

@@ -55,6 +55,13 @@ D:\Laermmessungen\2026
 6. Sicherheit und optionale Notiz ergänzen.
 7. **Bestätigen und speichern** anklicken.
 
+Mit **Vorheriges Segment** und **Nächstes Segment** lässt sich die aktuelle
+Sortierung ohne manuelle Positionsangabe durchlaufen. Der dB-Verlauf zeigt die
+gesamte Aufnahme, hebt das ausgewählte Segment hervor und kann horizontal
+gezoomt und verschoben werden. Darunter stellt das Spektrogramm den gewählten
+Audioausschnitt einschließlich Vor- und Nachlauf nach Zeit, Frequenz und
+relativem Pegel dar.
+
 Der Vor- und Nachlauf hilft, den Kontext eines kurzen Segments zu hören. Die gespeicherte Segmentgrenze bleibt dabei unverändert.
 
 ## 4. Empfohlene Arbeitsweise

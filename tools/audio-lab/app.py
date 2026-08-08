@@ -10,6 +10,7 @@ import soundfile as sf
 import streamlit as st
 from eventmonitor.db import connect
 from eventmonitor.importer import import_folder, import_package, resume_imports
+from eventmonitor.visualization import calculate_spectrogram, spectrogram_records
 
 st.set_page_config(page_title="EventMonitor AudioLab", page_icon="🎧", layout="wide")
 DB = Path("data/eventmonitor.sqlite3")
@@ -58,7 +59,7 @@ if page == "Import":
         rows = import_folder(folder, DB, LIB)
         st.dataframe(
             pd.DataFrame(rows, columns=["Datei", "Aufnahme", "Status", "Fehler"]),
-            use_container_width=True,
+            width="stretch",
         )
     st.subheader("Importprotokoll")
     if st.button("Fehlgeschlagene oder unterbrochene Importe fortsetzen"):
@@ -66,7 +67,7 @@ if page == "Import":
         if resumed:
             st.dataframe(
                 pd.DataFrame(resumed, columns=["Datei", "Aufnahme", "Status", "Fehler"]),
-                use_container_width=True,
+                width="stretch",
             )
         else:
             st.info("Keine fortsetzbaren Importe vorhanden.")
@@ -78,7 +79,7 @@ if page == "Import":
         """,
         conn,
     )
-    st.dataframe(journal, use_container_width=True)
+    st.dataframe(journal, width="stretch")
 
 elif page == "Übersicht":
     st.title("EventMonitor AudioLab – Übersicht")
@@ -94,7 +95,7 @@ elif page == "Übersicht":
             recs[
                 ["id", "started_at", "duration_seconds", "sample_rate", "channels", "source_path"]
             ],
-            use_container_width=True,
+            width="stretch",
         )
     else:
         st.info("Noch keine Messungen importiert.")
@@ -123,7 +124,29 @@ elif page == "Ereignisse lernen":
     if not segments:
         st.success("Für diese Auswahl sind keine Segmente offen.")
         st.stop()
-    pos = st.number_input("Position", 0, len(segments) - 1, 0, 1)
+    navigation_key = f"segment-position-{rec['id']}-{int(only_open)}-{order}"
+    if navigation_key not in st.session_state:
+        st.session_state[navigation_key] = 0
+    st.session_state[navigation_key] = min(int(st.session_state[navigation_key]), len(segments) - 1)
+    previous_column, position_column, next_column = st.columns([1, 2, 1])
+    if previous_column.button(
+        "← Vorheriges Segment", disabled=st.session_state[navigation_key] == 0
+    ):
+        st.session_state[navigation_key] -= 1
+        st.rerun()
+    if next_column.button(
+        "Nächstes Segment →",
+        disabled=st.session_state[navigation_key] >= len(segments) - 1,
+    ):
+        st.session_state[navigation_key] += 1
+        st.rerun()
+    pos = position_column.number_input(
+        "Segmentposition",
+        min_value=0,
+        max_value=len(segments) - 1,
+        step=1,
+        key=navigation_key,
+    )
     seg = segments[int(pos)]
     before = st.slider("Vorlauf / Nachlauf in Sekunden", 0.0, 5.0, 2.0, 0.5)
     data, sr = sf.read(rec["audio_path"], always_2d=True)
@@ -138,6 +161,107 @@ elif page == "Ereignisse lernen":
         f"**Mittel:** {seg['mean_dba']:.1f} dB(A) · "
         f"**Auffälligkeit:** {seg['event_score']:.1f}"
     )
+    db_series = pd.read_sql_query(
+        """
+        SELECT offset_seconds, current_dba, max_dba, average_dba
+        FROM db_samples WHERE recording_id=? ORDER BY offset_seconds
+        """,
+        conn,
+        params=(rec["id"],),
+    )
+    st.subheader("Interaktiver dB-Verlauf")
+    if db_series.empty:
+        st.info("Für diese Aufnahme sind keine dB-Zeitwerte vorhanden.")
+    else:
+        st.vega_lite_chart(
+            db_series,
+            {
+                "height": 260,
+                "params": [
+                    {
+                        "name": "zoom",
+                        "select": {"type": "interval", "encodings": ["x"]},
+                        "bind": "scales",
+                    }
+                ],
+                "layer": [
+                    {
+                        "mark": {"type": "line", "color": "#70e0ae"},
+                        "encoding": {
+                            "x": {
+                                "field": "offset_seconds",
+                                "type": "quantitative",
+                                "title": "Zeit (s)",
+                            },
+                            "y": {
+                                "field": "current_dba",
+                                "type": "quantitative",
+                                "title": "dB(A)",
+                                "scale": {"zero": False},
+                            },
+                            "tooltip": [
+                                {"field": "offset_seconds", "title": "Sekunde"},
+                                {"field": "current_dba", "title": "Aktuell"},
+                                {"field": "max_dba", "title": "Maximum"},
+                                {"field": "average_dba", "title": "Mittel"},
+                            ],
+                        },
+                    },
+                    {
+                        "data": {
+                            "values": [
+                                {
+                                    "start": float(seg["start_seconds"]),
+                                    "end": float(seg["end_seconds"]),
+                                }
+                            ]
+                        },
+                        "mark": {"type": "rect", "color": "#f6bd60", "opacity": 0.2},
+                        "encoding": {
+                            "x": {"field": "start", "type": "quantitative"},
+                            "x2": {"field": "end"},
+                        },
+                    },
+                ],
+            },
+            width="stretch",
+        )
+
+    st.subheader("Spektrogramm des Audioausschnitts")
+    times, frequencies, power_db = calculate_spectrogram(data[a:b], int(sr))
+    spectrum = spectrogram_records(times, frequencies, power_db, a / sr)
+    if spectrum:
+        st.vega_lite_chart(
+            pd.DataFrame(spectrum),
+            {
+                "height": 300,
+                "mark": "rect",
+                "encoding": {
+                    "x": {
+                        "field": "time",
+                        "type": "quantitative",
+                        "title": "Zeit (s)",
+                    },
+                    "y": {
+                        "field": "frequency",
+                        "type": "quantitative",
+                        "title": "Frequenz (Hz)",
+                    },
+                    "color": {
+                        "field": "level",
+                        "type": "quantitative",
+                        "title": "relativer Pegel (dB)",
+                        "scale": {"scheme": "viridis", "domain": [-100, 0]},
+                    },
+                    "tooltip": [
+                        {"field": "time", "title": "Sekunde"},
+                        {"field": "frequency", "title": "Hz"},
+                        {"field": "level", "title": "dB relativ"},
+                    ],
+                },
+            },
+            width="stretch",
+        )
     label = st.selectbox(
         "Lärmart", LABELS, index=LABELS.index(seg["label"]) if seg["label"] in LABELS else 0
     )
@@ -149,7 +273,8 @@ elif page == "Ereignisse lernen":
             (label, confidence, notes, datetime.now().isoformat(), seg["id"]),
         )
         conn.commit()
-        st.success("Gespeichert. Wechsel zur nächsten Position oder Seite neu laden.")
+        st.success("Gespeichert.")
+        st.rerun()
 
 else:
     st.title("Auswertung")
@@ -179,7 +304,7 @@ else:
         "Klassen filtern", sorted(df.label.unique()), default=sorted(df.label.unique())
     )
     out = df[df.label.isin(labels)].copy()
-    st.dataframe(out, use_container_width=True)
+    st.dataframe(out, width="stretch")
     st.download_button(
         "Lärmprotokoll als CSV herunterladen",
         out.to_csv(index=False).encode("utf-8-sig"),
