@@ -63,9 +63,20 @@
       </section>
 
       <section id="devices" class="view hidden">
+        <form id="calibration-form" class="panel calibration-controls">
+          <div><h2>Gemeinsame Pegelkalibrierung</h2><p>Alle Mikrofone derselben Referenzquelle aussetzen und den tatsächlichen Referenzpegel eintragen.</p></div>
+          <label>Pegelbereich<select id="calibration-level"><option value="low">Leise</option><option value="medium">Mittel</option><option value="high">Laut</option></select></label>
+          <label>Referenzwert (dB)<input id="calibration-reference" type="number" min="0" max="140" step="0.1" required></label>
+          <button type="submit">Alle Online-Mikrofone erfassen</button>
+          <span id="calibration-status"></span>
+        </form>
         <article class="panel">
           <div class="panel-head"><h2>Gerätestatus und Transportqualität</h2><span>Aktualisierung alle 30 Sekunden</span></div>
           <div id="device-health" class="device-health"></div>
+        </article>
+        <article class="panel calibration-results">
+          <div class="panel-head"><h2>Kalibrierprotokoll</h2><span>Leise · Mittel · Laut</span></div>
+          <div id="calibration-list"></div>
         </article>
       </section>
 

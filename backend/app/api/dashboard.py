@@ -8,15 +8,24 @@ from sqlalchemy.orm import Session
 
 from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
-from app.models.dashboard import Device, DeviceTelemetry, NotificationRule, User
+from app.models.dashboard import (
+    Device,
+    DeviceCalibration,
+    DeviceTelemetry,
+    NotificationRule,
+    User,
+)
 from app.models.event import Event
 from app.schemas.dashboard import (
+    CalibrationCapture,
+    DeviceCalibrationRead,
     DeviceCreate,
     DeviceRead,
     DeviceTelemetryRead,
     RuleCreate,
     RuleRead,
 )
+from app.services.calibration import calculate_recommended_offset
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -96,6 +105,51 @@ def list_devices(db: DatabaseSession, _: CurrentUser) -> list[Device]:
 @router.get("/device-telemetry", response_model=list[DeviceTelemetryRead])
 def list_device_telemetry(db: DatabaseSession, _: CurrentUser) -> list[DeviceTelemetry]:
     return list(db.scalars(select(DeviceTelemetry).order_by(DeviceTelemetry.device_id)).all())
+
+
+@router.get("/device-calibrations", response_model=list[DeviceCalibrationRead])
+def list_device_calibrations(db: DatabaseSession, _: CurrentUser) -> list[DeviceCalibration]:
+    return list(db.scalars(select(DeviceCalibration).order_by(DeviceCalibration.device_id)).all())
+
+
+@router.post("/device-calibrations/capture", response_model=list[DeviceCalibrationRead])
+def capture_device_calibration(
+    data: CalibrationCapture,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> list[DeviceCalibration]:
+    telemetry_by_device = {
+        item.device_id: item
+        for item in db.scalars(
+            select(DeviceTelemetry).where(DeviceTelemetry.device_id.in_(data.device_ids))
+        ).all()
+    }
+    missing = sorted(set(data.device_ids) - telemetry_by_device.keys())
+    if missing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Keine Telemetrie für: {', '.join(missing)}",
+        )
+
+    result: list[DeviceCalibration] = []
+    now = datetime.now(UTC).isoformat()
+    for device_id in data.device_ids:
+        calibration = db.scalar(
+            select(DeviceCalibration).where(DeviceCalibration.device_id == device_id)
+        )
+        if calibration is None:
+            calibration = DeviceCalibration(device_id=device_id)
+            db.add(calibration)
+        setattr(calibration, f"{data.level}_reference_db", data.reference_db)
+        setattr(calibration, f"{data.level}_measured_db", telemetry_by_device[device_id].db_level)
+        calibration.recommended_offset_db = calculate_recommended_offset(calibration)
+        calibration.updated_at = now
+        result.append(calibration)
+
+    db.commit()
+    for calibration in result:
+        db.refresh(calibration)
+    return result
 
 
 @router.post("/devices", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)

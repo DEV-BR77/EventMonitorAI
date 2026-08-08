@@ -20,7 +20,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] FastAPI-Backend und Ereignisdatenbank
 - [x] robuste Wiederverbindung und Paketverlustbehandlung
 - [x] Geräteidentität, Health-Status und Telemetrie
-- [ ] nachvollziehbare Audiopegel-Kalibrierung über Dashboard mehrere Mikrofone gleichzeitig mit Angabe Referenzwert bei leisem mittleren und lauten Pegel
+- [x] nachvollziehbare Audiopegel-Kalibrierung über Dashboard mehrere Mikrofone gleichzeitig mit Angabe Referenzwert bei leisem mittleren und lauten Pegel
 
 ## Phase 2 – EventMonitor AudioLab
 

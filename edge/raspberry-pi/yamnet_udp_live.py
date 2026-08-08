@@ -1,8 +1,8 @@
 import csv
+import multiprocessing as mp
 import os
 import queue
 import socket
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from time import monotonic
@@ -31,7 +31,7 @@ CALIBRATION_OFFSET_DB = 100.0
 
 # Ein Ereignis endet nach drei Sekunden ohne relevantes Geräusch.
 EVENT_END_SILENCE_SECONDS = 3.0
-TELEMETRY_INTERVAL_SECONDS = 30.0
+TELEMETRY_INTERVAL_SECONDS = 5.0
 
 IGNORED_LABELS = {
     "Silence",
@@ -176,16 +176,12 @@ interpreter.set_tensor(
 )
 interpreter.invoke()
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
-sock.settimeout(1.0)
-sock.bind(("0.0.0.0", UDP_PORT))
 
-packet_queue: queue.Queue[tuple[bytes, tuple[str, int]]] = queue.Queue(maxsize=4096)
-receiver_stop = threading.Event()
-
-
-def receive_packets() -> None:
+def receive_packets(packet_queue: mp.Queue, receiver_stop: mp.Event) -> None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+    sock.settimeout(1.0)
+    sock.bind(("0.0.0.0", UDP_PORT))
     while not receiver_stop.is_set():
         try:
             packet = sock.recvfrom(4096)
@@ -195,14 +191,19 @@ def receive_packets() -> None:
         except (OSError, queue.Full):
             if not receiver_stop.is_set():
                 print("UDP-Empfangspuffer ist ausgelastet.")
+    sock.close()
 
 
-receiver_thread = threading.Thread(
+process_context = mp.get_context("fork")
+packet_queue = process_context.Queue(maxsize=4096)
+receiver_stop = process_context.Event()
+receiver_process = process_context.Process(
     target=receive_packets,
+    args=(packet_queue, receiver_stop),
     name="eventmonitor-udp",
     daemon=True,
 )
-receiver_thread.start()
+receiver_process.start()
 
 print(f"YAMNet UDP aggregation listening on {UDP_PORT}")
 print(f"Schwellwert={MIN_DB_LEVEL:.1f} dB " f"| Ende nach {EVENT_END_SILENCE_SECONDS:.1f}s Ruhe")
@@ -237,6 +238,7 @@ try:
                 "last_sequence": None,
                 "last_uptime_ms": None,
                 "last_telemetry": monotonic(),
+                "db_level": 0.0,
             },
         )
         state["received"] += 1
@@ -274,6 +276,7 @@ try:
                         "packets_received": state["received"],
                         "packets_lost": state["lost"],
                         "peak": metadata.peak,
+                        "db_level": state["db_level"],
                     },
                 )
 
@@ -290,6 +293,7 @@ try:
             frame_start = frame_end - timedelta(seconds=WINDOW_SECONDS)
 
             db_level = calc_db(frame)
+            state["db_level"] = db_level
             waveform = frame.astype(np.float32) / 32768.0
 
             interpreter.set_tensor(
@@ -358,6 +362,7 @@ except KeyboardInterrupt:
 
 finally:
     receiver_stop.set()
-    sock.close()
-    receiver_thread.join(timeout=2)
+    receiver_process.join(timeout=2)
+    if receiver_process.is_alive():
+        receiver_process.terminate()
     api_executor.shutdown(wait=False, cancel_futures=True)

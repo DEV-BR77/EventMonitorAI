@@ -46,7 +46,23 @@ class DeviceTelemetry(Base):
     packets_lost: Mapped[int] = mapped_column(BigInteger, default=0)
     loss_rate: Mapped[float] = mapped_column(Float, default=0.0)
     peak: Mapped[int] = mapped_column(Integer, default=0)
+    db_level: Mapped[float] = mapped_column(Float, default=0.0)
     last_seen: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class DeviceCalibration(Base):
+    __tablename__ = "device_calibrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    low_reference_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    low_measured_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    medium_reference_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    medium_measured_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    high_reference_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    high_measured_db: Mapped[float | None] = mapped_column(Float, nullable=True)
+    recommended_offset_db: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
 class NotificationRule(Base):

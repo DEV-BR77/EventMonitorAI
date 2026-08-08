@@ -43,16 +43,20 @@ def add_missing_event_columns() -> None:
 
 
 def ensure_telemetry_counter_capacity() -> None:
-    if engine.dialect.name != "postgresql":
-        return
     inspector = inspect(engine)
     if "device_telemetry" not in inspector.get_table_names():
         return
+    column_names = {column["name"] for column in inspector.get_columns("device_telemetry")}
     with engine.begin() as connection:
-        for column in ("uptime_ms", "packets_received", "packets_lost"):
+        if "db_level" not in column_names:
             connection.execute(
-                text(f"ALTER TABLE device_telemetry ALTER COLUMN {column} TYPE BIGINT")
+                text("ALTER TABLE device_telemetry ADD COLUMN db_level FLOAT NOT NULL DEFAULT 0")
             )
+        if engine.dialect.name == "postgresql":
+            for column in ("uptime_ms", "packets_received", "packets_lost"):
+                connection.execute(
+                    text(f"ALTER TABLE device_telemetry ALTER COLUMN {column} TYPE BIGINT")
+                )
 
 
 def backfill_events() -> None:

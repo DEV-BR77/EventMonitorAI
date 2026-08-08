@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, devices: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, devices: [], telemetry: [], role: null };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 
@@ -41,10 +41,12 @@ function logout() {
 async function start() {
   try {
     const me = await api("/auth/me");
+    state.role = me.role;
     $("#identity").textContent = `${me.username} · ${me.role}`;
     $("#auth").classList.add("hidden");
     $("#app").classList.remove("hidden");
-    await Promise.all([loadDevices(), loadTelemetry(), refresh(), loadEvents(), loadRules()]);
+    $("#calibration-form").classList.toggle("hidden", me.role === "viewer");
+    await Promise.all([loadDevices(), loadTelemetry(), loadCalibrations(), refresh(), loadEvents(), loadRules()]);
     connectLive();
   } catch (_) {
     logout();
@@ -53,6 +55,7 @@ async function start() {
 
 async function loadTelemetry() {
   const telemetry = await api("/api/device-telemetry");
+  state.telemetry = telemetry;
   const now = Date.now();
   $("#device-health").innerHTML = telemetry.length ? telemetry.map((item) => {
     const ageSeconds = Math.max(0, Math.round((now - new Date(item.last_seen).valueOf()) / 1000));
@@ -61,9 +64,17 @@ async function loadTelemetry() {
     return `<div class="device-card">
       <div><i class="status-dot ${online ? "online" : "offline"}"></i><strong>${escapeHtml(item.device_id)}</strong></div>
       <span>${online ? "Online" : `Seit ${ageSeconds} s ohne Signal`}</span>
-      <dl><dt>Firmware</dt><dd>${escapeHtml(item.firmware_version || "Legacy")}</dd><dt>Quelle</dt><dd>${escapeHtml(item.source_ip)}</dd><dt>Pakete</dt><dd>${total.toLocaleString("de-DE")}</dd><dt>Verlust</dt><dd>${(item.loss_rate * 100).toFixed(3)} %</dd><dt>Samplerate</dt><dd>${item.sample_rate.toLocaleString("de-DE")} Hz</dd><dt>Peak</dt><dd>${item.peak}</dd></dl>
+      <dl><dt>Firmware</dt><dd>${escapeHtml(item.firmware_version || "Legacy")}</dd><dt>Quelle</dt><dd>${escapeHtml(item.source_ip)}</dd><dt>Aktueller Pegel</dt><dd>${item.db_level.toFixed(1)} dB</dd><dt>Pakete</dt><dd>${total.toLocaleString("de-DE")}</dd><dt>Verlust</dt><dd>${(item.loss_rate * 100).toFixed(3)} %</dd><dt>Samplerate</dt><dd>${item.sample_rate.toLocaleString("de-DE")} Hz</dd><dt>Peak</dt><dd>${item.peak}</dd></dl>
     </div>`;
   }).join("") : "<p>Noch keine Telemetriedaten. Legacy-Firmware sendet weiterhin Audio, aber noch keinen Gerätestatus.</p>";
+}
+
+async function loadCalibrations() {
+  const calibrations = await api("/api/device-calibrations");
+  const value = (reference, measured) => reference == null ? "–" : `${measured.toFixed(1)} / ${reference.toFixed(1)} dB`;
+  $("#calibration-list").innerHTML = calibrations.length ? calibrations.map((item) =>
+    `<div class="calibration-row"><strong>${escapeHtml(item.device_id)}</strong><span>Leise: ${value(item.low_reference_db, item.low_measured_db)}</span><span>Mittel: ${value(item.medium_reference_db, item.medium_measured_db)}</span><span>Laut: ${value(item.high_reference_db, item.high_measured_db)}</span><b>Empfohlener Offset: ${item.recommended_offset_db >= 0 ? "+" : ""}${item.recommended_offset_db.toFixed(2)} dB</b></div>`
+  ).join("") : "<p>Noch keine Referenzmessung erfasst.</p>";
 }
 
 async function loadDevices() {
@@ -182,6 +193,16 @@ $("#rule-form").addEventListener("submit", async (e) => {
 $("#rule-list").addEventListener("click", async (e) => {
   const id = e.target.dataset.delete;
   if (id) { await api(`/api/notification-rules/${id}`, { method: "DELETE" }); await loadRules(); }
+});
+$("#calibration-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const onlineIds = state.telemetry.filter((item) => Date.now() - new Date(item.last_seen).valueOf() < 90000).map((item) => item.device_id);
+  if (!onlineIds.length) { $("#calibration-status").textContent = "Keine Online-Mikrofone gefunden."; return; }
+  try {
+    await api("/api/device-calibrations/capture", { method: "POST", body: JSON.stringify({ level: $("#calibration-level").value, reference_db: Number($("#calibration-reference").value), device_ids: onlineIds }) });
+    $("#calibration-status").textContent = `${onlineIds.length} Mikrofone erfasst.`;
+    await loadCalibrations();
+  } catch (error) { $("#calibration-status").textContent = error.message; }
 });
 function formatTime(value) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("de-DE"); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }

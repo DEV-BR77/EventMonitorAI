@@ -51,12 +51,32 @@ class DeviceTelemetryWrite(BaseModel):
     packets_received: int = Field(default=0, ge=0)
     packets_lost: int = Field(default=0, ge=0)
     peak: int = Field(default=0, ge=0)
+    db_level: float = Field(default=0, ge=0)
 
 
 class DeviceTelemetryRead(DeviceTelemetryWrite):
     model_config = ConfigDict(from_attributes=True)
     loss_rate: float
     last_seen: str
+
+
+class CalibrationCapture(BaseModel):
+    level: Literal["low", "medium", "high"]
+    reference_db: float = Field(ge=0, le=140)
+    device_ids: list[str] = Field(min_length=1)
+
+
+class DeviceCalibrationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    device_id: str
+    low_reference_db: float | None
+    low_measured_db: float | None
+    medium_reference_db: float | None
+    medium_measured_db: float | None
+    high_reference_db: float | None
+    high_measured_db: float | None
+    recommended_offset_db: float
+    updated_at: str
 
 
 class RuleCreate(BaseModel):
