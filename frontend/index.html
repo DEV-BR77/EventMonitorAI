@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=0.3.0-phase8">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -32,6 +32,7 @@
         <button class="nav" data-view="devices">Mikrofone</button>
         <button id="audio-nav" class="nav hidden" data-view="audio">Live-Sound</button>
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
+        <button id="review-nav" class="nav hidden" data-view="review">Audio-Lab</button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
         <button id="admin-nav" class="nav hidden" data-view="administration">Administration</button>
       </nav>
@@ -91,6 +92,42 @@
             <span id="audio-status">Bereit</span>
           </div>
           <p class="management-help">Die Wiedergabe bleibt lokal im Browser und wird beim Wechsel des Mikrofons sofort beendet.</p>
+        </article>
+      </section>
+
+      <section id="review" class="view hidden">
+        <div class="metrics review-metrics">
+          <article><span>Offen · unbekannt</span><strong id="r-open-unknown">–</strong></article>
+          <article><span>Offen · KI erkannt</span><strong id="r-open-recognized">–</strong></article>
+          <article><span>Erledigt · unbekannt</span><strong id="r-done-unknown">–</strong></article>
+          <article><span>Erledigt · erkannt</span><strong id="r-done-recognized">–</strong></article>
+        </div>
+        <article class="panel">
+          <div class="panel-head"><h2>Klassenprüfung</h2><span>Klasse wählen und identische Ereignisse gesammelt bestätigen</span></div>
+          <div id="review-classes" class="class-tiles"></div>
+          <div class="review-toolbar">
+            <select id="review-status"><option value="open">Offen</option><option value="completed">Erledigt</option><option value="all">Alle</option></select>
+            <button id="review-select-all" type="button" class="ghost">Alle sichtbaren wählen</button>
+            <span id="review-selection">0 ausgewählt</span>
+          </div>
+          <div id="review-events" class="review-events"></div>
+          <form id="review-bulk-form" class="review-bulk">
+            <label>Basisklasse<select id="review-primary" required></select></label>
+            <label>Feinzuordnung<select id="review-subclass"></select></label>
+            <label>Begründung<input id="review-reason" minlength="3" value="Sammelprüfung im Audio-Lab" required></label>
+            <button type="submit">Auswahl bestätigen</button>
+          </form>
+          <span id="review-status-text"></span>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2>Automatisierte Prüfläufe</h2><span>Nächtlich um 03:00 Uhr · manuelle Zuordnungen bleiben unverändert</span></div>
+          <div class="review-toolbar"><button id="review-run" type="button">Prüflauf starten</button></div>
+          <div id="review-runs"></div>
+        </article>
+        <article class="panel assessment-reference">
+          <div class="panel-head"><h2>Beurteilungszeiten und Referenzwerte</h2><span>Zeitzone Europe/Berlin</span></div>
+          <p>Tag 06:00–19:00: 50 dB(A) · Abend 19:00–22:00: 35 dB(A) · Nacht 22:00–06:00: 35 dB(A)</p>
+          <p>+6 dB zu empfindlichen Zeiten: werktags 06:00–07:00 und 20:00–22:00; sonn- und bundesweite Feiertage 06:00–09:00, 13:00–15:00 und 20:00–22:00.</p>
         </article>
       </section>
 
@@ -167,6 +204,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=0.3.0-phase8"></script>
 </body>
 </html>

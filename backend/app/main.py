@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,12 +20,21 @@ from app.database.session import engine
 from app.models.dashboard import Device, LiveAudioAccess, User
 from app.services.audio import live_audio_hub
 from app.services.live import live_hub
+from app.services.review import nightly_review_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     init_db()
-    yield
+    scheduler = asyncio.create_task(nightly_review_scheduler())
+    try:
+        yield
+    finally:
+        scheduler.cancel()
+        try:
+            await scheduler
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(

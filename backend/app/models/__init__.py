@@ -9,6 +9,7 @@ from app.models.dashboard import (
     LiveAudioAccess,
     NotificationRule,
     PushSubscription,
+    ReviewRun,
     User,
 )
 from app.models.event import Event
@@ -25,5 +26,6 @@ __all__ = [
     "LiveAudioAccess",
     "NotificationRule",
     "PushSubscription",
+    "ReviewRun",
     "User",
 ]

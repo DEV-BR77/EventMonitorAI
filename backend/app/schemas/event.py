@@ -57,3 +57,49 @@ class TrainingExampleRead(BaseModel):
     confidence: float
     clip_sha256: str
     audio_url: str
+
+
+class ReviewQueueItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    timestamp: str
+    label: str
+    label_de: str
+    confidence: float
+    db_level: float
+    device: str
+    primary_class_code: str | None
+    subclass_code: str | None
+    classification_status: str
+
+
+class ReviewSummary(BaseModel):
+    open_unknown: int
+    open_recognized: int
+    completed_unknown: int
+    completed_recognized: int
+    by_class: dict[str, dict[str, int]]
+
+
+class BulkClassificationUpdate(EventClassificationUpdate):
+    event_ids: list[int] = Field(min_length=1, max_length=500)
+
+
+class ReviewRunCreate(BaseModel):
+    kind: str = Field(default="manual", pattern=r"^(manual|automatic|nightly)$")
+
+
+class ReviewRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    kind: str
+    status: str
+    cursor_event_id: int
+    processed: int
+    changed: int
+    total: int
+    requested_by: str
+    created_at: str
+    started_at: str | None
+    finished_at: str | None
+    message: str

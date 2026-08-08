@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null, reviewClass: "", reviewEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 
@@ -50,9 +50,10 @@ async function start() {
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     $("#admin-nav").classList.toggle("hidden", me.role !== "admin");
+    $("#review-nav").classList.toggle("hidden", me.role === "viewer");
     await loadDevices();
     await loadEventClasses();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -353,6 +354,47 @@ function populateSubclassOptions(form) {
   form.elements.subclass_code.innerHTML = `<option value="">Keine Feinzuordnung</option>${fine.map((item) => `<option value="${escapeHtml(item.code)}" ${current === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
 }
 
+function reviewSubclassOptions() {
+  const primary = $("#review-primary").value;
+  const fine = state.eventClasses.filter((item) => item.active && item.level === "fine" && (item.parent_code == null || item.parent_code === primary));
+  $("#review-subclass").innerHTML = `<option value="">Keine Feinzuordnung</option>${fine.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("")}`;
+}
+
+async function loadReview() {
+  const [summary, runs] = await Promise.all([api("/events/review/summary"), api("/events/review/runs")]);
+  $("#r-open-unknown").textContent = summary.open_unknown;
+  $("#r-open-recognized").textContent = summary.open_recognized;
+  $("#r-done-unknown").textContent = summary.completed_unknown;
+  $("#r-done-recognized").textContent = summary.completed_recognized;
+  const classes = [{ code: "UNKNOWN", name: "Unbekannt" }, ...state.eventClasses.filter((item) => item.active)];
+  $("#review-classes").innerHTML = classes.map((item) => {
+    const counts = summary.by_class[item.code] || { open: 0, completed: 0 };
+    return `<button type="button" class="class-tile ${state.reviewClass === item.code ? "active" : ""}" data-review-class="${escapeHtml(item.code)}"><strong>${escapeHtml(item.name)}</strong><small>${counts.open} offen · ${counts.completed} erledigt</small></button>`;
+  }).join("");
+  const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
+  $("#review-primary").innerHTML = bases.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
+  reviewSubclassOptions();
+  $("#review-runs").innerHTML = runs.length ? runs.map((run) => {
+    const progress = run.total ? Math.round(run.processed / run.total * 100) : 0;
+    const action = run.status === "running" || run.status === "pending" ? `<button data-run-pause="${run.id}">Unterbrechen</button>` : run.status === "paused" ? `<button data-run-resume="${run.id}">Fortsetzen</button>` : "";
+    return `<div class="review-run"><div><strong>${escapeHtml(run.kind)}</strong><br><small>${escapeHtml(run.status)} · ${run.changed} verbessert</small></div><div><span>${run.processed} / ${run.total}</span><div class="review-progress"><i style="width:${progress}%"></i></div></div>${action}</div>`;
+  }).join("") : "<p>Noch kein Prüflauf vorhanden.</p>";
+  await loadReviewQueue();
+}
+
+async function loadReviewQueue() {
+  const query = new URLSearchParams({ status: $("#review-status").value, limit: "500" });
+  if (state.reviewClass) query.set("class_code", state.reviewClass);
+  state.reviewEvents = await api(`/events/review/queue?${query}`);
+  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %</span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
+  updateReviewSelection();
+}
+
+function updateReviewSelection() {
+  const count = document.querySelectorAll("#review-events input:checked").length;
+  $("#review-selection").textContent = `${count} ausgewählt`;
+}
+
 async function loadEvents() {
   const query = `${device() ? `?device=${encodeURIComponent(device())}&` : "?"}limit=200`;
   const events = await api(`/events${query}`);
@@ -402,6 +444,40 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
+$("#review-classes").addEventListener("click", async (e) => {
+  const tile = e.target.closest("[data-review-class]");
+  if (!tile) return;
+  state.reviewClass = state.reviewClass === tile.dataset.reviewClass ? "" : tile.dataset.reviewClass;
+  await loadReview();
+});
+$("#review-status").addEventListener("change", loadReviewQueue);
+$("#review-primary").addEventListener("change", reviewSubclassOptions);
+$("#review-events").addEventListener("change", updateReviewSelection);
+$("#review-select-all").addEventListener("click", () => {
+  document.querySelectorAll("#review-events input").forEach((item) => { item.checked = true; });
+  updateReviewSelection();
+});
+$("#review-bulk-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const eventIds = Array.from(document.querySelectorAll("#review-events input:checked"), (item) => Number(item.value));
+  if (!eventIds.length) { $("#review-status-text").textContent = "Bitte mindestens ein Ereignis auswählen."; return; }
+  try {
+    await api("/events/review/bulk-classification", { method: "POST", body: JSON.stringify({ event_ids: eventIds, primary_class_code: $("#review-primary").value, subclass_code: $("#review-subclass").value || null, reason: $("#review-reason").value }) });
+    $("#review-status-text").textContent = `${eventIds.length} Ereignisse bestätigt.`;
+    await Promise.all([loadReview(), loadRecentEvents(), loadEvents()]);
+  } catch (error) { $("#review-status-text").textContent = error.message; }
+});
+$("#review-run").addEventListener("click", async () => {
+  try { await api("/events/review/runs", { method: "POST", body: JSON.stringify({ kind: "automatic" }) }); await loadReview(); }
+  catch (error) { $("#review-status-text").textContent = error.message; }
+});
+$("#review-runs").addEventListener("click", async (e) => {
+  const pause = e.target.dataset.runPause;
+  const resume = e.target.dataset.runResume;
+  if (pause) await api(`/events/review/runs/${pause}/pause`, { method: "POST" });
+  if (resume) await api(`/events/review/runs/${resume}/resume`, { method: "POST" });
+  if (pause || resume) await loadReview();
+});
 $("#audio-permission-list").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.target.closest(".permission-editor");

@@ -129,6 +129,14 @@ So bekommst du früh ein brauchbares Lärmprotokoll, ohne dass wir dir falsche P
 
 ## Phase 8 – ## Audio-Lab
 
+**Umsetzungsstatus: abgeschlossen**
+
+- [x] Audio-Lab in das geschützte Dashboard eingebunden
+- [x] Klassenkacheln, Statuszählung und Sammelbestätigung
+- [x] Automatische und nächtliche Prüfläufe
+- [x] Unterbrechung und Fortsetzung mit persistentem Fortschritt
+- [x] Beurteilungszeiten, Zuschläge und Referenzwerte zentral umgesetzt und getestet
+
 https://github.com/DEV-BR77/EventMonitorAI/tree/main/tools/audio-lab
 
 Mit in Dashboard einbinden

@@ -154,6 +154,23 @@ class AudioClip(Base):
     )
 
 
+class ReviewRun(Base):
+    __tablename__ = "review_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), default="manual")
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    cursor_event_id: Mapped[int] = mapped_column(Integer, default=0)
+    processed: Mapped[int] = mapped_column(Integer, default=0)
+    changed: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    requested_by: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    started_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    finished_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    message: Mapped[str] = mapped_column(String(500), default="")
+
+
 class NotificationRule(Base):
     __tablename__ = "notification_rules"
 

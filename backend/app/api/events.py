@@ -15,23 +15,31 @@ from app.models.dashboard import (
     DeviceTelemetry,
     EventClass,
     EventClassificationRevision,
+    ReviewRun,
     User,
 )
 from app.models.event import Event
 from app.schemas.dashboard import DeviceTelemetryRead, DeviceTelemetryWrite
 from app.schemas.event import (
+    BulkClassificationUpdate,
     EventClassificationRevisionRead,
     EventClassificationUpdate,
     EventCreate,
     EventRead,
+    ReviewQueueItem,
+    ReviewRunCreate,
+    ReviewRunRead,
+    ReviewSummary,
     TrainingExampleRead,
 )
 from app.services.audio import live_audio_hub
 from app.services.clips import associate_nearest_clip, associate_nearest_event, store_training_clip
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
+from app.services.noise_assessment import assessment_for
 from app.services.notifications import trigger_notifications
 from app.services.push import send_event_pushes
+from app.services.review import process_review_run
 from app.services.taxonomy import base_class_for_detection
 
 router = APIRouter(
@@ -223,6 +231,175 @@ def training_example_audio(
     return FileResponse(clip.path, media_type="audio/wav", filename=f"event-{event_id}.wav")
 
 
+def _validate_classes(
+    db: Session, primary_code: str, subclass_code: str | None
+) -> tuple[EventClass, EventClass | None]:
+    primary = db.scalar(select(EventClass).where(EventClass.code == primary_code))
+    if primary is None or primary.level != "base" or not primary.active:
+        raise HTTPException(status_code=422, detail="Ungültige oder inaktive Basisklasse")
+    subclass = None
+    if subclass_code:
+        subclass = db.scalar(select(EventClass).where(EventClass.code == subclass_code))
+        if (
+            subclass is None
+            or subclass.level != "fine"
+            or not subclass.active
+            or subclass.parent_code not in (None, primary.code)
+        ):
+            raise HTTPException(status_code=422, detail="Feinzuordnung passt nicht zur Basisklasse")
+    return primary, subclass
+
+
+def _assign_manual(
+    event: Event, primary: EventClass, subclass: EventClass | None, user: User, reason: str
+) -> None:
+    now = datetime.now(UTC).isoformat()
+    event.primary_class_code = primary.code
+    event.subclass_code = subclass.code if subclass else None
+    event.classification_status = "manual"
+    event.corrected_by = user.username
+    event.corrected_at = now
+
+
+@router.get("/review/summary", response_model=ReviewSummary)
+def review_summary(db: DatabaseSession, _: CurrentUser) -> ReviewSummary:
+    events = list(db.scalars(select(Event)))
+    summary = {
+        "open_unknown": 0,
+        "open_recognized": 0,
+        "completed_unknown": 0,
+        "completed_recognized": 0,
+    }
+    by_class: dict[str, dict[str, int]] = {}
+    for event in events:
+        completed = event.classification_status == "manual"
+        recognized = event.primary_class_code is not None
+        summary[
+            f"{'completed' if completed else 'open'}_{'recognized' if recognized else 'unknown'}"
+        ] += 1
+        code = event.subclass_code or event.primary_class_code or "UNKNOWN"
+        counts = by_class.setdefault(code, {"open": 0, "completed": 0})
+        counts["completed" if completed else "open"] += 1
+    return ReviewSummary(**summary, by_class=by_class)
+
+
+@router.get("/review/queue", response_model=list[ReviewQueueItem])
+def review_queue(
+    db: DatabaseSession,
+    _: CurrentUser,
+    class_code: str | None = None,
+    status_filter: str = Query(default="open", alias="status", pattern="^(open|completed|all)$"),
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> list[Event]:
+    statement = select(Event)
+    if status_filter == "open":
+        statement = statement.where(Event.classification_status != "manual")
+    elif status_filter == "completed":
+        statement = statement.where(Event.classification_status == "manual")
+    if class_code == "UNKNOWN":
+        statement = statement.where(Event.primary_class_code.is_(None))
+    elif class_code:
+        statement = statement.where(
+            (Event.primary_class_code == class_code) | (Event.subclass_code == class_code)
+        )
+    return list(db.scalars(statement.order_by(desc(Event.id)).limit(limit)))
+
+
+@router.post("/review/bulk-classification", response_model=list[EventRead])
+def bulk_classification(
+    data: BulkClassificationUpdate,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> list[Event]:
+    primary, subclass = _validate_classes(db, data.primary_class_code, data.subclass_code)
+    events = list(db.scalars(select(Event).where(Event.id.in_(set(data.event_ids)))))
+    if len(events) != len(set(data.event_ids)):
+        raise HTTPException(status_code=404, detail="Mindestens ein Ereignis wurde nicht gefunden")
+    for event in events:
+        _assign_manual(event, primary, subclass, user, data.reason)
+        db.add(
+            EventClassificationRevision(
+                event_id=event.id,
+                primary_class_code=primary.code,
+                subclass_code=event.subclass_code,
+                status="manual",
+                actor=user.username,
+                reason=data.reason,
+                created_at=event.corrected_at,
+            )
+        )
+    db.commit()
+    return events
+
+
+@router.get("/review/runs", response_model=list[ReviewRunRead])
+def review_runs(db: DatabaseSession, _: CurrentUser) -> list[ReviewRun]:
+    return list(db.scalars(select(ReviewRun).order_by(desc(ReviewRun.id)).limit(20)))
+
+
+@router.post("/review/runs", response_model=ReviewRunRead, status_code=201)
+def start_review_run(
+    data: ReviewRunCreate,
+    background_tasks: BackgroundTasks,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> ReviewRun:
+    active = db.scalar(select(ReviewRun).where(ReviewRun.status.in_(("pending", "running"))))
+    if active:
+        raise HTTPException(status_code=409, detail="Es läuft bereits ein Prüflauf")
+    run = ReviewRun(kind=data.kind, status="pending", requested_by=user.username)
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    background_tasks.add_task(process_review_run, run.id)
+    return run
+
+
+@router.post("/review/runs/{run_id}/pause", response_model=ReviewRunRead)
+def pause_review_run(
+    run_id: int,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> ReviewRun:
+    run = db.get(ReviewRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Prüflauf nicht gefunden")
+    if run.status in {"pending", "running"}:
+        run.status = "paused"
+        run.message = "Prüflauf manuell unterbrochen."
+        db.commit()
+    return run
+
+
+@router.post("/review/runs/{run_id}/resume", response_model=ReviewRunRead)
+def resume_review_run(
+    run_id: int,
+    background_tasks: BackgroundTasks,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> ReviewRun:
+    run = db.get(ReviewRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Prüflauf nicht gefunden")
+    if run.status != "paused":
+        raise HTTPException(
+            status_code=409, detail="Nur unterbrochene Prüfläufe können fortgesetzt werden"
+        )
+    run.status = "pending"
+    run.message = ""
+    db.commit()
+    background_tasks.add_task(process_review_run, run.id)
+    return run
+
+
+@router.get("/{event_id}/assessment")
+def event_assessment(event_id: int, db: DatabaseSession, _: CurrentUser) -> dict[str, object]:
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
+    return assessment_for(event.timestamp, event.db_level)
+
+
 @router.patch("/{event_id}/classification", response_model=EventRead)
 async def correct_event_classification(
     event_id: int,
@@ -233,26 +410,8 @@ async def correct_event_classification(
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
-    primary = db.scalar(select(EventClass).where(EventClass.code == data.primary_class_code))
-    if primary is None or primary.level != "base" or not primary.active:
-        raise HTTPException(status_code=422, detail="Ungültige oder inaktive Basisklasse")
-    subclass = None
-    if data.subclass_code:
-        subclass = db.scalar(select(EventClass).where(EventClass.code == data.subclass_code))
-        if (
-            subclass is None
-            or subclass.level != "fine"
-            or not subclass.active
-            or subclass.parent_code not in (None, primary.code)
-        ):
-            raise HTTPException(status_code=422, detail="Feinzuordnung passt nicht zur Basisklasse")
-
-    now = datetime.now(UTC).isoformat()
-    event.primary_class_code = primary.code
-    event.subclass_code = subclass.code if subclass else None
-    event.classification_status = "manual"
-    event.corrected_by = user.username
-    event.corrected_at = now
+    primary, subclass = _validate_classes(db, data.primary_class_code, data.subclass_code)
+    _assign_manual(event, primary, subclass, user, data.reason)
     db.add(
         EventClassificationRevision(
             event_id=event.id,
@@ -261,7 +420,7 @@ async def correct_event_classification(
             status="manual",
             actor=user.username,
             reason=data.reason,
-            created_at=now,
+            created_at=event.corrected_at,
         )
     )
     db.commit()
