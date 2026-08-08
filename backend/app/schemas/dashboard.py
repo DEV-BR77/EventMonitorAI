@@ -28,6 +28,17 @@ class UserRead(BaseModel):
     created_at: str
 
 
+class LiveAudioPermissionUpdate(BaseModel):
+    device_ids: list[str]
+
+
+class LiveAudioPermissionRead(BaseModel):
+    user_id: int
+    username: str
+    role: str
+    device_ids: list[str]
+
+
 class DeviceCreate(BaseModel):
     device_id: str = Field(min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=120)

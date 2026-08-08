@@ -15,7 +15,7 @@ Aktuell vorhanden:
 - FastAPI-Backend mit SQLite-Ereignisdatenbank
 - REST-Endpunkte für Health-Check und Ereignisse
 - geschütztes Dashboard mit Kalender, Timeline, Heatmap, Statistiken und Live-Ansicht
-- lokale Benutzerrollen, Mehrgerätebetrieb und Benachrichtigungsregeln
+- lokale Benutzerrollen, Mehrgerätebetrieb, Live-Sound-Freigaben und Benachrichtigungsregeln
 - Home-Assistant-Webhook und optionale PostgreSQL-Datenbank
 - deutsche Label- und Kategoriezuordnung
 - EventMonitor AudioLab für ZIP-Massenimport, Segmentierung, Anhören, Labeling und CSV-Export
@@ -47,7 +47,7 @@ ESP32-S3 + INMP441
         │ UDP-Audio
         ▼
 Raspberry Pi / Edge Receiver
-        │ Ereignisse + Pegel + Modellresultate
+        │ Ereignisse + Pegel + Modellresultate + flüchtiger Live-Audiostream
         ▼
 FastAPI Backend ───────────────► SQLite / später PostgreSQL
         │

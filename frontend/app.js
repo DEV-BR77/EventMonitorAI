@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, devices: [], telemetry: [], role: null };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, nextAudioTime: 0, devices: [], audioDevices: [], telemetry: [], role: null };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 
@@ -34,6 +34,7 @@ function logout() {
   localStorage.removeItem("em_token");
   state.token = null;
   state.socket?.close();
+  stopAudio();
   $("#app").classList.add("hidden");
   $("#auth").classList.remove("hidden");
 }
@@ -47,8 +48,9 @@ async function start() {
     $("#app").classList.remove("hidden");
     $("#calibration-form").classList.toggle("hidden", me.role === "viewer");
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
+    $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     await loadDevices();
-    await Promise.all([loadTelemetry(), loadCalibrations(), refresh(), loadEvents(), loadRules()]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions()] : [])]);
     connectLive();
   } catch (_) {
     logout();
@@ -99,6 +101,62 @@ function renderDeviceManagement() {
       <label class="active-toggle"><input name="enabled" type="checkbox" ${d.enabled ? "checked" : ""}> Aktiv</label>
       <button type="submit">Speichern</button>
     </form>`).join("") : "<p>Noch keine Mikrofone registriert.</p>";
+}
+
+async function loadLiveAudioDevices() {
+  state.audioDevices = await api("/api/live-audio/devices");
+  $("#audio-nav").classList.toggle("hidden", !state.audioDevices.length);
+  $("#audio-device").innerHTML = state.audioDevices.map((item) => `<option value="${escapeHtml(item.device_id)}">${escapeHtml(item.name)}</option>`).join("");
+}
+
+async function loadAudioPermissions() {
+  const permissions = await api("/api/live-audio/permissions");
+  $("#audio-permission-list").innerHTML = permissions.map((permission) => `
+    <form class="permission-editor" data-user-id="${permission.user_id}">
+      <div><strong>${escapeHtml(permission.username)}</strong><small>${escapeHtml(permission.role)}</small></div>
+      <div class="permission-devices">${state.devices.map((device) => `<label><input type="checkbox" name="device_ids" value="${escapeHtml(device.device_id)}" ${permission.device_ids.includes(device.device_id) ? "checked" : ""}> ${escapeHtml(device.name)}</label>`).join("")}</div>
+      <button type="submit">Freigaben speichern</button>
+    </form>`).join("");
+}
+
+async function startAudio() {
+  const deviceId = $("#audio-device").value;
+  if (!deviceId) return;
+  stopAudio();
+  state.audioContext = new AudioContext();
+  await state.audioContext.resume();
+  state.nextAudioTime = state.audioContext.currentTime + 0.1;
+  const scheme = location.protocol === "https:" ? "wss" : "ws";
+  state.audioSocket = new WebSocket(`${scheme}://${location.host}/ws/audio/${encodeURIComponent(deviceId)}?token=${encodeURIComponent(state.token)}`);
+  state.audioSocket.binaryType = "arraybuffer";
+  state.audioSocket.onopen = () => { $("#audio-status").textContent = "Verbunden – Audiopuffer wird gefüllt"; $("#audio-toggle").textContent = "Wiedergabe stoppen"; };
+  state.audioSocket.onmessage = (message) => {
+    if (typeof message.data === "string" || !state.audioContext) return;
+    const samples = new Int16Array(message.data);
+    const buffer = state.audioContext.createBuffer(1, samples.length, 16000);
+    const channel = buffer.getChannelData(0);
+    for (let index = 0; index < samples.length; index++) channel[index] = samples[index] / 32768;
+    const source = state.audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(state.audioContext.destination);
+    state.nextAudioTime = Math.max(state.nextAudioTime, state.audioContext.currentTime + 0.05);
+    source.start(state.nextAudioTime);
+    state.nextAudioTime += buffer.duration;
+    $("#audio-status").textContent = "Live-Wiedergabe aktiv";
+  };
+  state.audioSocket.onclose = () => { if (state.audioContext) stopAudio("Verbindung beendet"); };
+}
+
+function stopAudio(message = "Wiedergabe gestoppt") {
+  const socket = state.audioSocket;
+  state.audioSocket = null;
+  if (socket) socket.onclose = null;
+  socket?.close();
+  state.audioContext?.close();
+  state.audioContext = null;
+  state.nextAudioTime = 0;
+  if ($("#audio-status")) $("#audio-status").textContent = message;
+  if ($("#audio-toggle")) $("#audio-toggle").textContent = "Wiedergabe starten";
 }
 
 async function refresh() {
@@ -198,6 +256,19 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
   $(`#${button.dataset.view}`).classList.remove("hidden");
   $("#title").textContent = button.textContent.trim();
 }));
+$("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
+$("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
+$("#audio-permission-list").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".permission-editor");
+  if (!form) return;
+  const deviceIds = Array.from(form.querySelectorAll("input[name=device_ids]:checked"), (item) => item.value);
+  try {
+    await api(`/api/live-audio/permissions/${form.dataset.userId}`, { method: "PUT", body: JSON.stringify({ device_ids: deviceIds }) });
+    $("#audio-permission-status").textContent = "Freigaben gespeichert.";
+    await loadAudioPermissions();
+  } catch (error) { $("#audio-permission-status").textContent = error.message; }
+});
 $("#rule-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   await api("/api/notification-rules", { method: "POST", body: JSON.stringify({

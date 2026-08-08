@@ -10,7 +10,7 @@ from time import monotonic
 import numpy as np
 from audio_protocol import decode_packet, sequence_gap
 from clip_receiver import start_clip_server
-from noise_api import send_event, send_telemetry
+from noise_api import send_event, send_live_audio, send_telemetry
 from tflite_runtime.interpreter import Interpreter
 
 UDP_PORT = 12345
@@ -33,6 +33,7 @@ CALIBRATION_OFFSET_DB = 100.0
 # Ein Ereignis endet nach drei Sekunden ohne relevantes Geräusch.
 EVENT_END_SILENCE_SECONDS = 3.0
 TELEMETRY_INTERVAL_SECONDS = 5.0
+LIVE_AUDIO_CHUNK_SAMPLES = SAMPLE_RATE // 2
 
 IGNORED_LABELS = {
     "Silence",
@@ -214,9 +215,10 @@ for source_ip, device_name in device_names.items():
     print(f"Quelle {source_ip} -> {device_name}")
 
 audio_by_source: dict[str, np.ndarray] = {}
+live_audio_by_source: dict[str, np.ndarray] = {}
 active_events: dict[str, dict] = {}
 transport_by_source: dict[str, dict] = {}
-api_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="eventmonitor-api")
+api_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="eventmonitor-api")
 
 try:
     while True:
@@ -284,6 +286,17 @@ try:
                 )
 
         chunk = np.frombuffer(pcm_payload, dtype=np.int16)
+        live_audio = np.concatenate(
+            (live_audio_by_source.get(source_key, np.array([], dtype=np.int16)), chunk)
+        )
+        while len(live_audio) >= LIVE_AUDIO_CHUNK_SAMPLES:
+            api_executor.submit(
+                send_live_audio,
+                source_key,
+                live_audio[:LIVE_AUDIO_CHUNK_SAMPLES].tobytes(),
+            )
+            live_audio = live_audio[LIVE_AUDIO_CHUNK_SAMPLES:]
+        live_audio_by_source[source_key] = live_audio
         audio = np.concatenate(
             (audio_by_source.get(source_key, np.array([], dtype=np.int16)), chunk)
         )

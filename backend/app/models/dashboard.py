@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, Boolean, Float, Integer, String
+from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
@@ -65,6 +65,16 @@ class DeviceCalibration(Base):
     high_measured_db: Mapped[float | None] = mapped_column(Float, nullable=True)
     recommended_offset_db: Mapped[float] = mapped_column(Float, default=0.0)
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class LiveAudioAccess(Base):
+    __tablename__ = "live_audio_access"
+    __table_args__ = (UniqueConstraint("user_id", "device_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    device_id: Mapped[str] = mapped_column(String(120), index=True)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
 class NotificationRule(Base):

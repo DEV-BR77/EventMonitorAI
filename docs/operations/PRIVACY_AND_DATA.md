@@ -19,6 +19,9 @@ EventMonitorAI verarbeitet potenziell sensible Audio- und Ereignisdaten. Die Arc
 - Exporte müssen bewusst ausgelöst werden.
 - Audio, Datenbanken und Modelle werden nicht in Git gespeichert.
 - Zugriff auf Gerät, Dateisystem und Backups muss geschützt werden.
+- Live-Audio wird nicht im Backend gespeichert. Der Pi überträgt flüchtige PCM-Blöcke nur an
+  aktuell verbundene Browser; sichtbar und abrufbar ist die Funktion ausschließlich für vom
+  Administrator pro Mikrofon freigegebene Benutzer.
 
 ## Aussagegrenzen
 

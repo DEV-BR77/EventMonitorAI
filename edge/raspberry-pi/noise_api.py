@@ -8,6 +8,7 @@ TELEMETRY_URL = os.getenv(
     API_URL.rstrip("/") + "/telemetry",
 )
 API_KEY = os.getenv("EVENTMONITOR_API_KEY", "")
+LIVE_AUDIO_URL = os.getenv("EVENTMONITOR_LIVE_AUDIO_URL", API_URL.rstrip("/") + "/audio")
 
 
 def send_event(
@@ -68,4 +69,22 @@ def send_telemetry(payload: dict[str, object]) -> bool:
         return True
     except Exception as ex:
         print("Telemetrie-API-Fehler:", ex)
+        return False
+
+
+def send_live_audio(device_id: str, pcm: bytes) -> bool:
+    try:
+        response = requests.post(
+            f"{LIVE_AUDIO_URL}/{device_id}",
+            data=pcm,
+            headers={
+                "Content-Type": "application/octet-stream",
+                **({"X-API-Key": API_KEY} if API_KEY else {}),
+            },
+            timeout=2,
+        )
+        response.raise_for_status()
+        return True
+    except Exception as ex:
+        print("Live-Audio-API-Fehler:", ex)
         return False

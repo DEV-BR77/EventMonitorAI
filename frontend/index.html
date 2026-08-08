@@ -26,6 +26,7 @@
       <nav>
         <button class="nav active" data-view="overview">Übersicht</button>
         <button class="nav" data-view="devices">Mikrofone</button>
+        <button id="audio-nav" class="nav hidden" data-view="audio">Live-Sound</button>
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
       </nav>
@@ -62,12 +63,30 @@
         </article>
       </section>
 
+      <section id="audio" class="view hidden">
+        <article class="panel live-audio-panel">
+          <div class="panel-head"><h2>Live-Soundausgabe</h2><span>Nur administrativ freigegebene Mikrofone</span></div>
+          <div class="audio-controls">
+            <label>Mikrofon<select id="audio-device"></select></label>
+            <button id="audio-toggle" type="button">Wiedergabe starten</button>
+            <span id="audio-status">Bereit</span>
+          </div>
+          <p class="management-help">Die Wiedergabe bleibt lokal im Browser und wird beim Wechsel des Mikrofons sofort beendet.</p>
+        </article>
+      </section>
+
       <section id="devices" class="view hidden">
         <article id="device-management" class="panel device-management">
           <div class="panel-head"><h2>Mikrofonverwaltung</h2><span>Name · Position · Status</span></div>
           <p class="management-help">Die Position wird in Prozent relativ zur später hinterlegten Messbereichskarte angegeben.</p>
           <div id="device-management-list"></div>
           <span id="device-management-status"></span>
+        </article>
+        <article id="audio-permissions" class="panel device-management hidden">
+          <div class="panel-head"><h2>Live-Sound-Freigaben</h2><span>Pro Benutzer und Mikrofon</span></div>
+          <p class="management-help">Ohne eine Freigabe bleibt die Live-Sound-Funktion für den Benutzer vollständig verborgen.</p>
+          <div id="audio-permission-list"></div>
+          <span id="audio-permission-status"></span>
         </article>
         <form id="calibration-form" class="panel calibration-controls">
           <div><h2>Gemeinsame Pegelkalibrierung</h2><p>Alle Mikrofone derselben Referenzquelle aussetzen und den tatsächlichen Referenzpegel eintragen.</p></div>

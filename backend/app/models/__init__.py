@@ -2,6 +2,7 @@ from app.models.dashboard import (
     Device,
     DeviceCalibration,
     DeviceTelemetry,
+    LiveAudioAccess,
     NotificationRule,
     User,
 )
@@ -12,6 +13,7 @@ __all__ = [
     "DeviceCalibration",
     "DeviceTelemetry",
     "Event",
+    "LiveAudioAccess",
     "NotificationRule",
     "User",
 ]

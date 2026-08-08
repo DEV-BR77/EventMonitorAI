@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.security import CurrentUser, require_roles
@@ -12,6 +12,7 @@ from app.models.dashboard import (
     Device,
     DeviceCalibration,
     DeviceTelemetry,
+    LiveAudioAccess,
     NotificationRule,
     User,
 )
@@ -23,6 +24,8 @@ from app.schemas.dashboard import (
     DeviceRead,
     DeviceTelemetryRead,
     DeviceUpdate,
+    LiveAudioPermissionRead,
+    LiveAudioPermissionUpdate,
     RuleCreate,
     RuleRead,
 )
@@ -183,6 +186,65 @@ def update_device(
     db.commit()
     db.refresh(device)
     return device
+
+
+def _audio_permission(db: Session, user: User) -> LiveAudioPermissionRead:
+    device_ids = list(
+        db.scalars(
+            select(LiveAudioAccess.device_id)
+            .where(LiveAudioAccess.user_id == user.id)
+            .order_by(LiveAudioAccess.device_id)
+        ).all()
+    )
+    return LiveAudioPermissionRead(
+        user_id=user.id,
+        username=user.username,
+        role=user.role,
+        device_ids=device_ids,
+    )
+
+
+@router.get("/live-audio/devices", response_model=list[DeviceRead])
+def live_audio_devices(db: DatabaseSession, user: CurrentUser) -> list[Device]:
+    statement = select(Device).where(Device.enabled.is_(True)).order_by(Device.name)
+    if user.role != "admin":
+        statement = statement.join(
+            LiveAudioAccess,
+            LiveAudioAccess.device_id == Device.device_id,
+        ).where(LiveAudioAccess.user_id == user.id)
+    return list(db.scalars(statement).all())
+
+
+@router.get("/live-audio/permissions", response_model=list[LiveAudioPermissionRead])
+def list_live_audio_permissions(
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> list[LiveAudioPermissionRead]:
+    users = db.scalars(select(User).where(User.role != "admin").order_by(User.username))
+    return [_audio_permission(db, user) for user in users]
+
+
+@router.put("/live-audio/permissions/{user_id}", response_model=LiveAudioPermissionRead)
+def update_live_audio_permission(
+    user_id: int,
+    data: LiveAudioPermissionUpdate,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> LiveAudioPermissionRead:
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    device_ids = sorted(set(data.device_ids))
+    known_ids = set(
+        db.scalars(select(Device.device_id).where(Device.device_id.in_(device_ids))).all()
+    )
+    missing = sorted(set(device_ids) - known_ids)
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Unbekannte Mikrofone: {', '.join(missing)}")
+    db.execute(delete(LiveAudioAccess).where(LiveAudioAccess.user_id == user_id))
+    db.add_all(LiveAudioAccess(user_id=user_id, device_id=item) for item in device_ids)
+    db.commit()
+    return _audio_permission(db, user)
 
 
 @router.get("/notification-rules", response_model=list[RuleRead])
