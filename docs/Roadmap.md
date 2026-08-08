@@ -42,7 +42,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Active Learning für unsichere oder informative Beispiele
 - [x] Audio-Embeddings und Ähnlichkeitssuche
 - [x] Personen durch Lärm wie schreien, rufen identifizieren und klassifizieren - neue Personen anlegen die editierbar sind mit frei gewählten Namen - gesonderte Statistik je Personen, Beurteilungszeit, Lärmkategorie und Häufigkeit
-- [ ] lokale Modellverwaltung und Rollback
+- [x] lokale Modellverwaltung und Rollback
 
 ## Phase 4 – Ereignisse und Cases
 

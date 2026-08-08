@@ -58,6 +58,18 @@ CREATE TABLE IF NOT EXISTS segment_person_assignments (
 );
 CREATE INDEX IF NOT EXISTS idx_segment_person_person
 ON segment_person_assignments(person_id, confirmed);
+CREATE TABLE IF NOT EXISTS model_registry (
+ id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, artifact_path TEXT NOT NULL UNIQUE,
+ artifact_version TEXT NOT NULL, pipeline_fingerprint TEXT NOT NULL,
+ metrics_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'available',
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, activated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS model_activations (
+ id INTEGER PRIMARY KEY, model_id INTEGER NOT NULL REFERENCES model_registry(id),
+ reason TEXT NOT NULL, activated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_model_activations_time
+ON model_activations(activated_at DESC,id DESC);
 CREATE TABLE IF NOT EXISTS import_jobs (
  id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,

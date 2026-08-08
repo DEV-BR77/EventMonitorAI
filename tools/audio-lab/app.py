@@ -21,6 +21,14 @@ from eventmonitor.inference import (
     latest_prediction,
     record_prediction_review,
 )
+from eventmonitor.model_registry import (
+    activate_model,
+    active_model,
+    archive_model,
+    list_models,
+    register_model,
+    rollback_model,
+)
 from eventmonitor.people import (
     assign_person,
     create_person,
@@ -200,6 +208,9 @@ elif page == "Modelltraining":
                     artifact,
                     Path("models/audio-lab") / f"baseline-{datetime.now():%Y%m%d-%H%M%S}.joblib",
                 )
+                model_id = register_model(conn, model_path, artifact)
+                if active_model(conn) is None:
+                    activate_model(conn, model_id, reason="initial")
         except (OSError, ValueError) as error:
             st.error(str(error))
         else:
@@ -214,10 +225,62 @@ elif page == "Modelltraining":
             columns[2].metric("Balanced Accuracy", f"{metrics['balanced_accuracy']:.3f}")
             columns[3].metric("Macro-F1", f"{metrics['macro_f1']:.3f}")
             st.dataframe(pd.DataFrame(metrics["per_class"]).T, width="stretch")
-    models = sorted(Path("models/audio-lab").glob("*.joblib"), reverse=True)
+    models = sorted(
+        (path.resolve() for path in Path("models/audio-lab").glob("*.joblib")), reverse=True
+    )
+    for existing_model in models:
+        try:
+            register_model(conn, existing_model, load_model(existing_model))
+        except (OSError, ValueError):
+            st.warning(f"Ungültiges Modellartefakt übersprungen: {existing_model.name}")
+    registered_models = list_models(conn)
+    st.subheader("Lokale Modellverwaltung")
+    if registered_models:
+        registry_frame = pd.DataFrame([dict(row) for row in registered_models])
+        registry_frame["test_macro_f1"] = registry_frame["metrics_json"].map(
+            lambda payload: json.loads(payload).get("test", {}).get("macro_f1")
+        )
+        st.dataframe(
+            registry_frame[
+                ["id", "name", "artifact_version", "status", "test_macro_f1", "activated_at"]
+            ],
+            width="stretch",
+            hide_index=True,
+        )
+        registry_map = {
+            f"#{row['id']} · {row['name']} · {row['status']}": row for row in registered_models
+        }
+        managed_model = registry_map[st.selectbox("Modellversion verwalten", list(registry_map))]
+        activate_column, archive_column, rollback_column = st.columns(3)
+        if activate_column.button("Als aktives Modell verwenden"):
+            try:
+                activate_model(conn, managed_model["id"])
+            except (OSError, ValueError) as error:
+                st.error(str(error))
+            else:
+                st.rerun()
+        if archive_column.button(
+            "Modell archivieren", disabled=managed_model["status"] == "active"
+        ):
+            archive_model(conn, managed_model["id"])
+            st.rerun()
+        if rollback_column.button("Auf vorheriges Modell zurückrollen"):
+            try:
+                rollback_model(conn)
+            except (OSError, ValueError) as error:
+                st.error(str(error))
+            else:
+                st.rerun()
+    else:
+        st.info("Noch keine Modellversion registriert.")
     st.subheader("Modellvorschläge")
     if models:
-        selected_model = st.selectbox("Lokales Modell", models, format_func=lambda path: path.name)
+        current = active_model(conn)
+        active_path = Path(current["artifact_path"]) if current else None
+        default_model = models.index(active_path) if active_path in models else 0
+        selected_model = st.selectbox(
+            "Lokales Modell", models, index=default_model, format_func=lambda path: path.name
+        )
         if st.button("Vorschläge für offene Segmente berechnen"):
             try:
                 with st.spinner("Offene Segmente klassifizieren …"):

@@ -96,6 +96,7 @@ python import_data.py "D:\Laermmessungen" --folder
 - [Active Learning](docs/ACTIVE_LEARNING.md)
 - [Audio-Embeddings und Ähnlichkeitssuche](docs/EMBEDDINGS.md)
 - [Personenverwaltung und personenbezogene Ereignisse](docs/PEOPLE.md)
+- [Lokale Modellverwaltung und Rollback](docs/MODEL_REGISTRY.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Grenzen und verantwortungsvolle Nutzung
