@@ -1,4 +1,5 @@
 from app.models.dashboard import (
+    AudioClip,
     Device,
     DeviceCalibration,
     DeviceTelemetry,
@@ -13,6 +14,7 @@ from app.models.dashboard import (
 from app.models.event import Event
 
 __all__ = [
+    "AudioClip",
     "Device",
     "DeviceCalibration",
     "DeviceTelemetry",

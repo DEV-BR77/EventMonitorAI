@@ -6,7 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN addgroup --system eventmonitor \
-    && adduser --system --ingroup eventmonitor --home /app eventmonitor
+    && adduser --system --ingroup eventmonitor --home /app eventmonitor \
+    && mkdir -p /data/clips \
+    && chown eventmonitor:eventmonitor /data/clips
 
 COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt

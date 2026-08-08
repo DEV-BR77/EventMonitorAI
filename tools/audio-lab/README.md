@@ -56,6 +56,13 @@ Synchronisierung über die Dashboard-URL und ein gültiges Benutzerkonto. Die Zu
 nur für diesen Abruf verwendet und nicht in der AudioLab-Datenbank gespeichert. Deaktivierte
 Klassen bleiben historisch erhalten, werden aber nicht mehr zur neuen Zuordnung angeboten.
 
+Bestätigte Live-Ereignisse mit manueller Feinzuordnung können auf derselben Seite als
+Trainingsbeispiele importiert werden. AudioLab lädt nur die geschützten, dem Ereignis zugeordneten
+WAV-Clips, kontrolliert den vom Dashboard gelieferten SHA-256-Hash und das erwartete Audioformat
+und legt jedes Beispiel höchstens einmal ab. Der Import erzeugt direkt ein manuell bestätigtes
+Segment mit Basis- und Feinklasse; noch offene oder nur automatisch klassifizierte Ereignisse
+werden nicht als Trainingsdaten übernommen.
+
 ## Empfohlene Repository-Struktur
 
 ```text

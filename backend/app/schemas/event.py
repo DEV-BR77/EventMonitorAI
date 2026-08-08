@@ -45,3 +45,15 @@ class EventClassificationRevisionRead(BaseModel):
     actor: str
     reason: str
     created_at: str
+
+
+class TrainingExampleRead(BaseModel):
+    event_id: int
+    device_id: str
+    timestamp: str
+    primary_class_code: str
+    subclass_code: str
+    label: str
+    confidence: float
+    clip_sha256: str
+    audio_url: str

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,7 @@ from app.core.config import settings
 from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
+    AudioClip,
     Device,
     DeviceTelemetry,
     EventClass,
@@ -22,8 +24,10 @@ from app.schemas.event import (
     EventClassificationUpdate,
     EventCreate,
     EventRead,
+    TrainingExampleRead,
 )
 from app.services.audio import live_audio_hub
+from app.services.clips import associate_nearest_clip, associate_nearest_event, store_training_clip
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
 from app.services.notifications import trigger_notifications
@@ -127,6 +131,7 @@ async def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
+    associate_nearest_clip(db, event)
     device = db.scalar(select(Device).where(Device.device_id == event.device))
     if device is None:
         db.add(Device(device_id=event.device, name=event.device, last_seen=event.timestamp))
@@ -138,6 +143,84 @@ async def create_event(
     background_tasks.add_task(send_event_pushes, event.id)
 
     return event
+
+
+@router.post("/clips/{device_id}", status_code=status.HTTP_201_CREATED)
+def ingest_training_clip(
+    device_id: str,
+    payload: Annotated[bytes, Body(media_type="audio/wav")],
+    db: DatabaseSession,
+    _: Annotated[None, Depends(verify_ingest_key)],
+    x_trigger_id: Annotated[str, Header(max_length=64)],
+    x_trigger_uptime_ms: Annotated[int, Header(ge=0)],
+    x_received_at: Annotated[str | None, Header()] = None,
+) -> dict[str, object]:
+    if db.scalar(select(Device.id).where(Device.device_id == device_id)) is None:
+        raise HTTPException(status_code=404, detail="Unknown device")
+    try:
+        clip = store_training_clip(
+            db,
+            payload,
+            device_id=device_id,
+            trigger_id=x_trigger_id,
+            trigger_uptime_ms=x_trigger_uptime_ms,
+            received_at=x_received_at or datetime.now(UTC).isoformat(),
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    associate_nearest_event(db, clip)
+    db.commit()
+    return {"clip_id": clip.id, "sha256": clip.sha256, "event_id": clip.event_id}
+
+
+@router.get("/training-examples", response_model=list[TrainingExampleRead])
+def training_examples(
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> list[TrainingExampleRead]:
+    rows = db.execute(
+        select(Event, AudioClip, EventClass)
+        .join(AudioClip, AudioClip.event_id == Event.id)
+        .join(EventClass, EventClass.code == Event.subclass_code)
+        .where(
+            Event.classification_status == "manual",
+            Event.primary_class_code.is_not(None),
+            Event.subclass_code.is_not(None),
+        )
+        .order_by(Event.id)
+    ).all()
+    return [
+        TrainingExampleRead(
+            event_id=event.id,
+            device_id=clip.device_id,
+            timestamp=event.timestamp,
+            primary_class_code=event.primary_class_code,
+            subclass_code=event.subclass_code,
+            label=event_class.name,
+            confidence=event.confidence,
+            clip_sha256=clip.sha256,
+            audio_url=f"/events/training-examples/{event.id}/audio",
+        )
+        for event, clip, event_class in rows
+    ]
+
+
+@router.get("/training-examples/{event_id}/audio")
+def training_example_audio(
+    event_id: int,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> FileResponse:
+    clip = db.scalar(select(AudioClip).where(AudioClip.event_id == event_id))
+    event = db.get(Event, event_id)
+    if (
+        clip is None
+        or event is None
+        or event.classification_status != "manual"
+        or event.subclass_code is None
+    ):
+        raise HTTPException(status_code=404, detail="Trainingsbeispiel nicht gefunden")
+    return FileResponse(clip.path, media_type="audio/wav", filename=f"event-{event_id}.wav")
 
 
 @router.patch("/{event_id}/classification", response_model=EventRead)

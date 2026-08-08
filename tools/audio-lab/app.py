@@ -31,6 +31,7 @@ from eventmonitor.inference import (
     latest_prediction,
     record_prediction_review,
 )
+from eventmonitor.live_training import import_live_training_example
 from eventmonitor.model_registry import (
     activate_model,
     active_model,
@@ -100,7 +101,8 @@ if page == "Klassen":
         username = st.text_input("Benutzername")
         password = st.text_input("Passwort", type="password")
         synchronize = st.form_submit_button("Klassen vom Dashboard synchronisieren")
-    if synchronize:
+        import_examples = st.form_submit_button("Bestätigte Live-Beispiele importieren")
+    if synchronize or import_examples:
         try:
             base_url = dashboard_url.rstrip("/")
             login_response = requests.post(
@@ -110,14 +112,35 @@ if page == "Klassen":
             )
             login_response.raise_for_status()
             token = login_response.json()["access_token"]
-            class_response = requests.get(
-                f"{base_url}/api/event-classes",
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=10,
-            )
-            class_response.raise_for_status()
-            count = sync_class_definitions(conn, class_response.json())
-            st.success(f"{count} Klassen synchronisiert.")
+            headers = {"Authorization": f"Bearer {token}"}
+            if synchronize:
+                class_response = requests.get(
+                    f"{base_url}/api/event-classes",
+                    headers=headers,
+                    timeout=10,
+                )
+                class_response.raise_for_status()
+                count = sync_class_definitions(conn, class_response.json())
+                st.success(f"{count} Klassen synchronisiert.")
+            else:
+                examples_response = requests.get(
+                    f"{base_url}/events/training-examples",
+                    headers=headers,
+                    timeout=10,
+                )
+                examples_response.raise_for_status()
+                imported = 0
+                for example in examples_response.json():
+                    audio_response = requests.get(
+                        f"{base_url}{example['audio_url']}",
+                        headers=headers,
+                        timeout=20,
+                    )
+                    audio_response.raise_for_status()
+                    imported += int(
+                        import_live_training_example(conn, LIB, example, audio_response.content)
+                    )
+                st.success(f"{imported} neue Live-Trainingsbeispiele importiert.")
             st.rerun()
         except (requests.RequestException, KeyError, ValueError) as error:
             st.error(f"Synchronisierung fehlgeschlagen: {error}")

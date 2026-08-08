@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""
     vapid_public_key: str = ""
     vapid_subject: str = "mailto:admin@eventmonitor.eu"
+    clip_directory: str = "/data/clips"
 
     udp_port: int = 12345
     audio_sample_rate: int = 16000

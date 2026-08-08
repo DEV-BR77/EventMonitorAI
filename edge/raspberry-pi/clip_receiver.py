@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 
+from noise_api import send_training_clip
+
 CLIP_PORT = int(os.getenv("EVENTMONITOR_CLIP_PORT", "12346"))
 CLIP_DIRECTORY = Path(os.getenv("EVENTMONITOR_CLIP_DIR", "/var/lib/eventmonitor/clips"))
 MAX_CLIP_BYTES = 16_000 * 2 * 10 + 44
@@ -121,6 +123,17 @@ class ClipRequestHandler(BaseHTTPRequestHandler):
             self._respond(400, {"error": str(error)})
             return
         self._respond(201, {"path": str(target), "bytes": len(payload)})
+        Thread(
+            target=send_training_clip,
+            args=(
+                self.headers.get("X-Device-ID", ""),
+                payload,
+                self.headers.get("X-Event-ID", ""),
+                self.headers.get("X-Trigger-Uptime-Ms", "0"),
+            ),
+            name="eventmonitor-clip-forward",
+            daemon=True,
+        ).start()
 
     def log_message(self, message: str, *args: object) -> None:
         print(f"Clip receiver {self.address_string()}: {message % args}")

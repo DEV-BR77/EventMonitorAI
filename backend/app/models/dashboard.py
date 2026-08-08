@@ -137,6 +137,23 @@ class EventClassificationRevision(Base):
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
+class AudioClip(Base):
+    __tablename__ = "audio_clips"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(120), index=True)
+    trigger_id: Mapped[str] = mapped_column(String(64))
+    trigger_uptime_ms: Mapped[int] = mapped_column(BigInteger, default=0)
+    received_at: Mapped[str] = mapped_column(String, index=True)
+    sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    path: Mapped[str] = mapped_column(Text)
+    frame_count: Mapped[int] = mapped_column(Integer)
+    sample_rate: Mapped[int] = mapped_column(Integer)
+    event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("events.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+
 class NotificationRule(Base):
     __tablename__ = "notification_rules"
 

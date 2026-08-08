@@ -32,6 +32,9 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@eventmonitor.eu}
+      CLIP_DIRECTORY: /data/clips
+    volumes:
+      - eventmonitor_clips_data:/data/clips
     ports:
       - "8015:8000"
     depends_on:
@@ -41,3 +44,4 @@ services:
 
 volumes:
   eventmonitor_postgres_data:
+  eventmonitor_clips_data:
