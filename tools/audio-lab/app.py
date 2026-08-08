@@ -10,6 +10,7 @@ import soundfile as sf
 import streamlit as st
 from eventmonitor.db import connect
 from eventmonitor.importer import import_folder, import_package, resume_imports
+from eventmonitor.segments import update_boundaries, wav_excerpt
 from eventmonitor.visualization import calculate_spectrogram, spectrogram_records
 
 st.set_page_config(page_title="EventMonitor AudioLab", page_icon="🎧", layout="wide")
@@ -33,6 +34,12 @@ LABELS = [
     "Hintergrund",
     "Unklar",
 ]
+
+
+def format_metric(value: float | None, suffix: str = "") -> str:
+    return f"{float(value):.1f}{suffix}" if value is not None else "–"
+
+
 conn = connect(DB)
 page = st.sidebar.radio("Bereich", ["Übersicht", "Import", "Ereignisse lernen", "Auswertung"])
 
@@ -148,6 +155,41 @@ elif page == "Ereignisse lernen":
         key=navigation_key,
     )
     seg = segments[int(pos)]
+    st.subheader("Ereignis zuschneiden")
+    boundary_start, boundary_end, boundary_actions = st.columns([2, 2, 2])
+    start_seconds = boundary_start.number_input(
+        "Start (s)",
+        0.0,
+        float(rec["duration_seconds"]),
+        float(seg["start_seconds"]),
+        0.1,
+        key=f"segment-start-{seg['id']}",
+    )
+    end_seconds = boundary_end.number_input(
+        "Ende (s)",
+        0.0,
+        float(rec["duration_seconds"]),
+        float(seg["end_seconds"]),
+        0.1,
+        key=f"segment-end-{seg['id']}",
+    )
+    if boundary_actions.button("Grenzen speichern", key=f"save-boundaries-{seg['id']}"):
+        try:
+            update_boundaries(conn, seg["id"], start_seconds, end_seconds, rec["duration_seconds"])
+        except ValueError as error:
+            st.error(str(error))
+        else:
+            st.success("Segmentgrenzen und dB-Kennwerte wurden aktualisiert.")
+            st.rerun()
+    if boundary_actions.button("Auf Ursprung zurücksetzen", key=f"reset-boundaries-{seg['id']}"):
+        update_boundaries(
+            conn,
+            seg["id"],
+            seg["original_start_seconds"],
+            seg["original_end_seconds"],
+            rec["duration_seconds"],
+        )
+        st.rerun()
     before = st.slider("Vorlauf / Nachlauf in Sekunden", 0.0, 5.0, 2.0, 0.5)
     data, sr = sf.read(rec["audio_path"], always_2d=True)
     a = max(0, int((seg["start_seconds"] - before) * sr))
@@ -155,11 +197,17 @@ elif page == "Ereignisse lernen":
     buf = io.BytesIO()
     sf.write(buf, data[a:b], sr, format="WAV", subtype="PCM_16")
     st.audio(buf.getvalue(), format="audio/wav")
+    st.download_button(
+        "Exakten Ereignisclip als WAV herunterladen",
+        wav_excerpt(data, int(sr), seg["start_seconds"], seg["end_seconds"]),
+        file_name=f"aufnahme-{rec['id']}-segment-{seg['id']}.wav",
+        mime="audio/wav",
+    )
     st.write(
         f"**Zeit:** {seg['start_seconds']:.1f}–{seg['end_seconds']:.1f}s · "
-        f"**Peak:** {seg['peak_dba']:.1f} dB(A) · "
-        f"**Mittel:** {seg['mean_dba']:.1f} dB(A) · "
-        f"**Auffälligkeit:** {seg['event_score']:.1f}"
+        f"**Peak:** {format_metric(seg['peak_dba'], ' dB(A)')} · "
+        f"**Mittel:** {format_metric(seg['mean_dba'], ' dB(A)')} · "
+        f"**Auffälligkeit:** {format_metric(seg['event_score'])}"
     )
     db_series = pd.read_sql_query(
         """

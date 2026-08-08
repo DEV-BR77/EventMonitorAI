@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS segments (
  id INTEGER PRIMARY KEY, recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
  start_seconds REAL NOT NULL, end_seconds REAL NOT NULL, peak_dba REAL, mean_dba REAL,
  event_score REAL, label TEXT, label_confidence REAL, notes TEXT, labelled_at TEXT,
+ original_start_seconds REAL, original_end_seconds REAL, boundaries_updated_at TEXT,
  UNIQUE(recording_id, start_seconds, end_seconds)
 );
 CREATE INDEX IF NOT EXISTS idx_segments_queue ON segments(label, event_score, peak_dba);
@@ -50,5 +51,19 @@ def connect(path: str | Path) -> sqlite3.Connection:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(segments)")}
     if "event_score" not in cols:
         conn.execute("ALTER TABLE segments ADD COLUMN event_score REAL")
+    if "original_start_seconds" not in cols:
+        conn.execute("ALTER TABLE segments ADD COLUMN original_start_seconds REAL")
+    if "original_end_seconds" not in cols:
+        conn.execute("ALTER TABLE segments ADD COLUMN original_end_seconds REAL")
+    if "boundaries_updated_at" not in cols:
+        conn.execute("ALTER TABLE segments ADD COLUMN boundaries_updated_at TEXT")
+    conn.execute(
+        """
+        UPDATE segments
+        SET original_start_seconds=COALESCE(original_start_seconds, start_seconds),
+            original_end_seconds=COALESCE(original_end_seconds, end_seconds)
+        WHERE original_start_seconds IS NULL OR original_end_seconds IS NULL
+        """
+    )
     conn.commit()
     return conn

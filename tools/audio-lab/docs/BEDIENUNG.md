@@ -64,6 +64,14 @@ relativem Pegel dar.
 
 Der Vor- und Nachlauf hilft, den Kontext eines kurzen Segments zu hören. Die gespeicherte Segmentgrenze bleibt dabei unverändert.
 
+### Ereignis zuschneiden
+
+Start und Ende können in 0,1-Sekunden-Schritten innerhalb der Aufnahme angepasst
+werden. Beim Speichern berechnet AudioLab Peak, Mittelwert und Auffälligkeit für
+den neuen Bereich. **Auf Ursprung zurücksetzen** stellt die beim Import erzeugten
+Grenzen wieder her. Der Download liefert nur den exakt markierten Bereich als WAV;
+der eingestellte Hör-Vor-/Nachlauf wird nicht exportiert.
+
 ## 4. Empfohlene Arbeitsweise
 
 Zuerst die auffälligsten Segmente bearbeiten. Dadurch werden relevante Ereignisse schneller gefunden als bei rein chronologischer Prüfung.
