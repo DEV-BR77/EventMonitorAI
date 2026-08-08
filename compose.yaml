@@ -23,7 +23,6 @@ services:
       dockerfile: Dockerfile
     environment:
       APP_NAME: EventMonitorAI
-      APP_VERSION: 0.3.0
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventmonitor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eventmonitor}
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}
       ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-480}

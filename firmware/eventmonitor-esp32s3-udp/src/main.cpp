@@ -5,6 +5,10 @@
 
 #include "secrets.h"
 
+#ifndef EVENTMONITOR_VERSION
+#define EVENTMONITOR_VERSION "development"
+#endif
+
 // INMP441-Verkabelung
 constexpr int I2S_PIN_SCK = 5;
 constexpr int I2S_PIN_WS = 4;
@@ -95,6 +99,7 @@ void setup()
 
     Serial.println();
     Serial.println("EventMonitorAI ESP32-S3 UDP Audio");
+    Serial.printf("Version %s\n", EVENTMONITOR_VERSION);
     Serial.println("--------------------------------");
 
     connectWiFi();

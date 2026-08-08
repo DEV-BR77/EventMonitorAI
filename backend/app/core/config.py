@@ -1,9 +1,11 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.version import __version__
+
 
 class Settings(BaseSettings):
     app_name: str = "EventMonitorAI"
-    app_version: str = "0.1.0-alpha1"
+    app_version: str = __version__
 
     database_url: str = "sqlite:///./data/eventmonitorai.db"
     auth_secret: str = "development-only-change-me"

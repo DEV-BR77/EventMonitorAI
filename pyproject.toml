@@ -1,6 +1,6 @@
 [project]
 name = "eventmonitorai"
-version = "0.1.0"
+version = "0.3.0"
 description = "Open-source platform for acoustic event detection, analysis and learning."
 requires-python = ">=3.12,<3.13"
 

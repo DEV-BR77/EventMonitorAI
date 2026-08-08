@@ -9,8 +9,8 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Coding Guidelines und Contribution-Prozess
 - [x] CI-Grundprüfung
 - [x] Release-Workflow für saubere Quellcodepakete
-- [ ] einheitliche Versionierung aller Komponenten
-- [ ] reproduzierbare Entwicklungsumgebung
+- [x] einheitliche Versionierung aller Komponenten
+- [x] reproduzierbare Entwicklungsumgebung
 
 ## Phase 1 – Stabile Ereigniserfassung
 

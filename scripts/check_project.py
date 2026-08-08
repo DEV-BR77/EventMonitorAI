@@ -42,6 +42,12 @@ def check_repository_hygiene() -> list[Path]:
 
 def main() -> int:
     ok = check_python()
+    version_check = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "check_versions.py")],
+        cwd=ROOT,
+        check=False,
+    )
+    ok = ok and version_check.returncode == 0
     violations = check_repository_hygiene()
     if violations:
         print("Nicht versionierbare Dateien gefunden:")
