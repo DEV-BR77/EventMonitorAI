@@ -18,8 +18,8 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Raspberry Pi verarbeitet Audiofenster
 - [x] YAMNet-Klassifikation als Ausgangspunkt
 - [x] FastAPI-Backend und Ereignisdatenbank
-- [ ] robuste Wiederverbindung und Paketverlustbehandlung
-- [ ] Geräteidentität, Health-Status und Telemetrie
+- [x] robuste Wiederverbindung und Paketverlustbehandlung
+- [x] Geräteidentität, Health-Status und Telemetrie
 - [ ] nachvollziehbare Audiopegel-Kalibrierung über Dashboard mehrere Mikrofone gleichzeitig mit Angabe Referenzwert bei leisem mittleren und lauten Pegel
 
 ## Phase 2 – EventMonitor AudioLab

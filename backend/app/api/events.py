@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -7,8 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import CurrentUser
 from app.database.session import get_db
-from app.models.dashboard import Device
+from app.models.dashboard import Device, DeviceTelemetry
 from app.models.event import Event
+from app.schemas.dashboard import DeviceTelemetryRead, DeviceTelemetryWrite
 from app.schemas.event import EventCreate, EventRead
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
@@ -25,6 +27,37 @@ DatabaseSession = Annotated[Session, Depends(get_db)]
 def verify_ingest_key(x_api_key: Annotated[str | None, Header()] = None) -> None:
     if settings.ingest_api_key and x_api_key != settings.ingest_api_key:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+
+
+@router.post("/telemetry", response_model=DeviceTelemetryRead)
+def update_device_telemetry(
+    data: DeviceTelemetryWrite,
+    db: DatabaseSession,
+    _: Annotated[None, Depends(verify_ingest_key)],
+) -> DeviceTelemetry:
+    now = datetime.now(UTC).isoformat()
+    telemetry = db.scalar(
+        select(DeviceTelemetry).where(DeviceTelemetry.device_id == data.device_id)
+    )
+    values = data.model_dump()
+    total = values["packets_received"] + values["packets_lost"]
+    values["loss_rate"] = round(values["packets_lost"] / total, 6) if total else 0.0
+    values["last_seen"] = now
+    if telemetry is None:
+        telemetry = DeviceTelemetry(**values)
+        db.add(telemetry)
+    else:
+        for key, value in values.items():
+            setattr(telemetry, key, value)
+
+    device = db.scalar(select(Device).where(Device.device_id == data.device_id))
+    if device is None:
+        db.add(Device(device_id=data.device_id, name=data.device_id, last_seen=now))
+    else:
+        device.last_seen = now
+    db.commit()
+    db.refresh(telemetry)
+    return telemetry
 
 
 @router.post(

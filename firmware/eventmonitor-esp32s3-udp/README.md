@@ -3,6 +3,10 @@
 Reference hardware: Freenove ESP32-S3 WROOM N16R8 with 16 MB flash, 8 MB PSRAM
 and an INMP441 microphone.
 
+Each UDP datagram contains a versioned EventMonitorAI header with a stable
+device ID, sequence number, firmware version and transport telemetry. The
+Raspberry Pi can therefore detect packet loss and report device health.
+
 ## Wiring
 
 | INMP441 | ESP32-S3 |

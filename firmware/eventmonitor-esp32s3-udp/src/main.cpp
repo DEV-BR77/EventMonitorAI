@@ -7,6 +7,7 @@
 
 #ifndef EVENTMONITOR_VERSION
 #define EVENTMONITOR_VERSION "development"
+#define EVENTMONITOR_VERSION_CODE 0
 #endif
 
 // INMP441-Verkabelung
@@ -17,6 +18,7 @@ constexpr int I2S_PIN_SD = 6;
 // Audioformat für YAMNet auf dem Raspberry Pi
 constexpr uint32_t SAMPLE_RATE = 16000;
 constexpr size_t SAMPLES_PER_PACKET = 640;
+constexpr uint8_t AUDIO_PROTOCOL_VERSION = 1;
 
 // Raspberry Pi
 const IPAddress UDP_TARGET_IP(192, 168, 178, 64);
@@ -33,10 +35,27 @@ int32_t rawSamples[SAMPLES_PER_PACKET];
 int16_t pcmSamples[SAMPLES_PER_PACKET];
 
 uint32_t packetsSent = 0;
+uint32_t packetSequence = 0;
 uint64_t samplesSent = 0;
 uint32_t peakSinceReport = 0;
 unsigned long lastStatusMs = 0;
 unsigned long lastReconnectMs = 0;
+
+struct __attribute__((packed)) AudioPacketHeader {
+    char magic[4];
+    uint8_t protocolVersion;
+    uint8_t flags;
+    uint16_t headerSize;
+    uint64_t deviceId;
+    uint32_t sequence;
+    uint32_t uptimeMs;
+    uint16_t sampleRate;
+    uint16_t sampleCount;
+    uint16_t peak;
+    uint16_t firmwareVersionCode;
+};
+
+static_assert(sizeof(AudioPacketHeader) == 32, "Unexpected audio packet header size");
 
 void connectWiFi()
 {
@@ -147,6 +166,7 @@ void loop()
         return;
     }
 
+    uint32_t packetPeak = 0;
     for (size_t i = 0; i < sampleCount; ++i) {
         int32_t sample = rawSamples[i] >> SAMPLE_SHIFT;
 
@@ -166,9 +186,27 @@ void loop()
         if (absoluteSample > peakSinceReport) {
             peakSinceReport = absoluteSample;
         }
+        if (absoluteSample > packetPeak) {
+            packetPeak = absoluteSample;
+        }
     }
 
+    AudioPacketHeader header = {
+        {'E', 'M', 'A', 'I'},
+        AUDIO_PROTOCOL_VERSION,
+        0,
+        sizeof(AudioPacketHeader),
+        ESP.getEfuseMac(),
+        packetSequence++,
+        millis(),
+        SAMPLE_RATE,
+        static_cast<uint16_t>(sampleCount),
+        static_cast<uint16_t>(packetPeak > 32767 ? 32767 : packetPeak),
+        EVENTMONITOR_VERSION_CODE,
+    };
+
     if (udp.beginPacket(UDP_TARGET_IP, UDP_TARGET_PORT)) {
+        udp.write(reinterpret_cast<const uint8_t *>(&header), sizeof(header));
         udp.write(
             reinterpret_cast<const uint8_t *>(pcmSamples),
             sampleCount * sizeof(int16_t)

@@ -3,6 +3,10 @@ import os
 import requests
 
 API_URL = os.getenv("EVENTMONITOR_API_URL", "http://127.0.0.1:8000/events")
+TELEMETRY_URL = os.getenv(
+    "EVENTMONITOR_TELEMETRY_URL",
+    API_URL.rstrip("/") + "/telemetry",
+)
 API_KEY = os.getenv("EVENTMONITOR_API_KEY", "")
 
 
@@ -49,4 +53,19 @@ def send_event(
 
     except Exception as ex:
         print("API Fehler:", ex)
+        return False
+
+
+def send_telemetry(payload: dict[str, object]) -> bool:
+    try:
+        response = requests.post(
+            TELEMETRY_URL,
+            json=payload,
+            headers={"X-API-Key": API_KEY} if API_KEY else None,
+            timeout=5,
+        )
+        response.raise_for_status()
+        return True
+    except Exception as ex:
+        print("Telemetrie-API-Fehler:", ex)
         return False

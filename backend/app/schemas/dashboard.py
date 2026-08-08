@@ -41,6 +41,24 @@ class DeviceRead(DeviceCreate):
     last_seen: str | None
 
 
+class DeviceTelemetryWrite(BaseModel):
+    device_id: str = Field(min_length=1, max_length=120)
+    source_ip: str = ""
+    protocol_version: int = Field(default=0, ge=0)
+    firmware_version: str = ""
+    sample_rate: int = Field(default=0, ge=0)
+    uptime_ms: int = Field(default=0, ge=0)
+    packets_received: int = Field(default=0, ge=0)
+    packets_lost: int = Field(default=0, ge=0)
+    peak: int = Field(default=0, ge=0)
+
+
+class DeviceTelemetryRead(DeviceTelemetryWrite):
+    model_config = ConfigDict(from_attributes=True)
+    loss_rate: float
+    last_seen: str
+
+
 class RuleCreate(BaseModel):
     name: str
     enabled: bool = True

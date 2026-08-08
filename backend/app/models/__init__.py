@@ -1,4 +1,4 @@
-from app.models.dashboard import Device, NotificationRule, User
+from app.models.dashboard import Device, DeviceTelemetry, NotificationRule, User
 from app.models.event import Event
 
-__all__ = ["Device", "Event", "NotificationRule", "User"]
+__all__ = ["Device", "DeviceTelemetry", "Event", "NotificationRule", "User"]

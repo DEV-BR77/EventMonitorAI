@@ -25,6 +25,7 @@
       <div class="brand"><span class="brand-mark">EM</span><strong>EventMonitorAI</strong></div>
       <nav>
         <button class="nav active" data-view="overview">Übersicht</button>
+        <button class="nav" data-view="devices">Mikrofone</button>
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
       </nav>
@@ -58,6 +59,13 @@
         <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><span id="connection">Verbindung wird aufgebaut…</span></div>
           <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span></div>
           <div id="events" class="events"></div>
+        </article>
+      </section>
+
+      <section id="devices" class="view hidden">
+        <article class="panel">
+          <div class="panel-head"><h2>Gerätestatus und Transportqualität</h2><span>Aktualisierung alle 30 Sekunden</span></div>
+          <div id="device-health" class="device-health"></div>
         </article>
       </section>
 

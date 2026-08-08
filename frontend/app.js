@@ -44,11 +44,26 @@ async function start() {
     $("#identity").textContent = `${me.username} · ${me.role}`;
     $("#auth").classList.add("hidden");
     $("#app").classList.remove("hidden");
-    await Promise.all([loadDevices(), refresh(), loadEvents(), loadRules()]);
+    await Promise.all([loadDevices(), loadTelemetry(), refresh(), loadEvents(), loadRules()]);
     connectLive();
   } catch (_) {
     logout();
   }
+}
+
+async function loadTelemetry() {
+  const telemetry = await api("/api/device-telemetry");
+  const now = Date.now();
+  $("#device-health").innerHTML = telemetry.length ? telemetry.map((item) => {
+    const ageSeconds = Math.max(0, Math.round((now - new Date(item.last_seen).valueOf()) / 1000));
+    const online = ageSeconds < 90;
+    const total = item.packets_received + item.packets_lost;
+    return `<div class="device-card">
+      <div><i class="status-dot ${online ? "online" : "offline"}"></i><strong>${escapeHtml(item.device_id)}</strong></div>
+      <span>${online ? "Online" : `Seit ${ageSeconds} s ohne Signal`}</span>
+      <dl><dt>Firmware</dt><dd>${escapeHtml(item.firmware_version || "Legacy")}</dd><dt>Quelle</dt><dd>${escapeHtml(item.source_ip)}</dd><dt>Pakete</dt><dd>${total.toLocaleString("de-DE")}</dd><dt>Verlust</dt><dd>${(item.loss_rate * 100).toFixed(3)} %</dd><dt>Samplerate</dt><dd>${item.sample_rate.toLocaleString("de-DE")} Hz</dd><dt>Peak</dt><dd>${item.peak}</dd></dl>
+    </div>`;
+  }).join("") : "<p>Noch keine Telemetriedaten. Legacy-Firmware sendet weiterhin Audio, aber noch keinen Gerätestatus.</p>";
 }
 
 async function loadDevices() {
@@ -171,3 +186,4 @@ $("#rule-list").addEventListener("click", async (e) => {
 function formatTime(value) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("de-DE"); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }
 if (state.token) start();
+setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);

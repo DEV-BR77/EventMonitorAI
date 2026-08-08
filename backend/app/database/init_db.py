@@ -42,6 +42,19 @@ def add_missing_event_columns() -> None:
                 connection.execute(text(statement))
 
 
+def ensure_telemetry_counter_capacity() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+    inspector = inspect(engine)
+    if "device_telemetry" not in inspector.get_table_names():
+        return
+    with engine.begin() as connection:
+        for column in ("uptime_ms", "packets_received", "packets_lost"):
+            connection.execute(
+                text(f"ALTER TABLE device_telemetry ALTER COLUMN {column} TYPE BIGINT")
+            )
+
+
 def backfill_events() -> None:
     with Session(engine) as db:
         events = list(db.scalars(select(Event)).all())
@@ -76,5 +89,6 @@ def backfill_events() -> None:
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    ensure_telemetry_counter_capacity()
     add_missing_event_columns()
     backfill_events()

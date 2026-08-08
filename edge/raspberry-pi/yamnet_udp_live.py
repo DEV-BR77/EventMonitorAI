@@ -1,10 +1,15 @@
 import csv
 import os
+import queue
 import socket
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from time import monotonic
 
 import numpy as np
-from noise_api import send_event
+from audio_protocol import decode_packet, sequence_gap
+from noise_api import send_event, send_telemetry
 from tflite_runtime.interpreter import Interpreter
 
 UDP_PORT = 12345
@@ -26,6 +31,7 @@ CALIBRATION_OFFSET_DB = 100.0
 
 # Ein Ereignis endet nach drei Sekunden ohne relevantes Geräusch.
 EVENT_END_SILENCE_SECONDS = 3.0
+TELEMETRY_INTERVAL_SECONDS = 30.0
 
 IGNORED_LABELS = {
     "Silence",
@@ -162,8 +168,41 @@ interpreter.allocate_tensors()
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
+# The first TFLite invocation initializes optimized kernels. Warm them up before
+# opening the UDP socket so that startup work cannot delay packet reception.
+interpreter.set_tensor(
+    input_details[0]["index"],
+    np.zeros(SAMPLES_PER_WINDOW, dtype=np.float32),
+)
+interpreter.invoke()
+
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+sock.settimeout(1.0)
 sock.bind(("0.0.0.0", UDP_PORT))
+
+packet_queue: queue.Queue[tuple[bytes, tuple[str, int]]] = queue.Queue(maxsize=4096)
+receiver_stop = threading.Event()
+
+
+def receive_packets() -> None:
+    while not receiver_stop.is_set():
+        try:
+            packet = sock.recvfrom(4096)
+            packet_queue.put(packet, timeout=0.5)
+        except TimeoutError:
+            continue
+        except (OSError, queue.Full):
+            if not receiver_stop.is_set():
+                print("UDP-Empfangspuffer ist ausgelastet.")
+
+
+receiver_thread = threading.Thread(
+    target=receive_packets,
+    name="eventmonitor-udp",
+    daemon=True,
+)
+receiver_thread.start()
 
 print(f"YAMNet UDP aggregation listening on {UDP_PORT}")
 print(f"Schwellwert={MIN_DB_LEVEL:.1f} dB " f"| Ende nach {EVENT_END_SILENCE_SECONDS:.1f}s Ruhe")
@@ -172,16 +211,75 @@ for source_ip, device_name in device_names.items():
 
 audio_by_source: dict[str, np.ndarray] = {}
 active_events: dict[str, dict] = {}
+transport_by_source: dict[str, dict] = {}
+api_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="eventmonitor-api")
 
 try:
     while True:
-        data, address = sock.recvfrom(4096)
+        data, address = packet_queue.get()
         source_ip = address[0]
-        device_name = device_names.get(source_ip, f"ESP32-{source_ip}")
+        try:
+            metadata, pcm_payload = decode_packet(data)
+        except ValueError as error:
+            print(f"Ungültiges Audiopaket von {source_ip}: {error}")
+            continue
 
-        chunk = np.frombuffer(data, dtype=np.int16)
+        source_key = metadata.device_id if metadata else source_ip
+        device_name = device_names.get(
+            source_key,
+            device_names.get(source_ip, f"ESP32-{source_key}"),
+        )
+        state = transport_by_source.setdefault(
+            source_key,
+            {
+                "received": 0,
+                "lost": 0,
+                "last_sequence": None,
+                "last_uptime_ms": None,
+                "last_telemetry": monotonic(),
+            },
+        )
+        state["received"] += 1
+        if metadata:
+            rebooted = (
+                state["last_uptime_ms"] is not None and metadata.uptime_ms < state["last_uptime_ms"]
+            )
+            if rebooted:
+                print(f"Neustart erkannt: {device_name}")
+                state["received"] = 1
+                state["lost"] = 0
+                state["last_sequence"] = None
+            lost = sequence_gap(state["last_sequence"], metadata.sequence)
+            state["lost"] += lost
+            state["last_sequence"] = metadata.sequence
+            state["last_uptime_ms"] = metadata.uptime_ms
+            if lost:
+                print(
+                    f"Paketverlust {device_name}: {lost} Paket(e) "
+                    f"vor Sequenz {metadata.sequence}"
+                )
+
+            now_monotonic = monotonic()
+            if now_monotonic - state["last_telemetry"] >= TELEMETRY_INTERVAL_SECONDS:
+                state["last_telemetry"] = now_monotonic
+                api_executor.submit(
+                    send_telemetry,
+                    {
+                        "device_id": source_key,
+                        "source_ip": source_ip,
+                        "protocol_version": metadata.protocol_version,
+                        "firmware_version": metadata.firmware_version,
+                        "sample_rate": metadata.sample_rate,
+                        "uptime_ms": metadata.uptime_ms,
+                        "packets_received": state["received"],
+                        "packets_lost": state["lost"],
+                        "peak": metadata.peak,
+                    },
+                )
+
+        chunk = np.frombuffer(pcm_payload, dtype=np.int16)
         audio = np.concatenate(
-            (audio_by_source.get(source_ip, np.array([], dtype=np.int16)), chunk)
+            (audio_by_source.get(source_key, np.array([], dtype=np.int16)), chunk)
         )
 
         while len(audio) >= SAMPLES_PER_WINDOW:
@@ -221,8 +319,8 @@ try:
             )
 
             if relevant:
-                if source_ip not in active_events:
-                    active_events[source_ip] = start_event(
+                if source_key not in active_events:
+                    active_events[source_key] = start_event(
                         frame_start,
                         frame_end,
                         best_label,
@@ -231,22 +329,25 @@ try:
                     )
                 else:
                     update_event(
-                        active_events[source_ip],
+                        active_events[source_key],
                         frame_end,
                         best_label,
                         best_score,
                         db_level,
                     )
 
-            elif source_ip in active_events:
-                active_event = active_events[source_ip]
+            elif source_key in active_events:
+                active_event = active_events[source_key]
                 quiet_seconds = (frame_end - active_event["last_relevant_end"]).total_seconds()
 
-                if quiet_seconds >= EVENT_END_SILENCE_SECONDS:
+                retry_after = active_event.get("delivery_retry_after", 0.0)
+                if quiet_seconds >= EVENT_END_SILENCE_SECONDS and monotonic() >= retry_after:
                     if finish_event(active_event, device_name):
-                        del active_events[source_ip]
+                        del active_events[source_key]
+                    else:
+                        active_event["delivery_retry_after"] = monotonic() + 30.0
 
-        audio_by_source[source_ip] = audio
+        audio_by_source[source_key] = audio
 
 except KeyboardInterrupt:
     print("\nYAMNet wird beendet.")
@@ -256,4 +357,7 @@ except KeyboardInterrupt:
         finish_event(active_event, device_name)
 
 finally:
+    receiver_stop.set()
     sock.close()
+    receiver_thread.join(timeout=2)
+    api_executor.shutdown(wait=False, cancel_futures=True)

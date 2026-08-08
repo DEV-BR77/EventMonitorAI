@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, Float, Integer, String
+from sqlalchemy import BigInteger, Boolean, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
@@ -30,6 +30,23 @@ class Device(Base):
     location: Mapped[str] = mapped_column(String(160), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     last_seen: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class DeviceTelemetry(Base):
+    __tablename__ = "device_telemetry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    source_ip: Mapped[str] = mapped_column(String(64), default="")
+    protocol_version: Mapped[int] = mapped_column(Integer, default=0)
+    firmware_version: Mapped[str] = mapped_column(String(40), default="")
+    sample_rate: Mapped[int] = mapped_column(Integer, default=0)
+    uptime_ms: Mapped[int] = mapped_column(BigInteger, default=0)
+    packets_received: Mapped[int] = mapped_column(BigInteger, default=0)
+    packets_lost: Mapped[int] = mapped_column(BigInteger, default=0)
+    loss_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    peak: Mapped[int] = mapped_column(Integer, default=0)
+    last_seen: Mapped[str] = mapped_column(String, default=utc_now)
 
 
 class NotificationRule(Base):

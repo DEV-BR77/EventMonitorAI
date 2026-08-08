@@ -8,9 +8,15 @@ from sqlalchemy.orm import Session
 
 from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
-from app.models.dashboard import Device, NotificationRule, User
+from app.models.dashboard import Device, DeviceTelemetry, NotificationRule, User
 from app.models.event import Event
-from app.schemas.dashboard import DeviceCreate, DeviceRead, RuleCreate, RuleRead
+from app.schemas.dashboard import (
+    DeviceCreate,
+    DeviceRead,
+    DeviceTelemetryRead,
+    RuleCreate,
+    RuleRead,
+)
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -85,6 +91,11 @@ def calendar(
 @router.get("/devices", response_model=list[DeviceRead])
 def list_devices(db: DatabaseSession, _: CurrentUser) -> list[Device]:
     return list(db.scalars(select(Device).order_by(Device.name)).all())
+
+
+@router.get("/device-telemetry", response_model=list[DeviceTelemetryRead])
+def list_device_telemetry(db: DatabaseSession, _: CurrentUser) -> list[DeviceTelemetry]:
+    return list(db.scalars(select(DeviceTelemetry).order_by(DeviceTelemetry.device_id)).all())
 
 
 @router.post("/devices", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)
