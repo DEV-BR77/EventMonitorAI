@@ -93,6 +93,7 @@ python import_data.py "D:\Laermmessungen" --folder
 - [Trainings-, Validierungs- und Testaufteilung](docs/DATASET_SPLITS.md)
 - [Basismodell und Qualitätsmetriken](docs/BASELINE_MODEL.md)
 - [Modellvorschläge bestätigen und korrigieren](docs/MODEL_SUGGESTIONS.md)
+- [Active Learning](docs/ACTIVE_LEARNING.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Grenzen und verantwortungsvolle Nutzung

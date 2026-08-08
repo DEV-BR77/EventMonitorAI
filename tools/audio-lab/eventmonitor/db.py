@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS predictions (
  id INTEGER PRIMARY KEY, segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
  model_name TEXT NOT NULL, predicted_label TEXT NOT NULL, confidence REAL,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TEXT,
- reviewed_label TEXT, was_correct INTEGER
+ reviewed_label TEXT, was_correct INTEGER, uncertainty_score REAL,
+ informativeness_score REAL, active_learning_score REAL
 );
 CREATE INDEX IF NOT EXISTS idx_predictions_segment_created
 ON predictions(segment_id, created_at DESC);
@@ -73,6 +74,9 @@ def connect(path: str | Path) -> sqlite3.Connection:
         ("reviewed_at", "TEXT"),
         ("reviewed_label", "TEXT"),
         ("was_correct", "INTEGER"),
+        ("uncertainty_score", "REAL"),
+        ("informativeness_score", "REAL"),
+        ("active_learning_score", "REAL"),
     ):
         if name not in prediction_cols:
             conn.execute(f"ALTER TABLE predictions ADD COLUMN {name} {definition}")

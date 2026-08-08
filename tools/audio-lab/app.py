@@ -231,11 +231,16 @@ elif page == "Ereignisse lernen":
     rec_map = {f"#{r['id']} | {r['started_at']} | {Path(r['audio_path']).name}": r for r in recs}
     rec = rec_map[st.selectbox("Aufnahme", list(rec_map))]
     only_open = st.checkbox("Nur unbestätigte Segmente", True)
-    order = st.selectbox("Reihenfolge", ["Auffälligste zuerst", "Lauteste zuerst", "Chronologisch"])
+    order = st.selectbox(
+        "Reihenfolge",
+        ["Active Learning", "Auffälligste zuerst", "Lauteste zuerst", "Chronologisch"],
+    )
     order_sql = {
         "Auffälligste zuerst": "event_score DESC",
         "Lauteste zuerst": "peak_dba DESC",
         "Chronologisch": "start_seconds",
+        "Active Learning": "COALESCE((SELECT active_learning_score FROM predictions p "
+        "WHERE p.segment_id=segments.id ORDER BY p.created_at DESC,p.id DESC LIMIT 1),-1) DESC",
     }[order]
     sql = (
         "SELECT * FROM segments WHERE recording_id=?"
@@ -279,7 +284,9 @@ elif page == "Ereignisse lernen":
         )
         st.info(
             f"Modellvorschlag: **{prediction['predicted_label']}** "
-            f"({float(prediction['confidence']):.1%}) · {review_status}"
+            f"({float(prediction['confidence']):.1%}) · {review_status} · "
+            f"Active-Learning-Priorität: "
+            f"{format_metric(prediction['active_learning_score'])}"
         )
     st.subheader("Ereignis zuschneiden")
     boundary_start, boundary_end, boundary_actions = st.columns([2, 2, 2])

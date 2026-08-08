@@ -9,6 +9,29 @@ import soundfile as sf
 from eventmonitor.features import FeaturePipelineConfig, extract_features
 
 
+def active_learning_scores(
+    artifact: dict[str, Any], features: np.ndarray, uncertainty_weight: float = 0.75
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if not 0 <= uncertainty_weight <= 1:
+        raise ValueError("Das Unsicherheitsgewicht muss zwischen 0 und 1 liegen.")
+    features = np.asarray(features, dtype=np.float32)
+    probabilities = artifact["estimator"].predict_proba(features)
+    class_count = probabilities.shape[1]
+    if class_count < 2:
+        raise ValueError("Active Learning benötigt mindestens zwei Modellklassen.")
+    safe = np.clip(probabilities, 1e-12, 1.0)
+    uncertainty = -np.sum(safe * np.log(safe), axis=1) / np.log(class_count)
+    scaler = getattr(artifact["estimator"], "named_steps", {}).get("scale")
+    transformed = scaler.transform(features) if scaler is not None else features
+    distance = np.linalg.norm(transformed, axis=1)
+    low, high = float(np.min(distance)), float(np.max(distance))
+    informativeness = (
+        (distance - low) / (high - low) if high - low > 1e-12 else np.zeros_like(distance)
+    )
+    combined = uncertainty_weight * uncertainty + (1 - uncertainty_weight) * informativeness
+    return uncertainty, informativeness, combined
+
+
 def predict_feature_matrix(
     artifact: dict[str, Any], features: np.ndarray, feature_names: tuple[str, ...]
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -43,19 +66,40 @@ def generate_segment_predictions(conn: Any, artifact: dict[str, Any], model_name
         extracted = extract_features(excerpt, int(sample_rate), config)
         vectors.append(extracted.values)
         feature_names = extracted.names
-    labels, confidences = predict_feature_matrix(artifact, np.vstack(vectors), feature_names or ())
+    feature_matrix = np.vstack(vectors)
+    labels, confidences = predict_feature_matrix(artifact, feature_matrix, feature_names or ())
+    uncertainties, informativeness, active_scores = active_learning_scores(artifact, feature_matrix)
     now = datetime.now(UTC).isoformat()
-    for row, label, confidence in zip(rows, labels, confidences, strict=True):
+    for row, label, confidence, uncertainty, information, active_score in zip(
+        rows,
+        labels,
+        confidences,
+        uncertainties,
+        informativeness,
+        active_scores,
+        strict=True,
+    ):
         conn.execute(
             "DELETE FROM predictions WHERE segment_id=? AND model_name=? AND reviewed_at IS NULL",
             (row["id"], model_name),
         )
         conn.execute(
             """
-            INSERT INTO predictions(segment_id,model_name,predicted_label,confidence,created_at)
-            VALUES (?,?,?,?,?)
+            INSERT INTO predictions(
+                segment_id,model_name,predicted_label,confidence,created_at,
+                uncertainty_score,informativeness_score,active_learning_score
+            ) VALUES (?,?,?,?,?,?,?,?)
             """,
-            (row["id"], model_name, str(label), float(confidence), now),
+            (
+                row["id"],
+                model_name,
+                str(label),
+                float(confidence),
+                now,
+                float(uncertainty),
+                float(information),
+                float(active_score),
+            ),
         )
     conn.commit()
     return len(rows)

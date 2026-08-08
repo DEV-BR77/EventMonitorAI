@@ -14,6 +14,7 @@ import eventmonitor.inference as inference  # noqa: E402
 from eventmonitor.db import connect  # noqa: E402
 from eventmonitor.features import FeaturePipelineConfig  # noqa: E402
 from eventmonitor.inference import (  # noqa: E402
+    active_learning_scores,
     generate_segment_predictions,
     latest_prediction,
     predict_feature_matrix,
@@ -33,6 +34,17 @@ def test_prediction_uses_model_probabilities_and_feature_order() -> None:
     assert 0.5 < confidence[0] <= 1
     with pytest.raises(ValueError, match="Merkmalsreihenfolge"):
         predict_feature_matrix(artifact, np.asarray([[1, 0]]), ("two", "one"))
+
+
+def test_active_learning_prioritizes_uncertain_example() -> None:
+    estimator = LogisticRegression().fit([[-2, 0], [-1, 0], [1, 0], [2, 0]], ["A", "A", "B", "B"])
+    artifact = {"estimator": estimator}
+    uncertainty, information, combined = active_learning_scores(
+        artifact, np.asarray([[0, 0], [2, 0]], dtype=np.float32), uncertainty_weight=0.9
+    )
+    assert np.all((0 <= uncertainty) & (uncertainty <= 1))
+    assert np.all((0 <= information) & (information <= 1))
+    assert combined[0] > combined[1]
 
 
 def test_prediction_review_records_confirmation_and_correction(tmp_path: Path) -> None:
@@ -83,4 +95,5 @@ def test_generation_replaces_unreviewed_proposal_for_same_model(
     assert generate_segment_predictions(conn, artifact, "baseline") == 1
     assert conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0] == 1
     assert latest_prediction(conn, 1)["predicted_label"] == "Hupe"
+    assert 0 <= latest_prediction(conn, 1)["active_learning_score"] <= 1
     conn.close()
