@@ -50,7 +50,7 @@ async function start() {
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     await loadDevices();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -303,6 +303,14 @@ function renderCalendar(data) {
   ).join("") : "<span>Keine Kalendereinträge</span>";
 }
 
+async function loadRecentEvents() {
+  const entries = await api("/push/noise-log?limit=5");
+  $("#recent-events").innerHTML = entries.length ? entries.map((entry) => {
+    const witnesses = entry.witnesses.length ? entry.witnesses.map((item) => `<span class="witness ${item.response}">${escapeHtml(item.username)}: ${item.response === "confirmed" ? "bestätigt" : "abgelehnt"}</span>`).join("") : "<span class=\"witness pending\">Keine Zeugenreaktion</span>";
+    return `<div class="recent-event"><time>${formatTime(entry.timestamp)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB</span><div>${witnesses}</div></div>`;
+  }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
+}
+
 async function loadEvents() {
   const query = `${device() ? `?device=${encodeURIComponent(device())}&` : "?"}limit=200`;
   const events = await api(`/events${query}`);
@@ -323,7 +331,7 @@ function connectLive() {
   const scheme = location.protocol === "https:" ? "wss" : "ws";
   state.socket = new WebSocket(`${scheme}://${location.host}/ws/events?token=${encodeURIComponent(state.token)}`);
   state.socket.onopen = () => { $("#connection").textContent = "Live verbunden"; $("#live-dot").style.background = "var(--accent)"; };
-  state.socket.onmessage = (message) => { addEvent(JSON.parse(message.data)); refresh(); };
+  state.socket.onmessage = (message) => { addEvent(JSON.parse(message.data)); refresh(); loadRecentEvents(); };
   state.socket.onclose = () => {
     $("#connection").textContent = "Verbindung unterbrochen";
     $("#live-dot").style.background = "var(--danger)";
