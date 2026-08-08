@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 
@@ -22,7 +24,87 @@ def _event_times(row: Any) -> tuple[datetime, datetime]:
     )
 
 
-def create_case(conn: Any, title: str, event_ids: Iterable[int]) -> int:
+def _case_state(row: Any) -> dict[str, Any]:
+    return {
+        "title": row["title"],
+        "started_at": row["started_at"],
+        "ended_at": row["ended_at"],
+        "duration_seconds": row["duration_seconds"],
+        "status": row["status"],
+        "notes": row["notes"],
+    }
+
+
+def _revision_hash(payload: dict[str, Any]) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _append_revision(
+    conn: Any,
+    case_id: int,
+    action: str,
+    actor: str,
+    reason: str,
+    before: dict[str, Any] | None,
+    after: dict[str, Any],
+) -> None:
+    actor, reason = " ".join(actor.split()), " ".join(reason.split())
+    if not actor or len(actor) > 100:
+        raise ValueError("Der Bearbeiter muss 1 bis 100 Zeichen lang sein.")
+    if not reason or len(reason) > 500:
+        raise ValueError("Die Änderungsbegründung muss 1 bis 500 Zeichen lang sein.")
+    previous = conn.execute(
+        """
+        SELECT revision_number,revision_hash FROM case_revisions
+        WHERE case_id=? ORDER BY revision_number DESC LIMIT 1
+        """,
+        (case_id,),
+    ).fetchone()
+    revision_number = int(previous["revision_number"] + 1) if previous else 1
+    previous_hash = previous["revision_hash"] if previous else None
+    created_at = datetime.now(UTC).isoformat()
+    payload = {
+        "case_id": case_id,
+        "revision_number": revision_number,
+        "action": action,
+        "actor": actor,
+        "reason": reason,
+        "before": before,
+        "after": after,
+        "previous_hash": previous_hash,
+        "created_at": created_at,
+    }
+    conn.execute(
+        """
+        INSERT INTO case_revisions(
+            case_id,revision_number,action,actor,reason,before_json,after_json,
+            previous_hash,revision_hash,created_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            case_id,
+            revision_number,
+            action,
+            actor,
+            reason,
+            json.dumps(before, ensure_ascii=False, sort_keys=True) if before else None,
+            json.dumps(after, ensure_ascii=False, sort_keys=True),
+            previous_hash,
+            _revision_hash(payload),
+            created_at,
+        ),
+    )
+
+
+def create_case(
+    conn: Any,
+    title: str,
+    event_ids: Iterable[int],
+    *,
+    actor: str = "audiolab-local",
+    reason: str = "Case erstellt",
+) -> int:
     event_ids = list(dict.fromkeys(int(value) for value in event_ids))
     if not event_ids:
         raise ValueError("Ein Case benötigt mindestens ein Teilereignis.")
@@ -64,6 +146,8 @@ def create_case(conn: Any, title: str, event_ids: Iterable[int]) -> int:
             "INSERT INTO case_events(case_id,event_id,position) VALUES (?,?,?)",
             [(case_id, row["id"], position) for position, (row, _, _) in enumerate(timed)],
         )
+        created = conn.execute("SELECT * FROM cases WHERE id=?", (case_id,)).fetchone()
+        _append_revision(conn, case_id, "created", actor, reason, None, _case_state(created))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -82,3 +166,92 @@ def case_events(conn: Any, case_id: int) -> list[Any]:
         """,
         (case_id,),
     ).fetchall()
+
+
+def update_case(
+    conn: Any,
+    case_id: int,
+    *,
+    title: str,
+    notes: str,
+    status: str,
+    actor: str,
+    reason: str,
+) -> None:
+    if status not in {"draft", "confirmed", "rejected"}:
+        raise ValueError("Ungültiger Case-Status.")
+    if len(notes) > 10_000:
+        raise ValueError("Die Notiz darf höchstens 10.000 Zeichen enthalten.")
+    current = conn.execute("SELECT * FROM cases WHERE id=?", (case_id,)).fetchone()
+    if current is None:
+        raise ValueError("Der Case wurde nicht gefunden.")
+    before = _case_state(current)
+    after = before | {"title": _clean_title(title), "notes": notes.strip(), "status": status}
+    if after == before:
+        raise ValueError("Es wurden keine Änderungen vorgenommen.")
+    try:
+        conn.execute(
+            """
+            UPDATE cases SET title=?,notes=?,status=?,updated_at=? WHERE id=?
+            """,
+            (after["title"], after["notes"], status, datetime.now(UTC).isoformat(), case_id),
+        )
+        _append_revision(conn, case_id, "updated", actor, reason, before, after)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def case_history(conn: Any, case_id: int) -> list[Any]:
+    return conn.execute(
+        "SELECT * FROM case_revisions WHERE case_id=? ORDER BY revision_number", (case_id,)
+    ).fetchall()
+
+
+def verify_case_history(conn: Any, case_id: int) -> bool:
+    previous_hash = None
+    latest_after = None
+    for row in case_history(conn, case_id):
+        if row["previous_hash"] != previous_hash:
+            return False
+        payload = {
+            "case_id": case_id,
+            "revision_number": row["revision_number"],
+            "action": row["action"],
+            "actor": row["actor"],
+            "reason": row["reason"],
+            "before": json.loads(row["before_json"]) if row["before_json"] else None,
+            "after": json.loads(row["after_json"]),
+            "previous_hash": row["previous_hash"],
+            "created_at": row["created_at"],
+        }
+        if _revision_hash(payload) != row["revision_hash"]:
+            return False
+        previous_hash = row["revision_hash"]
+        latest_after = payload["after"]
+    current = conn.execute("SELECT * FROM cases WHERE id=?", (case_id,)).fetchone()
+    return (
+        previous_hash is not None and current is not None and latest_after == _case_state(current)
+    )
+
+
+def ensure_case_histories(conn: Any) -> int:
+    cases = conn.execute(
+        """
+        SELECT c.* FROM cases c
+        WHERE NOT EXISTS (SELECT 1 FROM case_revisions r WHERE r.case_id=c.id)
+        """
+    ).fetchall()
+    for case in cases:
+        _append_revision(
+            conn,
+            case["id"],
+            "migration_snapshot",
+            "audiolab-system",
+            "Bestehenden Case in die Revisionshistorie übernommen",
+            None,
+            _case_state(case),
+        )
+    conn.commit()
+    return len(cases)

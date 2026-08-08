@@ -12,7 +12,14 @@ import pandas as pd
 import soundfile as sf
 import streamlit as st
 from eventmonitor.backup import create_backup, restore_backup
-from eventmonitor.cases import case_events, create_case
+from eventmonitor.cases import (
+    case_events,
+    case_history,
+    create_case,
+    ensure_case_histories,
+    update_case,
+    verify_case_history,
+)
 from eventmonitor.db import connect
 from eventmonitor.embeddings import generate_segment_embeddings, similar_segments
 from eventmonitor.events import EVENT_GROUPING_VERSION, rebuild_events
@@ -72,6 +79,7 @@ def format_metric(value: float | None, suffix: str = "") -> str:
 
 
 conn = connect(DB)
+ensure_case_histories(conn)
 page = st.sidebar.radio(
     "Bereich",
     [
@@ -194,11 +202,17 @@ elif page == "Ereignisse":
         for row in available_events
     }
     case_title = st.text_input("Case-Titel")
+    case_actor = st.text_input("Bearbeiter", value="Administrator", key="create-case-actor")
+    case_reason = st.text_input("Begründung", value="Case aus ausgewählten Ereignissen erstellt")
     selected_events = st.multiselect("Teilereignisse", list(event_options))
     if st.button("Case erstellen", disabled=not (case_title and selected_events), type="primary"):
         try:
             case_id = create_case(
-                conn, case_title, [event_options[label] for label in selected_events]
+                conn,
+                case_title,
+                [event_options[label] for label in selected_events],
+                actor=case_actor,
+                reason=case_reason,
             )
         except ValueError as error:
             st.error(str(error))
@@ -218,6 +232,67 @@ elif page == "Ereignisse":
         selected_case = case_map[st.selectbox("Case-Details", list(case_map))]
         subevents = pd.DataFrame([dict(row) for row in case_events(conn, selected_case["id"])])
         st.dataframe(subevents, width="stretch", hide_index=True)
+        st.subheader("Case bearbeiten")
+        edited_title = st.text_input(
+            "Titel", selected_case["title"], key=f"case-title-{selected_case['id']}"
+        )
+        edited_notes = st.text_area(
+            "Notizen", selected_case["notes"] or "", key=f"case-notes-{selected_case['id']}"
+        )
+        status_labels = {
+            "Entwurf": "draft",
+            "Bestätigt": "confirmed",
+            "Abgelehnt": "rejected",
+        }
+        current_status_label = next(
+            label for label, value in status_labels.items() if value == selected_case["status"]
+        )
+        edited_status_label = st.selectbox(
+            "Bestätigungsstatus",
+            list(status_labels),
+            index=list(status_labels).index(current_status_label),
+        )
+        editor = st.text_input("Bearbeiter der Änderung", value="Administrator")
+        edit_reason = st.text_input("Änderungsbegründung")
+        if st.button("Case-Änderung revisionssicher speichern", disabled=not edit_reason):
+            try:
+                update_case(
+                    conn,
+                    selected_case["id"],
+                    title=edited_title,
+                    notes=edited_notes,
+                    status=status_labels[edited_status_label],
+                    actor=editor,
+                    reason=edit_reason,
+                )
+            except ValueError as error:
+                st.error(str(error))
+            else:
+                st.rerun()
+        history = case_history(conn, selected_case["id"])
+        integrity = verify_case_history(conn, selected_case["id"])
+        st.subheader("Änderungshistorie")
+        if integrity:
+            st.success("Hash-Kette vollständig und gültig.")
+        else:
+            st.error("Integritätsprüfung der Änderungshistorie fehlgeschlagen.")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "revision": row["revision_number"],
+                        "action": row["action"],
+                        "actor": row["actor"],
+                        "reason": row["reason"],
+                        "created_at": row["created_at"],
+                        "hash": row["revision_hash"],
+                    }
+                    for row in history
+                ]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
     else:
         st.info("Noch keine Cases vorhanden.")
 

@@ -6,7 +6,13 @@ import pytest
 AUDIO_LAB_DIR = Path(__file__).resolve().parents[1] / "tools" / "audio-lab"
 sys.path.append(str(AUDIO_LAB_DIR))
 
-from eventmonitor.cases import case_events, create_case  # noqa: E402
+from eventmonitor.cases import (  # noqa: E402
+    case_events,
+    case_history,
+    create_case,
+    update_case,
+    verify_case_history,
+)
 from eventmonitor.db import connect  # noqa: E402
 from eventmonitor.events import rebuild_events  # noqa: E402
 
@@ -43,6 +49,27 @@ def test_case_calculates_absolute_bounds_and_orders_subevents(tmp_path: Path) ->
     assert case["ended_at"] == "2026-08-08T10:01:05"
     assert case["duration_seconds"] == pytest.approx(55)
     assert [row["id"] for row in case_events(conn, case_id)] == [first, second]
+    assert len(case_history(conn, case_id)) == 1
+    assert verify_case_history(conn, case_id)
+    update_case(
+        conn,
+        case_id,
+        title="Vorfall Garten bestätigt",
+        notes="Audio und Zeitverlauf geprüft.",
+        status="confirmed",
+        actor="Admin Nord",
+        reason="Belege vollständig geprüft",
+    )
+    changed = conn.execute("SELECT * FROM cases WHERE id=?", (case_id,)).fetchone()
+    assert changed["status"] == "confirmed"
+    assert len(case_history(conn, case_id)) == 2
+    assert verify_case_history(conn, case_id)
+    with pytest.raises(Exception, match="immutable"):
+        conn.execute("UPDATE case_revisions SET actor='Manipuliert' WHERE case_id=?", (case_id,))
+    conn.rollback()
+    conn.execute("UPDATE cases SET notes='Umgehung' WHERE id=?", (case_id,))
+    conn.commit()
+    assert not verify_case_history(conn, case_id)
     with pytest.raises(ValueError, match="bereits"):
         create_case(conn, "Doppelt", [first])
     conn.close()

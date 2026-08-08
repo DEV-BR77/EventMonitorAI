@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS event_segments (
 );
 CREATE TABLE IF NOT EXISTS cases (
  id INTEGER PRIMARY KEY, title TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT NOT NULL,
- duration_seconds REAL NOT NULL, status TEXT NOT NULL DEFAULT 'open', notes TEXT,
+ duration_seconds REAL NOT NULL, status TEXT NOT NULL DEFAULT 'draft', notes TEXT,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -97,6 +97,22 @@ CREATE TABLE IF NOT EXISTS case_events (
  position INTEGER NOT NULL, PRIMARY KEY(case_id,event_id)
 );
 CREATE INDEX IF NOT EXISTS idx_cases_time ON cases(started_at,ended_at);
+CREATE TABLE IF NOT EXISTS case_revisions (
+ id INTEGER PRIMARY KEY, case_id INTEGER NOT NULL REFERENCES cases(id) ON DELETE RESTRICT,
+ revision_number INTEGER NOT NULL, action TEXT NOT NULL, actor TEXT NOT NULL,
+ reason TEXT NOT NULL, before_json TEXT, after_json TEXT NOT NULL,
+ previous_hash TEXT, revision_hash TEXT NOT NULL,
+ created_at TEXT NOT NULL, UNIQUE(case_id,revision_number), UNIQUE(revision_hash)
+);
+CREATE INDEX IF NOT EXISTS idx_case_revisions_case ON case_revisions(case_id,revision_number);
+CREATE TRIGGER IF NOT EXISTS case_revisions_prevent_update
+BEFORE UPDATE ON case_revisions BEGIN
+ SELECT RAISE(ABORT,'case revisions are immutable');
+END;
+CREATE TRIGGER IF NOT EXISTS case_revisions_prevent_delete
+BEFORE DELETE ON case_revisions BEGIN
+ SELECT RAISE(ABORT,'case revisions are immutable');
+END;
 CREATE TABLE IF NOT EXISTS import_jobs (
  id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,
@@ -141,5 +157,6 @@ def connect(path: str | Path) -> sqlite3.Connection:
     ):
         if name not in prediction_cols:
             conn.execute(f"ALTER TABLE predictions ADD COLUMN {name} {definition}")
+    conn.execute("UPDATE cases SET status='draft' WHERE status='open'")
     conn.commit()
     return conn
