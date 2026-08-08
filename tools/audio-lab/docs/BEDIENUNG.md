@@ -27,6 +27,15 @@ Die Übersicht zeigt:
 4. Bereits vorhandene Messungen werden übersprungen.
 5. Fehler werden je Datei protokolliert.
 
+### Importprotokoll und Fortsetzung
+
+Unterhalb der Importfunktionen zeigt das Importprotokoll Quelle, Status,
+Versuchsanzahl, Aufnahme-ID, Fehlergrund sowie Start- und Endzeit. Hochgeladene
+ZIP-Dateien bleiben dafür im lokalen `data/inbox` erhalten. Mit
+**Fehlgeschlagene oder unterbrochene Importe fortsetzen** werden alle noch
+verfügbaren Quellen erneut verarbeitet; erfolgreiche Aufnahmen werden durch
+die Hash-Dublettenprüfung nicht doppelt angelegt.
+
 Beispiel:
 
 ```text

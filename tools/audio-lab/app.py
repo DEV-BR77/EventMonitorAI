@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import hashlib
 import io
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -9,11 +9,12 @@ import pandas as pd
 import soundfile as sf
 import streamlit as st
 from eventmonitor.db import connect
-from eventmonitor.importer import import_folder, import_package
+from eventmonitor.importer import import_folder, import_package, resume_imports
 
 st.set_page_config(page_title="EventMonitor AudioLab", page_icon="🎧", layout="wide")
 DB = Path("data/eventmonitor.sqlite3")
 LIB = Path("data/library")
+INBOX = Path("data/inbox")
 LABELS = [
     "Schreien",
     "Rufen",
@@ -38,20 +39,20 @@ if page == "Import":
     st.title("Messungen importieren")
     uploads = st.file_uploader("ZIP-Dateien auswählen", type=["zip"], accept_multiple_files=True)
     if st.button("Ausgewählte Dateien importieren", type="primary", disabled=not uploads):
+        INBOX.mkdir(parents=True, exist_ok=True)
         for u in uploads:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as t:
-                t.write(u.getbuffer())
-                tmp = Path(t.name)
+            content = bytes(u.getbuffer())
+            digest = hashlib.sha256(content).hexdigest()
+            source = INBOX / f"{digest[:16]}-{Path(u.name).name}"
+            source.write_bytes(content)
             try:
-                rid, created = import_package(tmp, DB, LIB)
+                rid, created = import_package(source, DB, LIB)
                 st.success(
                     f"{u.name}: Aufnahme #{rid} – "
                     + ("importiert" if created else "bereits vorhanden")
                 )
             except Exception as e:
                 st.error(f"{u.name}: {e}")
-            finally:
-                tmp.unlink(missing_ok=True)
     folder = st.text_input("Oder vorhandenen Ordner rekursiv importieren")
     if st.button("Ordner importieren", disabled=not folder):
         rows = import_folder(folder, DB, LIB)
@@ -59,6 +60,25 @@ if page == "Import":
             pd.DataFrame(rows, columns=["Datei", "Aufnahme", "Status", "Fehler"]),
             use_container_width=True,
         )
+    st.subheader("Importprotokoll")
+    if st.button("Fehlgeschlagene oder unterbrochene Importe fortsetzen"):
+        resumed = resume_imports(DB, LIB)
+        if resumed:
+            st.dataframe(
+                pd.DataFrame(resumed, columns=["Datei", "Aufnahme", "Status", "Fehler"]),
+                use_container_width=True,
+            )
+        else:
+            st.info("Keine fortsetzbaren Importe vorhanden.")
+    journal = pd.read_sql_query(
+        """
+        SELECT id, source_path, status, attempts, recording_id, error_message,
+               started_at, finished_at
+        FROM import_jobs ORDER BY id DESC LIMIT 500
+        """,
+        conn,
+    )
+    st.dataframe(journal, use_container_width=True)
 
 elif page == "Übersicht":
     st.title("EventMonitor AudioLab – Übersicht")

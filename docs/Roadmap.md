@@ -28,7 +28,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Dublettenprüfung
 - [x] Audio-/dB-Segmentierung
 - [x] manuelles Labeling und CSV-Export
-- [ ] Importprotokoll und Wiederaufnahme abgebrochener Imports
+- [x] Importprotokoll und Wiederaufnahme abgebrochener Imports
 - [ ] interaktiver dB-Verlauf, Spektrogramm und Segmentnavigation
 - [ ] variable Segmentgrenzen und Ereigniszuschnitt
 - [ ] Backup und Datenmigration

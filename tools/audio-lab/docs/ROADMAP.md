@@ -12,8 +12,8 @@
 
 ## v0.3 – Importverwaltung
 
-- Importjournal mit Dateiname, Status und Fehlergrund
-- Wiederholungsfunktion für fehlgeschlagene Pakete
+- [x] Importjournal mit Dateiname, Status und Fehlergrund
+- [x] Wiederholungsfunktion für fehlgeschlagene Pakete
 - Prüfung von Audio-/CSV-Dauer
 - konfigurierbare Segmentlänge
 - frei definierbare Kategorien

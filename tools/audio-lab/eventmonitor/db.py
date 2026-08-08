@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS predictions (
  model_name TEXT NOT NULL, predicted_label TEXT NOT NULL, confidence REAL,
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS import_jobs (
+ id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
+ status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,
+ error_message TEXT, started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ finished_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_status ON import_jobs(status, started_at);
 """
 
 

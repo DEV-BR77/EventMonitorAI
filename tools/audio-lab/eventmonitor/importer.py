@@ -9,8 +9,6 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-import soundfile as sf
-
 from .db import connect
 
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
@@ -116,6 +114,49 @@ def create_segments(conn, recording_id: int, duration: float, seconds: float = 5
         start = end
 
 
+def begin_import_job(conn, source: Path, source_hash: str) -> int:
+    existing = conn.execute(
+        "SELECT id, attempts FROM import_jobs WHERE source_hash=?", (source_hash,)
+    ).fetchone()
+    if existing:
+        conn.execute(
+            """
+            UPDATE import_jobs
+            SET source_path=?, status='running', attempts=?, recording_id=NULL,
+                error_message=NULL, started_at=CURRENT_TIMESTAMP, finished_at=NULL
+            WHERE id=?
+            """,
+            (str(source), int(existing["attempts"]) + 1, int(existing["id"])),
+        )
+        job_id = int(existing["id"])
+    else:
+        cursor = conn.execute(
+            "INSERT INTO import_jobs(source_path, source_hash, status) VALUES (?, ?, 'running')",
+            (str(source), source_hash),
+        )
+        job_id = int(cursor.lastrowid)
+    conn.commit()
+    return job_id
+
+
+def finish_import_job(
+    conn,
+    job_id: int,
+    status: str,
+    recording_id: int | None = None,
+    error_message: str | None = None,
+) -> None:
+    conn.execute(
+        """
+        UPDATE import_jobs
+        SET status=?, recording_id=?, error_message=?, finished_at=CURRENT_TIMESTAMP
+        WHERE id=?
+        """,
+        (status, recording_id, error_message, job_id),
+    )
+    conn.commit()
+
+
 def import_package(
     source: str | Path,
     db_path: str | Path = "data/eventmonitor.sqlite3",
@@ -131,13 +172,16 @@ def import_package(
         else hashlib.sha256(str(source).encode()).hexdigest()
     )
     conn = connect(db_path)
+    job_id = begin_import_job(conn, source, source_hash)
     existing = conn.execute(
         "SELECT id FROM recordings WHERE source_hash=?", (source_hash,)
     ).fetchone()
     if existing:
+        finish_import_job(conn, job_id, "skipped", int(existing["id"]))
         conn.close()
         return int(existing["id"]), False
     temp = None
+    rec_dir = None
     try:
         if source.is_file() and zipfile.is_zipfile(source):
             temp = tempfile.TemporaryDirectory()
@@ -149,6 +193,8 @@ def import_package(
         audio, db_csv, ext_csv, log_csv = discover_files(folder)
         if not audio or not db_csv:
             raise ValueError("Paket benötigt mindestens eine Audiodatei und db.csv.")
+        import soundfile as sf
+
         info = sf.info(audio)
         started, db_rows = read_db_csv(db_csv)
         rec_dir = library / source_hash[:16]
@@ -211,7 +257,14 @@ def import_package(
                 )
         create_segments(conn, rid, float(info.duration), segment_seconds)
         conn.commit()
+        finish_import_job(conn, job_id, "completed", rid)
         return rid, True
+    except Exception as error:
+        conn.rollback()
+        finish_import_job(conn, job_id, "failed", error_message=str(error))
+        if rec_dir and rec_dir.exists():
+            shutil.rmtree(rec_dir)
+        raise
     finally:
         conn.close()
         if temp:
@@ -228,4 +281,38 @@ def import_folder(
             results.append((str(p), rid, "importiert" if created else "bereits vorhanden", ""))
         except Exception as e:
             results.append((str(p), None, "Fehler", str(e)))
+    return results
+
+
+def resume_imports(
+    db_path: str | Path = "data/eventmonitor.sqlite3",
+    library_dir: str | Path = "data/library",
+):
+    conn = connect(db_path)
+    pending = conn.execute(
+        """
+        SELECT source_path FROM import_jobs
+        WHERE status IN ('failed', 'running')
+        ORDER BY started_at, id
+        """
+    ).fetchall()
+    conn.close()
+    results = []
+    for row in pending:
+        source = Path(row["source_path"])
+        if not source.exists():
+            results.append((str(source), None, "Fehler", "Quelldatei ist nicht mehr verfügbar"))
+            continue
+        try:
+            recording_id, created = import_package(source, db_path, library_dir)
+            results.append(
+                (
+                    str(source),
+                    recording_id,
+                    "importiert" if created else "bereits vorhanden",
+                    "",
+                )
+            )
+        except Exception as error:
+            results.append((str(source), None, "Fehler", str(error)))
     return results
