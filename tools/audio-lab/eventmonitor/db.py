@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS segments (
  id INTEGER PRIMARY KEY, recording_id INTEGER NOT NULL REFERENCES recordings(id) ON DELETE CASCADE,
  start_seconds REAL NOT NULL, end_seconds REAL NOT NULL, peak_dba REAL, mean_dba REAL,
  event_score REAL, label TEXT, label_confidence REAL, notes TEXT, labelled_at TEXT,
+ base_class_code TEXT, fine_class_code TEXT,
+ assignment_status TEXT NOT NULL DEFAULT 'automatic',
  original_start_seconds REAL, original_end_seconds REAL, boundaries_updated_at TEXT,
  UNIQUE(recording_id, start_seconds, end_seconds)
 );
@@ -146,6 +148,15 @@ def connect(path: str | Path) -> sqlite3.Connection:
         conn.execute("ALTER TABLE segments ADD COLUMN original_end_seconds REAL")
     if "boundaries_updated_at" not in cols:
         conn.execute("ALTER TABLE segments ADD COLUMN boundaries_updated_at TEXT")
+    if "base_class_code" not in cols:
+        conn.execute("ALTER TABLE segments ADD COLUMN base_class_code TEXT")
+    if "fine_class_code" not in cols:
+        conn.execute("ALTER TABLE segments ADD COLUMN fine_class_code TEXT")
+    if "assignment_status" not in cols:
+        conn.execute(
+            "ALTER TABLE segments ADD COLUMN assignment_status TEXT NOT NULL DEFAULT 'automatic'"
+        )
+        conn.execute("UPDATE segments SET assignment_status='manual' WHERE label IS NOT NULL")
     conn.execute(
         """
         UPDATE segments

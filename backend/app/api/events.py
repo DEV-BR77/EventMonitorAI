@@ -6,17 +6,29 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import CurrentUser
+from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
-from app.models.dashboard import Device, DeviceTelemetry
+from app.models.dashboard import (
+    Device,
+    DeviceTelemetry,
+    EventClass,
+    EventClassificationRevision,
+    User,
+)
 from app.models.event import Event
 from app.schemas.dashboard import DeviceTelemetryRead, DeviceTelemetryWrite
-from app.schemas.event import EventCreate, EventRead
+from app.schemas.event import (
+    EventClassificationRevisionRead,
+    EventClassificationUpdate,
+    EventCreate,
+    EventRead,
+)
 from app.services.audio import live_audio_hub
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
 from app.services.notifications import trigger_notifications
 from app.services.push import send_event_pushes
+from app.services.taxonomy import base_class_for_detection
 
 router = APIRouter(
     prefix="/events",
@@ -108,6 +120,8 @@ async def create_event(
         **event_values,
         label_de=label_de,
         category=category,
+        primary_class_code=base_class_for_detection(event_data.label, category),
+        classification_status="automatic",
     )
 
     db.add(event)
@@ -124,6 +138,73 @@ async def create_event(
     background_tasks.add_task(send_event_pushes, event.id)
 
     return event
+
+
+@router.patch("/{event_id}/classification", response_model=EventRead)
+async def correct_event_classification(
+    event_id: int,
+    data: EventClassificationUpdate,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> Event:
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
+    primary = db.scalar(select(EventClass).where(EventClass.code == data.primary_class_code))
+    if primary is None or primary.level != "base" or not primary.active:
+        raise HTTPException(status_code=422, detail="Ungültige oder inaktive Basisklasse")
+    subclass = None
+    if data.subclass_code:
+        subclass = db.scalar(select(EventClass).where(EventClass.code == data.subclass_code))
+        if (
+            subclass is None
+            or subclass.level != "fine"
+            or not subclass.active
+            or subclass.parent_code not in (None, primary.code)
+        ):
+            raise HTTPException(status_code=422, detail="Feinzuordnung passt nicht zur Basisklasse")
+
+    now = datetime.now(UTC).isoformat()
+    event.primary_class_code = primary.code
+    event.subclass_code = subclass.code if subclass else None
+    event.classification_status = "manual"
+    event.corrected_by = user.username
+    event.corrected_at = now
+    db.add(
+        EventClassificationRevision(
+            event_id=event.id,
+            primary_class_code=primary.code,
+            subclass_code=event.subclass_code,
+            status="manual",
+            actor=user.username,
+            reason=data.reason,
+            created_at=now,
+        )
+    )
+    db.commit()
+    db.refresh(event)
+    await live_hub.broadcast(EventRead.model_validate(event).model_dump())
+    return event
+
+
+@router.get(
+    "/{event_id}/classification-history",
+    response_model=list[EventClassificationRevisionRead],
+)
+def event_classification_history(
+    event_id: int,
+    db: DatabaseSession,
+    _: CurrentUser,
+) -> list[EventClassificationRevision]:
+    if db.get(Event, event_id) is None:
+        raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
+    return list(
+        db.scalars(
+            select(EventClassificationRevision)
+            .where(EventClassificationRevision.event_id == event_id)
+            .order_by(EventClassificationRevision.id)
+        )
+    )
 
 
 @router.get(

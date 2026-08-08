@@ -124,6 +124,10 @@ class NoiseLogEntry(BaseModel):
     timestamp: str
     device: str
     label: str
+    primary_class_code: str | None
+    subclass_code: str | None
+    classification_status: str
+    corrected_by: str | None
     db_level: float
     witnesses: list[WitnessResponseRead]
 

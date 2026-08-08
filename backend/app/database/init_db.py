@@ -5,7 +5,7 @@ from app.database.base import Base
 from app.database.session import engine
 from app.models import Event
 from app.services.label_translation import translate_label
-from app.services.taxonomy import seed_event_classes
+from app.services.taxonomy import base_class_for_detection, seed_event_classes
 
 
 def add_missing_event_columns() -> None:
@@ -36,6 +36,16 @@ def add_missing_event_columns() -> None:
 
     if "avg_db_level" not in column_names:
         statements.append("ALTER TABLE events " "ADD COLUMN avg_db_level FLOAT")
+
+    for name, definition in (
+        ("primary_class_code", "VARCHAR(80)"),
+        ("subclass_code", "VARCHAR(80)"),
+        ("classification_status", "VARCHAR(20) NOT NULL DEFAULT 'automatic'"),
+        ("corrected_by", "VARCHAR(80)"),
+        ("corrected_at", "VARCHAR"),
+    ):
+        if name not in column_names:
+            statements.append(f"ALTER TABLE events ADD COLUMN {name} {definition}")
 
     if statements:
         with engine.begin() as connection:
@@ -98,6 +108,12 @@ def backfill_events() -> None:
             if event.avg_db_level is None:
                 event.avg_db_level = event.db_level
                 changed = True
+
+            if event.primary_class_code is None:
+                mapped_class = base_class_for_detection(event.label, event.category)
+                if mapped_class is not None:
+                    event.primary_class_code = mapped_class
+                    changed = True
 
         if changed:
             db.commit()

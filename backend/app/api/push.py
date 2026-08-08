@@ -99,6 +99,10 @@ def noise_log(
             timestamp=event.timestamp,
             device=event.device,
             label=event.label_de or event.label,
+            primary_class_code=event.primary_class_code,
+            subclass_code=event.subclass_code,
+            classification_status=event.classification_status,
+            corrected_by=event.corrected_by,
             db_level=event.db_level,
             witnesses=witnesses[event.id],
         )

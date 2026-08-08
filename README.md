@@ -139,6 +139,7 @@ Die GitHub-CI prüft Python-Syntax, Tests, sensible Dateien und grundlegende Rep
 | Installation | [docs/getting-started/INSTALLATION.md](docs/getting-started/INSTALLATION.md) |
 | Architektur | [docs/Architecture.md](docs/Architecture.md) |
 | Dashboard und Integrationen | [docs/PHASE5_DASHBOARD.md](docs/PHASE5_DASHBOARD.md) |
+| Zweistufige KI-Klassifikation | [docs/PHASE7_KI.md](docs/PHASE7_KI.md) |
 | AudioLab | [tools/audio-lab/README.md](tools/audio-lab/README.md) |
 | Roadmap | [docs/Roadmap.md](docs/Roadmap.md) |
 | Produkt-Backlog | [docs/ProductBacklog.md](docs/ProductBacklog.md) |

@@ -124,6 +124,19 @@ class EventClass(Base):
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
+class EventClassificationRevision(Base):
+    __tablename__ = "event_classification_revisions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    primary_class_code: Mapped[str] = mapped_column(String(80))
+    subclass_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    status: Mapped[str] = mapped_column(String(20))
+    actor: Mapped[str] = mapped_column(String(80))
+    reason: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
 class NotificationRule(Base):
     __tablename__ = "notification_rules"
 

@@ -36,6 +36,9 @@ CSV_FIELDS = [
     "Ereignis-ID",
     "Position",
     "Kategorie",
+    "Primärklasse-Code",
+    "Unterklasse-Code",
+    "Zuordnungsstatus",
     "Familie",
     "Ereignis-Beginn (s)",
     "Ereignis-Ende (s)",
@@ -55,10 +58,14 @@ def noise_log_rows(conn: Any, confirmed_only: bool = True) -> list[dict[str, Any
                c.duration_seconds AS case_duration,c.notes,ce.position,
                e.id AS event_id,e.primary_label,e.event_family,e.start_seconds,
                e.end_seconds,e.segment_count,e.peak_dba,e.mean_dba,
+               MAX(s.base_class_code) AS base_class_code,
+               MAX(s.fine_class_code) AS fine_class_code,
+               MAX(s.assignment_status) AS assignment_status,
                GROUP_CONCAT(DISTINCT p.name) AS persons
         FROM cases c JOIN case_events ce ON ce.case_id=c.id
         JOIN events e ON e.id=ce.event_id
         LEFT JOIN event_segments es ON es.event_id=e.id
+        LEFT JOIN segments s ON s.id=es.segment_id
         LEFT JOIN segment_person_assignments spa ON spa.segment_id=es.segment_id
              AND spa.confirmed=1
         LEFT JOIN persons p ON p.id=spa.person_id
@@ -81,6 +88,9 @@ def noise_log_rows(conn: Any, confirmed_only: bool = True) -> list[dict[str, Any
             "Ereignis-ID": row["event_id"],
             "Position": row["position"] + 1,
             "Kategorie": row["primary_label"],
+            "Primärklasse-Code": row["base_class_code"] or "",
+            "Unterklasse-Code": row["fine_class_code"] or "",
+            "Zuordnungsstatus": row["assignment_status"] or "automatic",
             "Familie": row["event_family"],
             "Ereignis-Beginn (s)": row["start_seconds"],
             "Ereignis-Ende (s)": row["end_seconds"],

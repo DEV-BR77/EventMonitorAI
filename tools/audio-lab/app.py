@@ -776,11 +776,45 @@ elif page == "Ereignisse lernen":
             },
             width="stretch",
         )
+    class_rows = conn.execute(
+        """
+        SELECT code,name,level,parent_code FROM event_classes
+        WHERE active=1 ORDER BY sort_order,name
+        """
+    ).fetchall()
+    class_by_code = {row["code"]: row for row in class_rows}
+    class_by_name = {row["name"]: row for row in class_rows}
+    bases = [row for row in class_rows if row["level"] == "base"]
     suggested_label = prediction["predicted_label"] if prediction else None
-    selected_default = seg["label"] if seg["label"] in LABELS else suggested_label
-    label = st.selectbox(
-        "Lärmart", LABELS, index=LABELS.index(selected_default) if selected_default in LABELS else 0
+    selected_row = class_by_code.get(seg["base_class_code"]) or class_by_name.get(
+        seg["label"] or suggested_label
     )
+    if selected_row and selected_row["level"] == "fine":
+        selected_row = class_by_code.get(selected_row["parent_code"])
+    base_names = [row["name"] for row in bases]
+    primary_name = st.selectbox(
+        "Automatische Basisklasse",
+        base_names,
+        index=base_names.index(selected_row["name"]) if selected_row else 0,
+    )
+    primary = class_by_name[primary_name]
+    fine_rows = [
+        row
+        for row in class_rows
+        if row["level"] == "fine" and row["parent_code"] in (None, primary["code"])
+    ]
+    fine_names = ["Keine Feinzuordnung", *(row["name"] for row in fine_rows)]
+    selected_fine = class_by_code.get(seg["fine_class_code"])
+    if selected_fine is None and seg["label"] in class_by_name:
+        candidate = class_by_name[seg["label"]]
+        selected_fine = candidate if candidate["level"] == "fine" else None
+    fine_name = st.selectbox(
+        "Manuelle Feinzuordnung",
+        fine_names,
+        index=fine_names.index(selected_fine["name"]) if selected_fine else 0,
+    )
+    fine = class_by_name.get(fine_name)
+    label = fine["name"] if fine else primary["name"]
     active_people = conn.execute(
         "SELECT id,name FROM persons WHERE active=1 ORDER BY name"
     ).fetchall()
@@ -803,8 +837,21 @@ elif page == "Ereignisse lernen":
     notes = st.text_input("Notiz", seg["notes"] or "")
     if st.button("Bestätigen und speichern", type="primary"):
         conn.execute(
-            "UPDATE segments SET label=?,label_confidence=?,notes=?,labelled_at=? WHERE id=?",
-            (label, confidence, notes, datetime.now().isoformat(), seg["id"]),
+            """
+            UPDATE segments SET
+                label=?,base_class_code=?,fine_class_code=?,assignment_status='manual',
+                label_confidence=?,notes=?,labelled_at=?
+            WHERE id=?
+            """,
+            (
+                label,
+                primary["code"],
+                fine["code"] if fine else None,
+                confidence,
+                notes,
+                datetime.now().isoformat(),
+                seg["id"],
+            ),
         )
         conn.commit()
         if prediction:

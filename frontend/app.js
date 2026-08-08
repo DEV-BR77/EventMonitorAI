@@ -51,7 +51,8 @@ async function start() {
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     $("#admin-nav").classList.toggle("hidden", me.role !== "admin");
     await loadDevices();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadEventClasses()] : [])]);
+    await loadEventClasses();
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -337,8 +338,19 @@ async function loadRecentEvents() {
   const entries = await api("/push/noise-log?limit=5");
   $("#recent-events").innerHTML = entries.length ? entries.map((entry) => {
     const witnesses = entry.witnesses.length ? entry.witnesses.map((item) => `<span class="witness ${item.response}">${escapeHtml(item.username)}: ${item.response === "confirmed" ? "bestätigt" : "abgelehnt"}</span>`).join("") : "<span class=\"witness pending\">Keine Zeugenreaktion</span>";
-    return `<div class="recent-event"><time>${formatTime(entry.timestamp)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB</span><div>${witnesses}</div></div>`;
+    const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
+    const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
+    const correction = state.role === "viewer" ? "" : `<form class="classification-editor" data-event-id="${entry.event_id}"><select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><input name="reason" minlength="3" placeholder="Korrekturgrund" required><button type="submit">Zuordnung speichern</button></form>`;
+    return `<div class="recent-event"><time>${formatTime(entry.timestamp)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(entry.classification_status === "manual" ? `manuell durch ${entry.corrected_by}` : "automatisch")}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
+  document.querySelectorAll(".classification-editor").forEach((form) => populateSubclassOptions(form));
+}
+
+function populateSubclassOptions(form) {
+  const primaryCode = form.elements.primary_class_code.value;
+  const current = form.elements.subclass_code.dataset.current;
+  const fine = state.eventClasses.filter((item) => item.active && item.level === "fine" && (item.parent_code == null || item.parent_code === primaryCode));
+  form.elements.subclass_code.innerHTML = `<option value="">Keine Feinzuordnung</option>${fine.map((item) => `<option value="${escapeHtml(item.code)}" ${current === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
 }
 
 async function loadEvents() {
@@ -438,6 +450,22 @@ $("#class-list").addEventListener("submit", async (e) => {
     $("#class-status").textContent = "Klasse aktualisiert.";
     await loadEventClasses();
   } catch (error) { $("#class-status").textContent = error.message; }
+});
+$("#recent-events").addEventListener("change", (e) => {
+  const form = e.target.closest(".classification-editor");
+  if (form && e.target.name === "primary_class_code") {
+    form.elements.subclass_code.dataset.current = "";
+    populateSubclassOptions(form);
+  }
+});
+$("#recent-events").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".classification-editor");
+  if (!form) return;
+  try {
+    await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: form.elements.primary_class_code.value, subclass_code: form.elements.subclass_code.value || null, reason: form.elements.reason.value }) });
+    await Promise.all([loadRecentEvents(), loadEvents()]);
+  } catch (error) { form.elements.reason.setCustomValidity(error.message); form.reportValidity(); }
 });
 $("#rule-form").addEventListener("submit", async (e) => {
   e.preventDefault();

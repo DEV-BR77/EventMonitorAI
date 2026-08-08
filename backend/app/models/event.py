@@ -42,6 +42,12 @@ class Event(Base):
         default="OTHER",
     )
 
+    primary_class_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    subclass_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    classification_status: Mapped[str] = mapped_column(String(20), default="automatic")
+    corrected_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    corrected_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
     confidence: Mapped[float] = mapped_column(Float)
 
     # Höchster Pegel während des Ereignisses
