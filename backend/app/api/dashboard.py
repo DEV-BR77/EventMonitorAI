@@ -122,10 +122,12 @@ def list_device_telemetry(db: DatabaseSession, _: CurrentUser) -> list[DeviceTel
 def device_levels(
     db: DatabaseSession,
     _: CurrentUser,
-    hours: int = Query(default=2, ge=1, le=24),
+    minutes: int = Query(default=10),
     device: str | None = None,
 ) -> list[DeviceLevelPoint]:
-    cutoff = (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
+    if minutes not in {5, 10, 30, 60}:
+        raise HTTPException(status_code=422, detail="Erlaubt sind 5, 10, 30 oder 60 Minuten")
+    cutoff = (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
     statement = select(DeviceLevelSample).where(DeviceLevelSample.timestamp >= cutoff)
     if device:
         statement = statement.where(DeviceLevelSample.device_id == device)
@@ -134,19 +136,22 @@ def device_levels(
         item.device_id: item.name
         for item in db.scalars(select(Device).where(Device.enabled.is_(True)))
     }
-    buckets: dict[tuple[str, str], list[float]] = defaultdict(list)
+    buckets: dict[tuple[str, str], list[tuple[str, float]]] = defaultdict(list)
     for sample in samples:
         if sample.device_id in names:
-            buckets[(sample.device_id, sample.timestamp[:16])].append(sample.db_level)
+            instant = datetime.fromisoformat(sample.timestamp.replace("Z", "+00:00"))
+            bucket_second = instant.second - instant.second % 5
+            bucket = instant.replace(second=bucket_second, microsecond=0).isoformat()
+            buckets[(sample.device_id, bucket)].append((sample.timestamp, sample.db_level))
     return [
         DeviceLevelPoint(
             device_id=device_id,
             name=names[device_id],
-            timestamp=f"{minute}:00+00:00",
-            average_db=round(sum(levels) / len(levels), 1),
-            maximum_db=round(max(levels), 1),
+            timestamp=bucket,
+            average_db=round(sum(level for _, level in levels) / len(levels), 1),
+            maximum_db=round(max(level for _, level in levels), 1),
         )
-        for (device_id, minute), levels in sorted(buckets.items(), key=lambda item: item[0][1])
+        for (device_id, bucket), levels in sorted(buckets.items(), key=lambda item: item[0][1])
     ]
 
 

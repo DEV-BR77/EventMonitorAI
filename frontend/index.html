@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.3.0-mobile-audio">
+  <link rel="stylesheet" href="/styles.css?v=0.3.0-level-window">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -82,9 +82,9 @@
 
       <section id="live" class="view hidden">
         <article class="panel live-level-panel">
-          <div class="panel-head"><h2>Lautstärkepegel – letzte 2 Stunden</h2><span id="level-chart-status">Aktualisierung alle 10 Sekunden</span></div>
+          <div class="panel-head"><h2 id="level-chart-title">Lautstärkepegel – letzte 10 Minuten</h2><label class="level-window">Zeitraum<select id="level-minutes"><option value="5">5 Minuten</option><option value="10" selected>10 Minuten</option><option value="30">30 Minuten</option><option value="60">60 Minuten</option></select></label></div>
           <div id="level-chart" class="level-chart"></div>
-          <div id="level-legend" class="level-legend"></div>
+          <div class="level-chart-footer"><div id="level-legend" class="level-legend"></div><span id="level-chart-status">5-Sekunden-Werte · Aktualisierung alle 5 Sekunden</span></div>
         </article>
         <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><span id="connection">Verbindung wird aufgebaut…</span></div>
           <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span></div>
@@ -215,6 +215,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-mobile-audio"></script>
+  <script src="/app.js?v=0.3.0-level-window"></script>
 </body>
 </html>

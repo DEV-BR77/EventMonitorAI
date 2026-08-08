@@ -28,7 +28,7 @@ def test_telemetry_is_sampled_at_most_every_five_seconds() -> None:
         assert db.scalar(select(func.count()).select_from(DeviceLevelSample)) == 1
 
 
-def test_level_history_is_aggregated_by_minute() -> None:
+def test_level_history_is_aggregated_in_five_second_intervals() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     with Session(engine) as db:
@@ -46,14 +46,14 @@ def test_level_history_is_aggregated_by_minute() -> None:
                 ),
                 DeviceLevelSample(
                     device_id="mic-1",
-                    timestamp=(minute + timedelta(seconds=25)).isoformat(),
+                    timestamp=(minute + timedelta(seconds=8)).isoformat(),
                     db_level=50,
                 ),
             ]
         )
         db.commit()
 
-        result = device_levels(db, user, hours=2)
+        result = device_levels(db, user, minutes=10)
 
         assert len(result) == 1
         assert result[0].name == "Hofeinfahrt"

@@ -389,15 +389,16 @@ function renderTimeline(data) {
 }
 
 async function loadLiveLevels() {
-  const query = device() ? `?hours=2&device=${encodeURIComponent(device())}` : "?hours=2";
+  const minutes = Number($("#level-minutes").value);
+  const query = device() ? `?minutes=${minutes}&device=${encodeURIComponent(device())}` : `?minutes=${minutes}`;
   const points = await api(`/api/device-levels${query}`);
-  renderLiveLevels(points);
+  renderLiveLevels(points, minutes);
 }
 
-function renderLiveLevels(points) {
+function renderLiveLevels(points, minutes) {
   const width = 900, height = 260, left = 42, right = 12, top = 12, bottom = 28;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
-  const end = Date.now(), start = end - 2 * 60 * 60 * 1000;
+  const end = Date.now(), start = end - minutes * 60 * 1000;
   const maximum = Math.max(80, ...points.map((point) => point.maximum_db));
   const minimum = Math.min(30, ...points.map((point) => point.average_db));
   const range = Math.max(20, maximum - minimum);
@@ -410,13 +411,14 @@ function renderLiveLevels(points) {
   const x = (timestamp) => left + Math.max(0, Math.min(1, (new Date(timestamp).valueOf() - start) / (end - start))) * plotWidth;
   const y = (level) => top + plotHeight - (level - minimum) / range * plotHeight;
   const lines = Array.from(groups.values()).map((group, index) => `<polyline class="level-line" stroke="${colors[index % colors.length]}" points="${group.points.map((point) => `${x(point.timestamp).toFixed(1)},${y(point.average_db).toFixed(1)}`).join(" ")}"/>`).join("");
-  $("#level-chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lautstärkepegel der letzten zwei Stunden">
+  $("#level-chart").innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Lautstärkepegel der letzten ${minutes} Minuten">
     ${[0, .25, .5, .75, 1].map((ratio) => `<line class="chart-grid" x1="${left}" y1="${top + ratio * plotHeight}" x2="${left + plotWidth}" y2="${top + ratio * plotHeight}"/><text class="chart-axis" x="0" y="${top + ratio * plotHeight + 4}">${Math.round(maximum - ratio * range)} dB</text>`).join("")}
     ${[0, .5, 1].map((ratio) => `<text class="chart-axis" text-anchor="${ratio === 0 ? "start" : ratio === 1 ? "end" : "middle"}" x="${left + ratio * plotWidth}" y="${height - 5}">${new Date(start + ratio * (end - start)).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</text>`).join("")}
     ${lines}
   </svg>`;
   $("#level-legend").innerHTML = Array.from(groups.values()).map((group, index) => `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(group.name)}</span>`).join("") || "Messwerte werden gesammelt …";
-  $("#level-chart-status").textContent = `${points.length} Minutenwerte · aktualisiert ${new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`;
+  $("#level-chart-title").textContent = `Lautstärkepegel – letzte ${minutes} Minuten`;
+  $("#level-chart-status").textContent = `${points.length} Fünf-Sekunden-Werte · aktualisiert ${new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
 }
 
 function renderCategories(categories, total) {
@@ -549,6 +551,7 @@ $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 $("#days-filter").addEventListener("change", () => Promise.all([refresh(), loadSoundMap()]));
 $("#device-filter").addEventListener("change", () => Promise.all([refresh(), loadEvents(), loadLiveLevels()]));
+$("#level-minutes").addEventListener("change", loadLiveLevels);
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("active", n === button));
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
@@ -726,5 +729,5 @@ function formatTime(value) { const date = new Date(value); return Number.isNaN(d
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }
 if (state.token) start();
 setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
-setInterval(() => { if (state.token) loadLiveLevels().catch(() => {}); }, 10000);
+setInterval(() => { if (state.token) loadLiveLevels().catch(() => {}); }, 5000);
 window.addEventListener("resize", () => { if (state.token) renderSoundMap(); });
