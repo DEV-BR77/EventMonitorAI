@@ -38,7 +38,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] versionierte Feature- und Preprocessing-Pipeline
 - [x] Trainings-, Validierungs- und Testaufteilung nach Aufnahmen
 - [x] Basismodell und nachvollziehbare Qualitätsmetriken
-- [ ] Modellvorschläge mit Bestätigung/Korrektur
+- [x] Modellvorschläge mit Bestätigung/Korrektur
 - [ ] Active Learning für unsichere oder informative Beispiele
 - [ ] Audio-Embeddings und Ähnlichkeitssuche
 - [ ] Personen durch Lärm wie schreien, rufen identifizieren und klassifizieren - neue Personen anlegen die editierbar sind mit frei gewählten Namen - gesonderte Statistik je Personen, Beurteilungszeit, Lärmkategorie und Häufigkeit

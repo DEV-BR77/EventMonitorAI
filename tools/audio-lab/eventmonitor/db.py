@@ -30,8 +30,11 @@ CREATE INDEX IF NOT EXISTS idx_segments_queue ON segments(label, event_score, pe
 CREATE TABLE IF NOT EXISTS predictions (
  id INTEGER PRIMARY KEY, segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
  model_name TEXT NOT NULL, predicted_label TEXT NOT NULL, confidence REAL,
- created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TEXT,
+ reviewed_label TEXT, was_correct INTEGER
 );
+CREATE INDEX IF NOT EXISTS idx_predictions_segment_created
+ON predictions(segment_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS import_jobs (
  id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,
@@ -65,5 +68,13 @@ def connect(path: str | Path) -> sqlite3.Connection:
         WHERE original_start_seconds IS NULL OR original_end_seconds IS NULL
         """
     )
+    prediction_cols = {r[1] for r in conn.execute("PRAGMA table_info(predictions)")}
+    for name, definition in (
+        ("reviewed_at", "TEXT"),
+        ("reviewed_label", "TEXT"),
+        ("was_correct", "INTEGER"),
+    ):
+        if name not in prediction_cols:
+            conn.execute(f"ALTER TABLE predictions ADD COLUMN {name} {definition}")
     conn.commit()
     return conn

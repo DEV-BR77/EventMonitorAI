@@ -15,8 +15,13 @@ from eventmonitor.backup import create_backup, restore_backup
 from eventmonitor.db import connect
 from eventmonitor.features import FeaturePipelineConfig
 from eventmonitor.importer import import_folder, import_package, resume_imports
+from eventmonitor.inference import (
+    generate_segment_predictions,
+    latest_prediction,
+    record_prediction_review,
+)
 from eventmonitor.segments import update_boundaries, wav_excerpt
-from eventmonitor.training import build_labeled_dataset, save_model, train_baseline
+from eventmonitor.training import build_labeled_dataset, load_model, save_model, train_baseline
 from eventmonitor.visualization import calculate_spectrogram, spectrogram_records
 
 st.set_page_config(page_title="EventMonitor AudioLab", page_icon="🎧", layout="wide")
@@ -156,6 +161,22 @@ elif page == "Modelltraining":
             columns[2].metric("Balanced Accuracy", f"{metrics['balanced_accuracy']:.3f}")
             columns[3].metric("Macro-F1", f"{metrics['macro_f1']:.3f}")
             st.dataframe(pd.DataFrame(metrics["per_class"]).T, width="stretch")
+    models = sorted(Path("models/audio-lab").glob("*.joblib"), reverse=True)
+    st.subheader("Modellvorschläge")
+    if models:
+        selected_model = st.selectbox("Lokales Modell", models, format_func=lambda path: path.name)
+        if st.button("Vorschläge für offene Segmente berechnen"):
+            try:
+                with st.spinner("Offene Segmente klassifizieren …"):
+                    count = generate_segment_predictions(
+                        conn, load_model(selected_model), selected_model.name
+                    )
+            except (OSError, ValueError) as error:
+                st.error(str(error))
+            else:
+                st.success(f"{count} Modellvorschläge gespeichert.")
+    else:
+        st.info("Zuerst ein Basismodell trainieren.")
 
 elif page == "Sicherung":
     st.title("Backup und Datenmigration")
@@ -249,6 +270,17 @@ elif page == "Ereignisse lernen":
         key=navigation_key,
     )
     seg = segments[int(pos)]
+    prediction = latest_prediction(conn, seg["id"])
+    if prediction:
+        review_status = (
+            "bereits geprüft"
+            if prediction["reviewed_at"]
+            else "noch zu bestätigen oder zu korrigieren"
+        )
+        st.info(
+            f"Modellvorschlag: **{prediction['predicted_label']}** "
+            f"({float(prediction['confidence']):.1%}) · {review_status}"
+        )
     st.subheader("Ereignis zuschneiden")
     boundary_start, boundary_end, boundary_actions = st.columns([2, 2, 2])
     start_seconds = boundary_start.number_input(
@@ -404,8 +436,10 @@ elif page == "Ereignisse lernen":
             },
             width="stretch",
         )
+    suggested_label = prediction["predicted_label"] if prediction else None
+    selected_default = seg["label"] if seg["label"] in LABELS else suggested_label
     label = st.selectbox(
-        "Lärmart", LABELS, index=LABELS.index(seg["label"]) if seg["label"] in LABELS else 0
+        "Lärmart", LABELS, index=LABELS.index(selected_default) if selected_default in LABELS else 0
     )
     confidence = st.slider("Sicherheit", 0.0, 1.0, float(seg["label_confidence"] or 1.0), 0.05)
     notes = st.text_input("Notiz", seg["notes"] or "")
@@ -415,6 +449,8 @@ elif page == "Ereignisse lernen":
             (label, confidence, notes, datetime.now().isoformat(), seg["id"]),
         )
         conn.commit()
+        if prediction:
+            record_prediction_review(conn, prediction["id"], label)
         st.success("Gespeichert.")
         st.rerun()
 
