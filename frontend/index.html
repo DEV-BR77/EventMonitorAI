@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.3.0-phase8">
+  <link rel="stylesheet" href="/styles.css?v=0.3.0-map-positioning">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -66,6 +66,10 @@
       <section id="sound-map" class="view hidden">
         <article class="panel">
           <div class="panel-head"><h2>Schallausbreitung im Messbereich</h2><span id="sound-map-period">letzte 30 Tage · Überschreitung ab 55 dB</span></div>
+          <div id="map-positioning" class="map-positioning hidden">
+            <label>Mikrofon platzieren<select id="map-position-device"></select></label>
+            <span>Klicke auf die tatsächliche Position des ausgewählten Mikrofons im Luftbild.</span>
+          </div>
           <div id="map-stage" class="map-stage">
             <img src="/messbereich.png" alt="Messbereich aus der Roadmap">
             <canvas id="map-heatmap"></canvas>
@@ -204,6 +208,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-phase8"></script>
+  <script src="/app.js?v=0.3.0-map-positioning"></script>
 </body>
 </html>

@@ -51,6 +51,8 @@ async function start() {
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     $("#admin-nav").classList.toggle("hidden", me.role !== "admin");
     $("#review-nav").classList.toggle("hidden", me.role === "viewer");
+    $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
+    $("#map-stage").classList.toggle("positioning", me.role === "admin");
     await loadDevices();
     await loadEventClasses();
     await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
@@ -91,6 +93,8 @@ async function loadDevices() {
   const options = state.devices.map((d) => `<option value="${escapeHtml(d.device_id)}">${escapeHtml(d.name)}</option>`).join("");
   $("#device-filter").innerHTML = `<option value="">Alle Geräte</option>${options}`;
   $("#rule-device").innerHTML = `<option value="*">Alle Geräte</option>${options}`;
+  const currentMapDevice = $("#map-position-device").value;
+  $("#map-position-device").innerHTML = state.devices.map((d) => `<option value="${escapeHtml(d.device_id)}" ${d.device_id === currentMapDevice ? "selected" : ""}>${escapeHtml(d.name)}${d.position_x == null || d.position_y == null ? " · noch nicht platziert" : ""}</option>`).join("");
   renderDeviceManagement();
 }
 
@@ -444,6 +448,27 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
+$("#map-stage").addEventListener("click", async (e) => {
+  if (state.role !== "admin") return;
+  const deviceId = $("#map-position-device").value;
+  const configured = state.devices.find((item) => item.device_id === deviceId);
+  if (!configured) return;
+  const bounds = e.currentTarget.getBoundingClientRect();
+  const positionX = Math.max(0, Math.min(100, (e.clientX - bounds.left) / bounds.width * 100));
+  const positionY = Math.max(0, Math.min(100, (e.clientY - bounds.top) / bounds.height * 100));
+  try {
+    await api(`/api/devices/${encodeURIComponent(deviceId)}`, { method: "PATCH", body: JSON.stringify({
+      name: configured.name,
+      location: configured.location,
+      position_x: Number(positionX.toFixed(1)),
+      position_y: Number(positionY.toFixed(1)),
+      enabled: configured.enabled,
+    }) });
+    $("#map-unpositioned").textContent = `${configured.name} wurde bei X ${positionX.toFixed(1)} %, Y ${positionY.toFixed(1)} % gespeichert.`;
+    await loadDevices();
+    await loadSoundMap();
+  } catch (error) { $("#map-unpositioned").textContent = error.message; }
+});
 $("#review-classes").addEventListener("click", async (e) => {
   const tile = e.target.closest("[data-review-class]");
   if (!tile) return;
