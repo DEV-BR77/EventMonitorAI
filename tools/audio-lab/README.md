@@ -91,6 +91,7 @@ python import_data.py "D:\Laermmessungen" --folder
 - [Architektur und Datenmodell](docs/ARCHITEKTUR.md)
 - [Feature- und Preprocessing-Pipeline](docs/FEATURE_PIPELINE.md)
 - [Trainings-, Validierungs- und Testaufteilung](docs/DATASET_SPLITS.md)
+- [Basismodell und Qualitätsmetriken](docs/BASELINE_MODEL.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Grenzen und verantwortungsvolle Nutzung

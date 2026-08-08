@@ -37,7 +37,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 
 - [x] versionierte Feature- und Preprocessing-Pipeline
 - [x] Trainings-, Validierungs- und Testaufteilung nach Aufnahmen
-- [ ] Basismodell und nachvollziehbare Qualitätsmetriken
+- [x] Basismodell und nachvollziehbare Qualitätsmetriken
 - [ ] Modellvorschläge mit Bestätigung/Korrektur
 - [ ] Active Learning für unsichere oder informative Beispiele
 - [ ] Audio-Embeddings und Ähnlichkeitssuche

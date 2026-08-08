@@ -13,8 +13,10 @@ import soundfile as sf
 import streamlit as st
 from eventmonitor.backup import create_backup, restore_backup
 from eventmonitor.db import connect
+from eventmonitor.features import FeaturePipelineConfig
 from eventmonitor.importer import import_folder, import_package, resume_imports
 from eventmonitor.segments import update_boundaries, wav_excerpt
+from eventmonitor.training import build_labeled_dataset, save_model, train_baseline
 from eventmonitor.visualization import calculate_spectrogram, spectrogram_records
 
 st.set_page_config(page_title="EventMonitor AudioLab", page_icon="🎧", layout="wide")
@@ -46,7 +48,8 @@ def format_metric(value: float | None, suffix: str = "") -> str:
 
 conn = connect(DB)
 page = st.sidebar.radio(
-    "Bereich", ["Übersicht", "Import", "Ereignisse lernen", "Auswertung", "Sicherung"]
+    "Bereich",
+    ["Übersicht", "Import", "Ereignisse lernen", "Auswertung", "Modelltraining", "Sicherung"],
 )
 
 if page == "Import":
@@ -112,6 +115,47 @@ elif page == "Übersicht":
         )
     else:
         st.info("Noch keine Messungen importiert.")
+
+elif page == "Modelltraining":
+    st.title("Lokales Basismodell")
+    labelled = conn.execute(
+        "SELECT COUNT(*), COUNT(DISTINCT recording_id), COUNT(DISTINCT label) "
+        "FROM segments WHERE label IS NOT NULL"
+    ).fetchone()
+    first, second, third = st.columns(3)
+    first.metric("Bestätigte Segmente", labelled[0])
+    second.metric("Unabhängige Aufnahmen", labelled[1])
+    third.metric("Klassen", labelled[2])
+    st.caption(
+        "Das Modell wird nur aus dem Trainingssplit gelernt. Validierung und Test stammen aus "
+        "anderen vollständigen Aufnahmen."
+    )
+    if st.button("Basismodell trainieren", type="primary"):
+        try:
+            with st.spinner("Features berechnen und Modell auswerten …"):
+                config = FeaturePipelineConfig()
+                features, labels, recording_ids, _, feature_names = build_labeled_dataset(
+                    conn, config
+                )
+                artifact = train_baseline(features, labels, recording_ids, feature_names, config)
+                model_path = save_model(
+                    artifact,
+                    Path("models/audio-lab") / f"baseline-{datetime.now():%Y%m%d-%H%M%S}.joblib",
+                )
+        except (OSError, ValueError) as error:
+            st.error(str(error))
+        else:
+            st.success(f"Modell gespeichert: {model_path}")
+            st.session_state["baseline-metrics"] = artifact["metrics"]
+    if "baseline-metrics" in st.session_state:
+        for split_name, metrics in st.session_state["baseline-metrics"].items():
+            st.subheader("Validierung" if split_name == "validation" else "Unberührter Test")
+            columns = st.columns(4)
+            columns[0].metric("Segmente", metrics["samples"])
+            columns[1].metric("Accuracy", f"{metrics['accuracy']:.3f}")
+            columns[2].metric("Balanced Accuracy", f"{metrics['balanced_accuracy']:.3f}")
+            columns[3].metric("Macro-F1", f"{metrics['macro_f1']:.3f}")
+            st.dataframe(pd.DataFrame(metrics["per_class"]).T, width="stretch")
 
 elif page == "Sicherung":
     st.title("Backup und Datenmigration")
