@@ -35,7 +35,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 
 ## Phase 3 – Lernende Klassifizierung
 
-- [ ] versionierte Feature- und Preprocessing-Pipeline
+- [x] versionierte Feature- und Preprocessing-Pipeline
 - [ ] Trainings-, Validierungs- und Testaufteilung nach Aufnahmen
 - [ ] Basismodell und nachvollziehbare Qualitätsmetriken
 - [ ] Modellvorschläge mit Bestätigung/Korrektur

@@ -89,6 +89,7 @@ python import_data.py "D:\Laermmessungen" --folder
 - [Messdaten und Importformat](docs/IMPORTFORMAT.md)
 - [Kategorien und Lernworkflow](docs/LABELING.md)
 - [Architektur und Datenmodell](docs/ARCHITEKTUR.md)
+- [Feature- und Preprocessing-Pipeline](docs/FEATURE_PIPELINE.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Grenzen und verantwortungsvolle Nutzung
