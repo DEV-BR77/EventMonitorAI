@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     ingest_api_key: str = ""
     home_assistant_webhook_url: str = ""
     home_assistant_token: str = ""
+    vapid_private_key: str = ""
+    vapid_public_key: str = ""
+    vapid_subject: str = "mailto:admin@eventmonitor.eu"
 
     udp_port: int = 12345
     audio_sample_rate: int = 16000

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.services.audio import live_audio_hub
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
 from app.services.notifications import trigger_notifications
+from app.services.push import send_event_pushes
 
 router = APIRouter(
     prefix="/events",
@@ -86,6 +87,7 @@ def update_device_telemetry(
 )
 async def create_event(
     event_data: EventCreate,
+    background_tasks: BackgroundTasks,
     db: DatabaseSession,
     _: Annotated[None, Depends(verify_ingest_key)],
 ) -> Event:
@@ -119,6 +121,7 @@ async def create_event(
     db.commit()
     await live_hub.broadcast(EventRead.model_validate(event).model_dump())
     trigger_notifications(db, event)
+    background_tasks.add_task(send_event_pushes, event.id)
 
     return event
 

@@ -1,0 +1,106 @@
+from datetime import UTC, datetime
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import desc, select
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.security import CurrentUser
+from app.database.session import get_db
+from app.models.dashboard import EventWitnessResponse, PushSubscription, User
+from app.models.event import Event
+from app.schemas.dashboard import (
+    NoiseLogEntry,
+    PushConfigRead,
+    PushSubscriptionWrite,
+    WitnessResponseRead,
+)
+from app.services.push import decode_response_token
+
+router = APIRouter(prefix="/push", tags=["Push notifications"])
+DatabaseSession = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/config", response_model=PushConfigRead)
+def push_config(_: CurrentUser) -> PushConfigRead:
+    enabled = bool(settings.vapid_private_key and settings.vapid_public_key)
+    return PushConfigRead(enabled=enabled, public_key=settings.vapid_public_key if enabled else "")
+
+
+@router.post("/subscriptions", status_code=status.HTTP_204_NO_CONTENT)
+def subscribe(data: PushSubscriptionWrite, db: DatabaseSession, user: CurrentUser) -> None:
+    subscription = db.scalar(
+        select(PushSubscription).where(PushSubscription.endpoint == data.endpoint)
+    )
+    if subscription is None:
+        subscription = PushSubscription(user_id=user.id, **data.model_dump())
+        db.add(subscription)
+    else:
+        subscription.user_id = user.id
+        subscription.p256dh = data.p256dh
+        subscription.auth = data.auth
+    db.commit()
+
+
+@router.post("/respond", response_model=WitnessResponseRead)
+def respond(
+    token: str,
+    response: Literal["confirmed", "rejected"],
+    db: DatabaseSession,
+) -> EventWitnessResponse:
+    try:
+        user_id, event_id = decode_response_token(token)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Ungültige oder abgelaufene Antwort") from exc
+    user = db.get(User, user_id)
+    event = db.get(Event, event_id)
+    if user is None or not user.active or event is None:
+        raise HTTPException(status_code=404, detail="Benutzer oder Ereignis nicht gefunden")
+    witness = db.scalar(
+        select(EventWitnessResponse).where(
+            EventWitnessResponse.user_id == user_id,
+            EventWitnessResponse.event_id == event_id,
+        )
+    )
+    if witness is None:
+        witness = EventWitnessResponse(
+            user_id=user.id,
+            event_id=event.id,
+            username=user.username,
+            response=response,
+        )
+        db.add(witness)
+    else:
+        witness.response = response
+        witness.responded_at = datetime.now(UTC).isoformat()
+    db.commit()
+    db.refresh(witness)
+    return witness
+
+
+@router.get("/noise-log", response_model=list[NoiseLogEntry])
+def noise_log(
+    db: DatabaseSession,
+    _: CurrentUser,
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> list[NoiseLogEntry]:
+    events = list(db.scalars(select(Event).order_by(desc(Event.id)).limit(limit)).all())
+    if not events:
+        return []
+    witnesses: dict[int, list[WitnessResponseRead]] = {event.id: [] for event in events}
+    for item in db.scalars(
+        select(EventWitnessResponse).where(EventWitnessResponse.event_id.in_(witnesses.keys()))
+    ):
+        witnesses[item.event_id].append(WitnessResponseRead.model_validate(item))
+    return [
+        NoiseLogEntry(
+            event_id=event.id,
+            timestamp=event.timestamp,
+            device=event.device,
+            label=event.label_de or event.label,
+            db_level=event.db_level,
+            witnesses=witnesses[event.id],
+        )
+        for event in events
+    ]

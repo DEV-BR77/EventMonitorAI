@@ -22,6 +22,9 @@ EventMonitorAI verarbeitet potenziell sensible Audio- und Ereignisdaten. Die Arc
 - Live-Audio wird nicht im Backend gespeichert. Der Pi überträgt flüchtige PCM-Blöcke nur an
   aktuell verbundene Browser; sichtbar und abrufbar ist die Funktion ausschließlich für vom
   Administrator pro Mikrofon freigegebene Benutzer.
+- Push-Abonnements werden dem angemeldeten Benutzer zugeordnet. Eine Bestätigung oder Ablehnung
+  wird mit Benutzername, Ereignis-ID und Zeitstempel als Zeugenreaktion im Lärmprotokoll geführt;
+  Antwortlinks sind signiert und laufen nach 24 Stunden ab.
 
 ## Aussagegrenzen
 

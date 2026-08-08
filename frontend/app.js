@@ -51,6 +51,7 @@ async function start() {
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     await loadDevices();
     await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), refresh(), loadEvents(), loadRules(), ...(me.role === "admin" ? [loadAudioPermissions()] : [])]);
+    await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
     logout();
@@ -208,6 +209,49 @@ function stopAudio(message = "Wiedergabe gestoppt") {
   if ($("#audio-toggle")) $("#audio-toggle").textContent = "Wiedergabe starten";
 }
 
+async function preparePush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  const config = await api("/push/config");
+  if (!config.enabled) return;
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  const existing = await registration.pushManager.getSubscription();
+  if (existing) {
+    await savePushSubscription(existing);
+    $("#push-enable").textContent = "Push aktiv";
+  } else {
+    $("#push-enable").textContent = "Push aktivieren";
+  }
+  $("#push-enable").classList.remove("hidden");
+  $("#push-enable").dataset.publicKey = config.public_key;
+}
+
+function decodePushKey(value) {
+  const padding = "=".repeat((4 - value.length % 4) % 4);
+  const raw = atob((value + padding).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+}
+
+async function savePushSubscription(subscription) {
+  const data = subscription.toJSON();
+  await api("/push/subscriptions", { method: "POST", body: JSON.stringify({
+    endpoint: data.endpoint,
+    p256dh: data.keys.p256dh,
+    auth: data.keys.auth,
+  }) });
+}
+
+async function enablePush() {
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") throw new Error("Benachrichtigungen wurden nicht freigegeben.");
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: decodePushKey($("#push-enable").dataset.publicKey),
+  });
+  await savePushSubscription(subscription);
+  $("#push-enable").textContent = "Push aktiv";
+}
+
 async function refresh() {
   const query = `days=${days()}${device() ? `&device=${encodeURIComponent(device())}` : ""}`;
   const [stats, heatmap, calendar] = await Promise.all([
@@ -297,6 +341,7 @@ async function loadRules() {
 $("#login-form").addEventListener("submit", (e) => { e.preventDefault(); authenticate("/auth/login"); });
 $("#bootstrap").addEventListener("click", () => authenticate("/auth/bootstrap"));
 $("#logout").addEventListener("click", logout);
+$("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 $("#days-filter").addEventListener("change", () => Promise.all([refresh(), loadSoundMap()]));
 $("#device-filter").addEventListener("change", () => Promise.all([refresh(), loadEvents()]));
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {

@@ -15,7 +15,7 @@ Aktuell vorhanden:
 - FastAPI-Backend mit SQLite-Ereignisdatenbank
 - REST-Endpunkte für Health-Check und Ereignisse
 - geschütztes Dashboard mit Kalender, Timeline, Heatmap, Statistiken und Live-Ansicht
-- lokale Benutzerrollen, Mehrgerätebetrieb, Live-Sound-Freigaben und Benachrichtigungsregeln
+- lokale Benutzerrollen, Mehrgerätebetrieb, Live-Sound-Freigaben, installierbare PWA und Push-Benachrichtigungen
 - Home-Assistant-Webhook und optionale PostgreSQL-Datenbank
 - deutsche Label- und Kategoriezuordnung
 - EventMonitor AudioLab für ZIP-Massenimport, Segmentierung, Anhören, Labeling und CSV-Export

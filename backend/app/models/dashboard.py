@@ -1,6 +1,15 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import BigInteger, Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
@@ -75,6 +84,29 @@ class LiveAudioAccess(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     device_id: Mapped[str] = mapped_column(String(120), index=True)
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(Text)
+    auth: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class EventWitnessResponse(Base):
+    __tablename__ = "event_witness_responses"
+    __table_args__ = (UniqueConstraint("event_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    username: Mapped[str] = mapped_column(String(80))
+    response: Mapped[str] = mapped_column(String(20))
+    responded_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
 class NotificationRule(Base):

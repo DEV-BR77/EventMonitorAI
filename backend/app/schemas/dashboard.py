@@ -93,6 +93,35 @@ class SoundMapPoint(BaseModel):
     exceedances: int
 
 
+class PushSubscriptionWrite(BaseModel):
+    endpoint: str = Field(min_length=1, max_length=4096)
+    p256dh: str = Field(min_length=1, max_length=4096)
+    auth: str = Field(min_length=1, max_length=255)
+
+
+class PushConfigRead(BaseModel):
+    enabled: bool
+    public_key: str
+
+
+class WitnessResponseRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    event_id: int
+    user_id: int
+    username: str
+    response: Literal["confirmed", "rejected"]
+    responded_at: str
+
+
+class NoiseLogEntry(BaseModel):
+    event_id: int
+    timestamp: str
+    device: str
+    label: str
+    db_level: float
+    witnesses: list[WitnessResponseRead]
+
+
 class CalibrationCapture(BaseModel):
     level: Literal["low", "medium", "high"]
     reference_db: float = Field(ge=0, le=140)

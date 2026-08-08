@@ -29,6 +29,9 @@ services:
       INGEST_API_KEY: ${INGEST_API_KEY:?Set INGEST_API_KEY in .env.docker}
       HOME_ASSISTANT_WEBHOOK_URL: ${HOME_ASSISTANT_WEBHOOK_URL:-}
       HOME_ASSISTANT_TOKEN: ${HOME_ASSISTANT_TOKEN:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@eventmonitor.eu}
     ports:
       - "8015:8000"
     depends_on:

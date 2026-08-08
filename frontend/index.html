@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0e1d19">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -31,7 +34,7 @@
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
       </nav>
-      <div class="account"><span id="identity"></span><button id="logout" class="ghost">Abmelden</button></div>
+      <div class="account"><span id="identity"></span><button id="push-enable" class="ghost hidden">Push aktivieren</button><button id="logout" class="ghost">Abmelden</button></div>
     </aside>
     <main>
       <header>

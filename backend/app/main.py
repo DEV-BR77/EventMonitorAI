@@ -11,6 +11,7 @@ from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
 from app.api.events import router as events_router
 from app.api.health import router as health_router
+from app.api.push import router as push_router
 from app.core.config import settings
 from app.core.security import decode_token
 from app.database.init_db import init_db
@@ -37,6 +38,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(events_router)
 app.include_router(dashboard_router)
+app.include_router(push_router)
 
 
 @app.websocket("/ws/events")
