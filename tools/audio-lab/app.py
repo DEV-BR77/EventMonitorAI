@@ -21,6 +21,15 @@ from eventmonitor.inference import (
     latest_prediction,
     record_prediction_review,
 )
+from eventmonitor.people import (
+    assign_person,
+    create_person,
+    current_assignment,
+    person_statistics,
+    rename_person,
+    set_person_active,
+    suggest_person,
+)
 from eventmonitor.segments import update_boundaries, wav_excerpt
 from eventmonitor.training import build_labeled_dataset, load_model, save_model, train_baseline
 from eventmonitor.visualization import calculate_spectrogram, spectrogram_records
@@ -55,7 +64,15 @@ def format_metric(value: float | None, suffix: str = "") -> str:
 conn = connect(DB)
 page = st.sidebar.radio(
     "Bereich",
-    ["Übersicht", "Import", "Ereignisse lernen", "Auswertung", "Modelltraining", "Sicherung"],
+    [
+        "Übersicht",
+        "Import",
+        "Ereignisse lernen",
+        "Auswertung",
+        "Personen",
+        "Modelltraining",
+        "Sicherung",
+    ],
 )
 
 if page == "Import":
@@ -121,6 +138,41 @@ elif page == "Übersicht":
         )
     else:
         st.info("Noch keine Messungen importiert.")
+
+elif page == "Personen":
+    st.title("Personenverwaltung und Statistik")
+    new_name = st.text_input("Neue Person")
+    if st.button("Person anlegen", disabled=not new_name):
+        try:
+            create_person(conn, new_name)
+        except ValueError as error:
+            st.error(str(error))
+        else:
+            st.rerun()
+    persons = conn.execute("SELECT * FROM persons ORDER BY active DESC,name").fetchall()
+    if persons:
+        person_map = {f"#{row['id']} · {row['name']}": row for row in persons}
+        selected = person_map[st.selectbox("Person bearbeiten", list(person_map))]
+        edited_name = st.text_input("Anzeigename", selected["name"])
+        active = st.checkbox("Aktiv", bool(selected["active"]))
+        if st.button("Änderungen speichern"):
+            try:
+                rename_person(conn, selected["id"], edited_name)
+                set_person_active(conn, selected["id"], active)
+            except ValueError as error:
+                st.error(str(error))
+            else:
+                st.rerun()
+    else:
+        st.info("Noch keine Personen angelegt.")
+    statistics = person_statistics(conn)
+    st.subheader("Statistik nach Person, Beurteilungszeit und Lärmkategorie")
+    if statistics:
+        frame = pd.DataFrame(statistics)
+        frame["duration_seconds"] = frame["duration_seconds"].round(1)
+        st.dataframe(frame, width="stretch", hide_index=True)
+    else:
+        st.info("Noch keine bestätigten Personenzuordnungen vorhanden.")
 
 elif page == "Modelltraining":
     st.title("Lokales Basismodell")
@@ -287,6 +339,8 @@ elif page == "Ereignisse lernen":
     )
     seg = segments[int(pos)]
     prediction = latest_prediction(conn, seg["id"])
+    person_assignment = current_assignment(conn, seg["id"])
+    person_suggestion = suggest_person(conn, seg["id"])
     if prediction:
         review_status = (
             "bereits geprüft"
@@ -307,6 +361,11 @@ elif page == "Ereignisse lernen":
                 lambda value: f"{value:.1%}"
             )
             st.dataframe(similarity_frame, width="stretch", hide_index=True)
+    if person_suggestion and not person_assignment:
+        st.info(
+            f"Personenvorschlag: **{person_suggestion['name']}** "
+            f"(Embedding-Ähnlichkeit {person_suggestion['similarity']:.1%})"
+        )
     st.subheader("Ereignis zuschneiden")
     boundary_start, boundary_end, boundary_actions = st.columns([2, 2, 2])
     start_seconds = boundary_start.number_input(
@@ -467,6 +526,24 @@ elif page == "Ereignisse lernen":
     label = st.selectbox(
         "Lärmart", LABELS, index=LABELS.index(selected_default) if selected_default in LABELS else 0
     )
+    active_people = conn.execute(
+        "SELECT id,name FROM persons WHERE active=1 ORDER BY name"
+    ).fetchall()
+    person_options = {"Keine Person": None} | {row["name"]: row["id"] for row in active_people}
+    default_person_id = (
+        person_assignment["person_id"]
+        if person_assignment
+        else person_suggestion["person_id"] if person_suggestion else None
+    )
+    default_person_name = next(
+        (name for name, person_id in person_options.items() if person_id == default_person_id),
+        "Keine Person",
+    )
+    selected_person_name = st.selectbox(
+        "Zugeordnete Person (optional)",
+        list(person_options),
+        index=list(person_options).index(default_person_name),
+    )
     confidence = st.slider("Sicherheit", 0.0, 1.0, float(seg["label_confidence"] or 1.0), 0.05)
     notes = st.text_input("Notiz", seg["notes"] or "")
     if st.button("Bestätigen und speichern", type="primary"):
@@ -477,6 +554,19 @@ elif page == "Ereignisse lernen":
         conn.commit()
         if prediction:
             record_prediction_review(conn, prediction["id"], label)
+        selected_person_id = person_options[selected_person_name]
+        source = (
+            "model_confirmed"
+            if person_suggestion and selected_person_id == person_suggestion["person_id"]
+            else "manual"
+        )
+        assign_person(
+            conn,
+            seg["id"],
+            selected_person_id,
+            source=source,
+            confidence=person_suggestion["similarity"] if source == "model_confirmed" else 1.0,
+        )
         st.success("Gespeichert.")
         st.rerun()
 

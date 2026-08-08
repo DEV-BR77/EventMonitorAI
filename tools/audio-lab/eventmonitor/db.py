@@ -44,6 +44,20 @@ CREATE TABLE IF NOT EXISTS segment_embeddings (
 );
 CREATE INDEX IF NOT EXISTS idx_segment_embeddings_model
 ON segment_embeddings(model_name, pipeline_fingerprint);
+CREATE TABLE IF NOT EXISTS persons (
+ id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, active INTEGER NOT NULL DEFAULT 1,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS segment_person_assignments (
+ id INTEGER PRIMARY KEY,
+ segment_id INTEGER NOT NULL UNIQUE REFERENCES segments(id) ON DELETE CASCADE,
+ person_id INTEGER NOT NULL REFERENCES persons(id), source TEXT NOT NULL,
+ confidence REAL, confirmed INTEGER NOT NULL DEFAULT 1,
+ assigned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_segment_person_person
+ON segment_person_assignments(person_id, confirmed);
 CREATE TABLE IF NOT EXISTS import_jobs (
  id INTEGER PRIMARY KEY, source_path TEXT NOT NULL, source_hash TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 1, recording_id INTEGER,
