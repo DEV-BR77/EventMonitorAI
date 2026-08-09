@@ -75,20 +75,35 @@ def parse_reference_csv(payload: bytes) -> list[tuple[datetime, float]]:
         raise ValueError("CSV enthält keine Kopfzeile")
     headers = {name.strip().casefold(): name for name in reader.fieldnames}
     time_key = next(
-        (headers[key] for key in ("timestamp", "zeitstempel", "zeit", "uhrzeit") if key in headers),
+        (
+            headers[key]
+            for key in ("timestamp", "zeitstempel", "zeit", "uhrzeit", "time")
+            if key in headers
+        ),
         None,
     )
+    date_key = next((headers[key] for key in ("date", "datum") if key in headers), None)
     db_key = next(
         (
             headers[key]
-            for key in ("reference_db", "referenz_db", "db_level", "dezibel", "db")
+            for key in (
+                "reference_db",
+                "referenz_db",
+                "db_level",
+                "dezibel",
+                "db",
+                "current (db-a)",
+                "current (dba)",
+                "current db-a",
+            )
             if key in headers
         ),
         None,
     )
     if time_key is None or db_key is None:
         raise ValueError(
-            "CSV benötigt timestamp (oder zeit/uhrzeit) und reference_db (oder db_level/dezibel)"
+            "CSV benötigt einen Zeitstempel oder Date/Time sowie einen Referenzpegel "
+            "wie reference_db, dezibel oder Current (dB-A)"
         )
     points: list[tuple[datetime, float]] = []
     for line, row in enumerate(reader, start=2):
@@ -100,7 +115,12 @@ def parse_reference_csv(payload: bytes) -> list[tuple[datetime, float]]:
             raise ValueError(f"Zeile {line}: ungültiger Referenzpegel") from exc
         if not 0 <= value <= 140:
             raise ValueError(f"Zeile {line}: Referenzpegel muss zwischen 0 und 140 dB liegen")
-        points.append((_reference_time(row.get(time_key) or ""), value))
+        time_value = (row.get(time_key) or "").strip()
+        if date_key:
+            date_value = (row.get(date_key) or "").strip()
+            if date_value:
+                time_value = f"{date_value} {time_value}"
+        points.append((_reference_time(time_value), value))
     if len(points) < 12:
         raise ValueError("CSV benötigt mindestens 12 Referenzwerte (etwa eine Minute)")
     points.sort(key=lambda item: item[0])

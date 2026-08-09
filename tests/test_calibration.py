@@ -67,6 +67,17 @@ def test_reference_csv_is_parsed_and_compared_by_timestamp() -> None:
     assert result["mae_db"] == 7.0
 
 
+def test_existing_sound_meter_csv_format_is_accepted_without_conversion() -> None:
+    rows = ["Date,Time,Current (dB-A),Max (dB-A), Average (dB-A)"]
+    rows.extend(f"09.08.2026,13:55:{second:02d},{43 + second % 4},50,47" for second in range(12))
+
+    reference = parse_reference_csv("\n".join(rows).encode("utf-8"))
+
+    assert len(reference) == 12
+    assert reference[0][0].astimezone(UTC).isoformat() == "2026-08-09T11:55:00+00:00"
+    assert reference[0][1] == 43.0
+
+
 def test_reference_import_persists_comparison_and_applies_offset() -> None:
     start = datetime(2026, 8, 9, 4, 0, tzinfo=UTC)
     engine = create_engine("sqlite://")

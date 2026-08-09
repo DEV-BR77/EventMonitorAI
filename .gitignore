@@ -77,6 +77,7 @@ firmware/**/.vscode/
 *.bak
 ~$*
 /.pytest-*/
+/.artifact-*/
 
 # Keep credential templates
 !**/secrets.example.h

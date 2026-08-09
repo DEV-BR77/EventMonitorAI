@@ -187,7 +187,7 @@
             <fieldset><legend>Mikrofone vergleichen</legend><div id="calibration-reference-devices" class="device-checks"></div></fieldset>
             <button type="submit">CSV vergleichen</button>
           </form>
-          <p class="management-help">Erlaubte Spalten: <code>timestamp,reference_db</code>; alternativ <code>zeit/dezibel</code>. Uhrzeiten ohne Datum werden dem heutigen Tag zugeordnet. Erst nach Prüfung wird der empfohlene Offset ausdrücklich angewendet.</p>
+          <p class="management-help">Unterstützt werden das bestehende Langzeitformat <code>Date, Time, Current (dB-A), Max (dB-A), Average (dB-A)</code> sowie <code>timestamp,reference_db</code> oder <code>zeit/dezibel</code>. Die Datei muss nicht umformatiert werden. Erst nach Prüfung wird der empfohlene Offset ausdrücklich angewendet.</p>
           <span id="calibration-import-status"></span>
           <div id="calibration-reference-runs"></div>
         </article>
@@ -262,6 +262,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-review-noise-filter"></script>
+  <script src="/app.js?v=0.3.0-calibration-csv-format"></script>
 </body>
 </html>
