@@ -686,7 +686,20 @@ async function playEventClip(eventId, button) {
       audioElement.srcObject = null;
     }
   }
-  const response = await fetch(`/events/${eventId}/audio`, { headers: { Authorization: `Bearer ${state.token}` } });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15_000);
+  let response;
+  try {
+    response = await fetch(`/events/${eventId}/audio`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Der Audioabruf hat zu lange gedauert. Bitte erneut versuchen.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.detail || `HTTP ${response.status}`);

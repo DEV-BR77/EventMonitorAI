@@ -118,6 +118,28 @@ def test_live_audio_hub_sends_binary_pcm() -> None:
     assert asyncio.run(exercise()) == (1, [b"pcm"])
 
 
+def test_live_audio_hub_disconnects_blocked_client() -> None:
+    class BlockedSocket:
+        async def accept(self) -> None:
+            pass
+
+        async def send_json(self, payload: dict[str, object]) -> None:
+            pass
+
+        async def send_bytes(self, payload: bytes) -> None:
+            await asyncio.sleep(1)
+
+    async def exercise() -> tuple[int, bool]:
+        hub = LiveAudioHub()
+        hub._send_timeout_seconds = 0.01
+        socket = BlockedSocket()
+        await hub.connect("mic", socket, 16_000)  # type: ignore[arg-type]
+        delivered = await hub.broadcast("mic", b"pcm")
+        return delivered, "mic" in hub._clients
+
+    assert asyncio.run(exercise()) == (0, False)
+
+
 def test_live_audio_hub_keeps_five_second_wav_ring_buffer() -> None:
     hub = LiveAudioHub()
     asyncio.run(hub.broadcast("mic", b"\x01\x00" * 16_000 * 6))

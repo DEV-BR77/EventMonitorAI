@@ -1,3 +1,4 @@
+import asyncio
 import wave
 from collections import defaultdict
 from io import BytesIO
@@ -10,6 +11,7 @@ class LiveAudioHub:
         self._clients: dict[str, set[WebSocket]] = defaultdict(set)
         self._buffers: dict[str, bytearray] = defaultdict(bytearray)
         self._buffer_bytes = 16_000 * 2 * 5
+        self._send_timeout_seconds = 1.0
 
     async def connect(self, device_id: str, websocket: WebSocket, sample_rate: int) -> None:
         await websocket.accept()
@@ -30,9 +32,11 @@ class LiveAudioHub:
         delivered = 0
         for client in self._clients.get(device_id, set()).copy():
             try:
-                await client.send_bytes(pcm)
+                await asyncio.wait_for(
+                    client.send_bytes(pcm), timeout=self._send_timeout_seconds
+                )
                 delivered += 1
-            except RuntimeError:
+            except (RuntimeError, TimeoutError):
                 stale.append(client)
         for client in stale:
             self.disconnect(device_id, client)

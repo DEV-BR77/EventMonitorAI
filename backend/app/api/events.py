@@ -117,6 +117,10 @@ async def ingest_live_audio(
         raise HTTPException(status_code=404, detail="Unknown device")
     if not device.enabled:
         raise HTTPException(status_code=409, detail="Device disabled")
+    # Keine Datenbankverbindung über die potenziell langsame WebSocket-Ausgabe
+    # hinweg belegen. Insbesondere abgebrochene Mobilbrowser dürfen den Pool
+    # nicht erschöpfen.
+    db.rollback()
     listeners = await live_audio_hub.broadcast(device_id, pcm)
     return {"bytes": len(pcm), "listeners": listeners}
 
