@@ -4,11 +4,14 @@ import wave
 from types import SimpleNamespace
 
 from app.api.dashboard import live_audio_devices, update_live_audio_permission
-from app.api.events import ingest_live_audio
+from app.api.events import create_event, ingest_live_audio
+from app.core.config import settings
 from app.database.base import Base
-from app.models.dashboard import Device, LiveAudioAccess, User
+from app.models.dashboard import AudioClip, Device, LiveAudioAccess, User
 from app.schemas.dashboard import LiveAudioPermissionUpdate
-from app.services.audio import LiveAudioHub
+from app.schemas.event import EventCreate
+from app.services.audio import LiveAudioHub, live_audio_hub
+from fastapi import BackgroundTasks
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -107,3 +110,43 @@ def test_live_audio_hub_keeps_five_second_wav_ring_buffer() -> None:
     with wave.open(io.BytesIO(snapshot), "rb") as audio:
         assert audio.getframerate() == 16_000
         assert audio.getnframes() == 16_000 * 5
+
+
+def test_new_event_receives_server_ring_buffer_clip(tmp_path) -> None:
+    device_id = "server-ring-test"
+    original_directory = settings.clip_directory
+    settings.clip_directory = str(tmp_path / "clips")
+    try:
+        _, db = _database()
+        with db:
+            db.add(Device(device_id=device_id, name="Server ring test"))
+            db.commit()
+            asyncio.run(
+                live_audio_hub.broadcast(
+                    device_id,
+                    b"\x01\x00" * 16_000 * 5,
+                )
+            )
+
+            event = asyncio.run(
+                create_event(
+                    EventCreate(
+                        timestamp="2026-08-09T04:00:00",
+                        label="Speech",
+                        confidence=0.9,
+                        db_level=72.0,
+                        device=device_id,
+                    ),
+                    BackgroundTasks(),
+                    db,
+                    None,
+                )
+            )
+
+            clip = db.scalar(select(AudioClip).where(AudioClip.event_id == event.id))
+            assert event.audio_available is True
+            assert clip is not None
+            assert clip.frame_count == 16_000 * 5
+            assert clip.trigger_id == f"server-{event.id}"
+    finally:
+        settings.clip_directory = original_directory

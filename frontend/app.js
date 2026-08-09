@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipAudio: null, clipUrl: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const selectedDate = () => days() === "today" ? new Date().toLocaleDateString("sv-SE") : "";
@@ -599,25 +599,73 @@ function addEvent(event) {
 }
 
 function stopEventClip() {
-  state.clipAudio?.pause();
-  state.clipAudio = null;
-  if (state.clipUrl) URL.revokeObjectURL(state.clipUrl);
-  state.clipUrl = null;
+  if (state.clipSource) {
+    state.clipSource.onended = null;
+    try { state.clipSource.stop(); } catch (_) { /* already stopped */ }
+  }
+  state.clipContext?.close().catch(() => {});
+  if (state.clipButton) state.clipButton.textContent = "▶ Anhören";
+  state.clipSource = null;
+  state.clipContext = null;
+  state.clipButton = null;
+}
+
+function decodePcmWav(payload, context) {
+  const view = new DataView(payload);
+  if (view.byteLength < 44 || view.getUint32(0, false) !== 0x52494646 || view.getUint32(8, false) !== 0x57415645) throw new Error("Ungültige WAV-Datei");
+  let offset = 12, format = null, dataOffset = 0, dataSize = 0;
+  while (offset + 8 <= view.byteLength) {
+    const chunkId = view.getUint32(offset, false);
+    const chunkSize = view.getUint32(offset + 4, true);
+    const content = offset + 8;
+    if (chunkId === 0x666d7420 && content + 16 <= view.byteLength) format = { audioFormat: view.getUint16(content, true), channels: view.getUint16(content + 2, true), sampleRate: view.getUint32(content + 4, true), bits: view.getUint16(content + 14, true) };
+    if (chunkId === 0x64617461) { dataOffset = content; dataSize = Math.min(chunkSize, view.byteLength - content); break; }
+    offset = content + chunkSize + (chunkSize % 2);
+  }
+  if (!format || format.audioFormat !== 1 || format.channels !== 1 || format.bits !== 16 || !dataOffset || dataSize < 2) throw new Error("Nicht unterstütztes WAV-Format");
+  const sampleCount = Math.floor(dataSize / 2);
+  const buffer = context.createBuffer(1, sampleCount, format.sampleRate);
+  const channel = buffer.getChannelData(0);
+  for (let index = 0; index < sampleCount; index++) channel[index] = view.getInt16(dataOffset + index * 2, true) / 32768;
+  return buffer;
 }
 
 async function playEventClip(eventId, button) {
+  if (state.clipSource && state.clipButton === button) { stopEventClip(); return; }
   stopEventClip();
   button.textContent = "Lädt …";
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) throw new Error("Audioausgabe nicht unterstützt");
+  const context = new AudioContextClass();
+  state.clipContext = context;
+  state.clipButton = button;
+  await context.resume();
   const response = await fetch(`/events/${eventId}/audio`, { headers: { Authorization: `Bearer ${state.token}` } });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.detail || `HTTP ${response.status}`);
   }
-  state.clipUrl = URL.createObjectURL(await response.blob());
-  state.clipAudio = new Audio(state.clipUrl);
-  state.clipAudio.onended = () => { button.textContent = "▶ Anhören"; stopEventClip(); };
-  await state.clipAudio.play();
+  const payload = await response.arrayBuffer();
+  let audioBuffer;
+  try { audioBuffer = await context.decodeAudioData(payload.slice(0)); }
+  catch (_) { audioBuffer = decodePcmWav(payload, context); }
+  const source = context.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(context.destination);
+  source.onended = () => { if (state.clipSource === source) stopEventClip(); };
+  state.clipSource = source;
+  source.start();
   button.textContent = "■ Stoppen";
+}
+
+function showClipError(button, error) {
+  stopEventClip();
+  button.textContent = "Wiedergabe fehlgeschlagen";
+  button.title = error?.message || String(error);
+  window.setTimeout(() => {
+    button.textContent = "▶ Anhören";
+    button.title = "";
+  }, 4000);
 }
 
 async function saveClassification(form, reason) {
@@ -708,9 +756,8 @@ $("#events").addEventListener("change", (e) => {
 $("#events").addEventListener("click", async (e) => {
   const button = e.target.closest("[data-play-event]");
   if (!button) return;
-  if (state.clipAudio && !state.clipAudio.paused) { stopEventClip(); button.textContent = "▶ Anhören"; return; }
   try { await playEventClip(button.dataset.playEvent, button); }
-  catch (error) { button.textContent = error.message; }
+  catch (error) { showClipError(button, error); }
 });
 $("#events").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -875,13 +922,13 @@ $("#recent-events").addEventListener("change", (e) => {
 $("#recent-events").addEventListener("click", async (e) => {
   const button = e.target.closest("[data-play-event]");
   if (!button) return;
-  try { await playEventClip(button.dataset.playEvent, button); } catch (error) { button.textContent = error.message; }
+  try { await playEventClip(button.dataset.playEvent, button); } catch (error) { showClipError(button, error); }
 });
 $("#review-events").addEventListener("click", async (e) => {
   const button = e.target.closest("[data-play-event]");
   if (!button) return;
   e.preventDefault();
-  try { await playEventClip(button.dataset.playEvent, button); } catch (error) { button.textContent = error.message; }
+  try { await playEventClip(button.dataset.playEvent, button); } catch (error) { showClipError(button, error); }
 });
 $("#recent-events").addEventListener("submit", async (e) => {
   e.preventDefault();

@@ -2,6 +2,7 @@ import base64
 import csv
 import hashlib
 import io
+import logging
 import math
 import struct
 import wave
@@ -60,6 +61,8 @@ from app.services.notifications import trigger_notifications
 from app.services.push import send_event_pushes
 from app.services.review import process_review_run
 from app.services.taxonomy import base_class_for_detection
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/events",
@@ -197,8 +200,34 @@ async def create_event(
                 if linked_clip.event_id is None:
                     linked_clip.event_id = event.id
                     db.commit()
+                if linked_clip.event_id == event.id:
+                    logger.info(
+                        "Server-Audioclip %s wurde mit Ereignis %s (%s) verknüpft",
+                        linked_clip.id,
+                        event.id,
+                        event.device,
+                    )
+                else:
+                    logger.warning(
+                        "Server-Audioclip %s war bereits mit Ereignis %s verknüpft; "
+                        "Ereignis %s bleibt ohne Aufnahme",
+                        linked_clip.id,
+                        linked_clip.event_id,
+                        event.id,
+                    )
             except (OSError, ValueError):
+                logger.exception(
+                    "Server-Audioclip für Ereignis %s (%s) konnte nicht gespeichert werden",
+                    event.id,
+                    event.device,
+                )
                 linked_clip = None
+        else:
+            logger.warning(
+                "Kein ausreichender Audio-Ringpuffer für Ereignis %s (%s) verfügbar",
+                event.id,
+                event.device,
+            )
     event.audio_available = linked_clip is not None and linked_clip.event_id == event.id
     device = db.scalar(select(Device).where(Device.device_id == event.device))
     if device is None:
