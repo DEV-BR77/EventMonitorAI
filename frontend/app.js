@@ -233,23 +233,35 @@ async function loadEventClasses() {
     </form>`).join("");
 }
 
-async function initializeAudioOutput() {
+async function unlockAudioOutput() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) throw new Error("Dieser Browser unterstützt keine Audioausgabe.");
-  if (state.audioContext) return;
-  state.audioContext = new AudioContextClass();
-  state.audioGain = state.audioContext.createGain();
-  state.audioHighpass = state.audioContext.createBiquadFilter();
+  if (!state.audioContext || state.audioContext.state === "closed") state.audioContext = new AudioContextClass();
+  await state.audioContext.resume();
+  // iOS/WebKit entsperrt Audio nur innerhalb einer direkten Benutzeraktion.
+  // Ein kurzer stiller Puffer hält dieselbe Audio-Sitzung anschließend für
+  // Live-Streams und geladene Ereignisclips offen.
+  const unlockSource = state.audioContext.createBufferSource();
+  unlockSource.buffer = state.audioContext.createBuffer(1, 1, state.audioContext.sampleRate);
+  unlockSource.connect(state.audioContext.destination);
+  unlockSource.start(0);
+  if (state.audioContext.state !== "running") throw new Error("Audio wurde vom iPhone blockiert. Bitte erneut tippen.");
+  return state.audioContext;
+}
+
+async function initializeAudioOutput() {
+  const context = await unlockAudioOutput();
+  if (state.audioGain) return;
+  state.audioGain = context.createGain();
+  state.audioHighpass = context.createBiquadFilter();
   state.audioHighpass.type = "highpass";
   state.audioHighpass.frequency.value = 80;
-  state.audioLowpass = state.audioContext.createBiquadFilter();
+  state.audioLowpass = context.createBiquadFilter();
   state.audioLowpass.type = "lowpass";
   state.audioLowpass.frequency.value = 6500;
   state.audioGain.gain.value = Number($("#audio-volume").value);
   updateAudioFilterChain();
-  state.audioLowpass.connect(state.audioContext.destination);
-  await state.audioContext.resume();
-  if (state.audioContext.state !== "running") throw new Error("Audio wurde vom Browser blockiert. Bitte erneut tippen.");
+  state.audioLowpass.connect(context.destination);
 }
 
 function updateAudioFilterChain() {
@@ -313,8 +325,9 @@ function stopAudio(message = "Wiedergabe gestoppt") {
     state.audioElement.pause();
     state.audioElement.srcObject = null;
   }
-  state.audioContext?.close();
-  state.audioContext = null;
+  state.audioGain?.disconnect();
+  state.audioHighpass?.disconnect();
+  state.audioLowpass?.disconnect();
   state.audioGain = null;
   state.audioHighpass = null;
   state.audioLowpass = null;
@@ -327,7 +340,7 @@ function stopAudio(message = "Wiedergabe gestoppt") {
 }
 
 async function playAudioTestTone() {
-  if (!state.audioContext) await initializeAudioOutput();
+  await initializeAudioOutput();
   const oscillator = state.audioContext.createOscillator();
   const gain = state.audioContext.createGain();
   oscillator.frequency.value = 440;
@@ -598,7 +611,6 @@ function stopEventClip() {
     state.clipSource.onended = null;
     try { state.clipSource.stop(); } catch (_) { /* already stopped */ }
   }
-  state.clipContext?.close().catch(() => {});
   if (state.clipAudioElement) {
     state.clipAudioElement.pause();
     state.clipAudioElement.srcObject = null;
@@ -651,12 +663,9 @@ async function playEventClip(eventId, button) {
   if (state.clipSource && state.clipButton === button) { stopEventClip(); return; }
   stopEventClip();
   button.textContent = "Lädt …";
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) throw new Error("Audioausgabe nicht unterstützt");
-  const context = new AudioContextClass();
+  const context = await unlockAudioOutput();
   state.clipContext = context;
   state.clipButton = button;
-  await context.resume();
   const response = await fetch(`/events/${eventId}/audio`, { headers: { Authorization: `Bearer ${state.token}` } });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
