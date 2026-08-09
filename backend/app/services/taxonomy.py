@@ -10,7 +10,7 @@ DEFAULT_EVENT_CLASSES = (
     ("TECHNICAL", "Technisches Störgeräusch", "base", None, True, True),
     ("HORN", "Hupen", "base", None, False, True),
     ("VOICE_LOUD", "Rufen/Schreien", "base", None, False, True),
-    ("IMPACT", "Schlag/Aufprall", "base", None, False, True),
+    ("IMPACT", "Schlag/Aufprall/Knall", "base", None, False, True),
     ("MUSIC", "Musik", "base", None, False, True),
     ("DOG", "Hund", "base", None, False, True),
     ("ENGINE", "Motor", "base", None, False, True),
@@ -21,6 +21,7 @@ DEFAULT_EVENT_CLASSES = (
     ("BALL_CONCRETE", "Fußball gegen Beton", "fine", "IMPACT", False, True),
     ("BALL_METAL", "Fußball gegen Metall", "fine", "IMPACT", False, True),
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT", False, True),
+    ("FIRECRACKER", "Knallkörper", "fine", "IMPACT", False, True),
     ("VOICE_SUSTAINED", "Anhaltendes Rufen", "fine", "VOICE_LOUD", False, True),
     ("VEHICLE_HORN", "Fahrzeughupen", "fine", "HORN", False, True),
     ("WIND_NOISE", "Windgeräusch", "fine", "WIND", True, True),
@@ -59,6 +60,10 @@ def seed_event_classes(db: Session) -> None:
             if event_class is not None:
                 event_class.hidden_by_default = hidden_by_default
                 event_class.trainable = trainable
+        elif code == "IMPACT":
+            event_class = db.scalar(select(EventClass).where(EventClass.code == code))
+            if event_class is not None:
+                event_class.name = name
     db.commit()
 
 

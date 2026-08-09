@@ -110,7 +110,7 @@ Wir bauen zum Start zwei Ebenen:
 1. Automatische Basisklasse
     Hupen
     Rufen/Schreien
-    Schlag/Aufprall
+    Schlag/Aufprall/Knall
     Musik
     Hund
     Motor
@@ -122,6 +122,7 @@ Wir bauen zum Start zwei Ebenen:
     Fußball gegen Beton
     Fußball gegen Metall
     Schlagen gegen Laterne
+    Knallkörper
     anhaltendes Rufen
     Fahrzeughupen
     sonstiger Lärm

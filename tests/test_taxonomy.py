@@ -29,6 +29,8 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
         assert len(classes) == len(DEFAULT_EVENT_CLASSES)
         assert {item.level for item in classes} == {"base", "fine"}
         assert next(item for item in classes if item.code == "BALL_METAL").parent_code == "IMPACT"
+        assert next(item for item in classes if item.code == "IMPACT").name == "Schlag/Aufprall/Knall"
+        assert next(item for item in classes if item.code == "FIRECRACKER").parent_code == "IMPACT"
 
 
 def test_dashboard_rejects_fine_class_with_unknown_parent() -> None:
