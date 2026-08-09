@@ -7,7 +7,7 @@ from app.core.security import create_token, decode_token, hash_password, verify_
 from app.database.base import Base
 from app.models.dashboard import User
 from app.schemas.dashboard import LoginRequest, UserUpdate
-from app.services.login_guard import MAX_FAILURES, reset_for_tests
+from app.services.login_guard import MAX_FAILURES, record_failure, reset_for_tests, retry_after
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -50,6 +50,10 @@ def test_admin_can_update_another_user_but_not_demote_self() -> None:
         db.add_all([admin, viewer])
         db.commit()
 
+        for _ in range(MAX_FAILURES):
+            record_failure(viewer.username)
+        assert retry_after(viewer.username) > 0
+
         updated = update_user(
             viewer.id,
             UserUpdate(role="operator", active=False, password="changed-password"),
@@ -59,6 +63,7 @@ def test_admin_can_update_another_user_but_not_demote_self() -> None:
         assert updated.role == "operator"
         assert updated.active is False
         assert verify_password("changed-password", updated.password_hash)
+        assert retry_after(viewer.username) == 0
 
         with pytest.raises(HTTPException) as error:
             update_user(
@@ -85,4 +90,26 @@ def test_repeated_failed_logins_are_temporarily_rate_limited() -> None:
 
         assert error.value.status_code == 429
         assert int(error.value.headers["Retry-After"]) > 0
+    reset_for_tests()
+
+
+def test_login_username_is_case_insensitive_and_trimmed() -> None:
+    reset_for_tests()
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add(
+            User(
+                username="friend@example.com",
+                password_hash=hash_password("correct-password"),
+                role="viewer",
+            )
+        )
+        db.commit()
+
+        token = login(
+            LoginRequest(username="  FRIEND@EXAMPLE.COM ", password="correct-password"), db
+        )
+
+        assert token.username == "friend@example.com"
     reset_for_tests()

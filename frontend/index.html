@@ -15,10 +15,9 @@
       <div class="brand-mark">EM</div>
       <h1>EventMonitorAI</h1>
       <p>Lokale Ereignisanalyse</p>
-      <label>Benutzername<input id="username" autocomplete="username" required></label>
+      <label>Benutzername<input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
       <label>Passwort<input id="password" type="password" autocomplete="current-password" required minlength="10"></label>
       <button type="submit">Anmelden</button>
-      <button type="button" id="bootstrap" class="ghost">Ersten Admin anlegen</button>
       <span id="auth-error" class="error"></span>
     </form>
   </section>
@@ -240,6 +239,7 @@
             <h2>Benutzer anlegen</h2>
             <label>Benutzername<input id="new-username" maxlength="80" required></label>
             <label>Passwort<input id="new-password" type="password" minlength="10" required></label>
+            <label>Passwort bestätigen<input id="new-password-confirm" type="password" minlength="10" required></label>
             <label>Rolle<select id="new-role"><option value="viewer">Betrachter</option><option value="operator">Operator</option><option value="admin">Administrator</option></select></label>
             <button type="submit">Benutzer anlegen</button>
             <span id="user-create-status"></span>
@@ -262,6 +262,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-mobile-audio-filter"></script>
+  <script src="/app.js?v=0.3.1-user-passwords"></script>
 </body>
 </html>

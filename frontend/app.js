@@ -196,6 +196,7 @@ async function loadUsers() {
       <label>Rolle<select name="role"><option value="viewer" ${user.role === "viewer" ? "selected" : ""}>Betrachter</option><option value="operator" ${user.role === "operator" ? "selected" : ""}>Operator</option><option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrator</option></select></label>
       <label class="active-toggle"><input name="active" type="checkbox" ${user.active ? "checked" : ""}> Aktiv</label>
       <label>Neues Passwort<input name="password" type="password" minlength="10" placeholder="unverändert"></label>
+      <label>Passwort bestätigen<input name="password_confirm" type="password" minlength="10" placeholder="unverändert"></label>
       <button type="submit">Speichern</button>
     </form>`).join("");
 }
@@ -773,7 +774,6 @@ async function loadRules() {
 }
 
 $("#login-form").addEventListener("submit", (e) => { e.preventDefault(); authenticate("/auth/login"); });
-$("#bootstrap").addEventListener("click", () => authenticate("/auth/bootstrap"));
 $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 $("#days-filter").addEventListener("change", () => Promise.all([refresh(), loadSoundMap()]));
@@ -932,6 +932,7 @@ $("#audio-permission-list").addEventListener("submit", async (e) => {
 $("#user-create-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
+    if ($("#new-password").value !== $("#new-password-confirm").value) throw new Error("Die Passwörter stimmen nicht überein.");
     await api("/auth/users", { method: "POST", body: JSON.stringify({ username: $("#new-username").value, password: $("#new-password").value, role: $("#new-role").value }) });
     e.target.reset();
     $("#user-create-status").textContent = "Benutzer angelegt.";
@@ -951,6 +952,7 @@ $("#user-list").addEventListener("submit", async (e) => {
   const form = e.target.closest(".user-editor");
   if (!form) return;
   try {
+    if (form.elements.password.value !== form.elements.password_confirm.value) throw new Error("Die Passwörter stimmen nicht überein.");
     await api(`/auth/users/${form.dataset.userId}`, { method: "PATCH", body: JSON.stringify({ role: form.elements.role.value, active: form.elements.active.checked, password: form.elements.password.value || null }) });
     $("#user-status").textContent = "Benutzer aktualisiert.";
     await Promise.all([loadUsers(), loadAudioPermissions()]);

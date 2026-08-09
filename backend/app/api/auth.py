@@ -42,7 +42,8 @@ def login(data: LoginRequest, db: DatabaseSession) -> TokenResponse:
             detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte später erneut versuchen.",
             headers={"Retry-After": str(wait)},
         )
-    user = db.scalar(select(User).where(User.username == data.username))
+    normalized_username = data.username.strip().casefold()
+    user = db.scalar(select(User).where(func.lower(User.username) == normalized_username))
     if user is None or not user.active or not verify_password(data.password, user.password_hash):
         record_failure(data.username)
         raise HTTPException(
@@ -72,11 +73,12 @@ def create_user(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_roles("admin"))],
 ) -> User:
-    if db.scalar(select(User).where(User.username == data.username)):
+    username = data.username.strip()
+    if db.scalar(select(User).where(func.lower(User.username) == username.casefold())):
         raise HTTPException(status_code=409, detail="Username already exists")
     if len(data.password) < 10:
         raise HTTPException(status_code=422, detail="Password must contain at least 10 characters")
-    user = User(username=data.username, password_hash=hash_password(data.password), role=data.role)
+    user = User(username=username, password_hash=hash_password(data.password), role=data.role)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -102,6 +104,7 @@ def update_user(
     user.active = data.active
     if data.password:
         user.password_hash = hash_password(data.password)
+        clear_failures(user.username)
     db.commit()
     db.refresh(user)
     return user
