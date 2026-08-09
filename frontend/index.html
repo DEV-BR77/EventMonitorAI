@@ -140,8 +140,10 @@
           <div class="review-toolbar">
             <select id="review-status"><option value="open">Offen</option><option value="completed">Erledigt</option><option value="all">Alle</option></select>
             <button id="review-select-all" type="button" class="ghost">Alle sichtbaren wählen</button>
+            <label class="noise-toggle"><input id="clip-noise-filter" type="checkbox" checked> Rauschen beim Anhören reduzieren</label>
             <span id="review-selection">0 ausgewählt</span>
           </div>
+          <p class="management-help">Die Rauschunterdrückung wirkt nur auf die Wiedergabe. Originalaufnahme, Messwert und Trainingsdatei bleiben unverändert.</p>
           <div id="review-events" class="review-events"></div>
           <form id="review-bulk-form" class="review-bulk">
             <label>Basisklasse<select id="review-primary" required></select></label>
@@ -260,6 +262,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-calibration"></script>
+  <script src="/app.js?v=0.3.0-review-noise-filter"></script>
 </body>
 </html>

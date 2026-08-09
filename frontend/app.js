@@ -637,6 +637,29 @@ function decodePcmWav(payload, context) {
   return buffer;
 }
 
+function connectStoredAudio(source, context, audioBuffer) {
+  const noiseReduction = $("#clip-noise-filter")?.checked !== false;
+  if (!noiseReduction) {
+    source.connect(context.destination);
+    return;
+  }
+  for (let channelIndex = 0; channelIndex < audioBuffer.numberOfChannels; channelIndex++) {
+    const channel = audioBuffer.getChannelData(channelIndex);
+    for (let sampleIndex = 0; sampleIndex < channel.length; sampleIndex++) {
+      if (Math.abs(channel[sampleIndex]) < 0.008) channel[sampleIndex] = 0;
+    }
+  }
+  const highpass = context.createBiquadFilter();
+  highpass.type = "highpass";
+  highpass.frequency.value = 120;
+  const lowpass = context.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = 7200;
+  source.connect(highpass);
+  highpass.connect(lowpass);
+  lowpass.connect(context.destination);
+}
+
 async function playEventClip(eventId, button) {
   if (state.clipSource && state.clipButton === button) { stopEventClip(); return; }
   stopEventClip();
@@ -658,7 +681,7 @@ async function playEventClip(eventId, button) {
   catch (_) { audioBuffer = decodePcmWav(payload, context); }
   const source = context.createBufferSource();
   source.buffer = audioBuffer;
-  source.connect(context.destination);
+  connectStoredAudio(source, context, audioBuffer);
   source.onended = () => { if (state.clipSource === source) stopEventClip(); };
   state.clipSource = source;
   source.start();
@@ -756,6 +779,11 @@ $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio
 $("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
 $("#audio-volume").addEventListener("input", () => { if (state.audioGain) state.audioGain.gain.value = Number($("#audio-volume").value); });
 $("#audio-noise-filter").addEventListener("change", updateAudioFilterChain);
+const storedClipNoiseFilter = localStorage.getItem("em_clip_noise_filter");
+if (storedClipNoiseFilter !== null) $("#clip-noise-filter").checked = storedClipNoiseFilter === "true";
+$("#clip-noise-filter").addEventListener("change", (event) => {
+  localStorage.setItem("em_clip_noise_filter", String(event.target.checked));
+});
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
 $("#events").addEventListener("change", (e) => {
   const form = e.target.closest(".live-actions");
