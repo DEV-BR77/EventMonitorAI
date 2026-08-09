@@ -160,7 +160,7 @@ def update_device_telemetry(
             DeviceLevelSample(
                 device_id=data.device_id,
                 timestamp=now,
-                db_level=data.db_level,
+                db_level=values["db_level"],
             )
         )
         cutoff = (datetime.now(UTC) - timedelta(days=7)).isoformat()

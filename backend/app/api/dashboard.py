@@ -524,6 +524,31 @@ def apply_calibration_offsets(
         raise HTTPException(status_code=422, detail=f"Keine Kalibrierung für: {', '.join(missing)}")
     now = datetime.now(UTC).isoformat()
     for calibration in calibrations:
+        offset_delta = round(
+            calibration.recommended_offset_db - calibration.applied_offset_db,
+            2,
+        )
+        if offset_delta:
+            events = db.scalars(select(Event).where(Event.device == calibration.device_id)).all()
+            for event in events:
+                event.db_level = round(max(0.0, event.db_level + offset_delta), 2)
+                if event.avg_db_level is not None:
+                    event.avg_db_level = round(
+                        max(0.0, event.avg_db_level + offset_delta),
+                        2,
+                    )
+            samples = db.scalars(
+                select(DeviceLevelSample).where(
+                    DeviceLevelSample.device_id == calibration.device_id
+                )
+            ).all()
+            for sample in samples:
+                sample.db_level = round(max(0.0, sample.db_level + offset_delta), 2)
+            telemetry = db.scalar(
+                select(DeviceTelemetry).where(DeviceTelemetry.device_id == calibration.device_id)
+            )
+            if telemetry is not None:
+                telemetry.db_level = round(max(0.0, telemetry.db_level + offset_delta), 2)
         calibration.applied_offset_db = calibration.recommended_offset_db
         calibration.updated_at = now
     db.commit()

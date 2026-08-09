@@ -4,7 +4,14 @@ from types import SimpleNamespace
 
 from app.api.dashboard import apply_calibration_offsets, import_calibration_reference
 from app.database.base import Base
-from app.models.dashboard import Device, DeviceCalibration, DeviceLevelSample, User
+from app.models.dashboard import (
+    Device,
+    DeviceCalibration,
+    DeviceLevelSample,
+    DeviceTelemetry,
+    User,
+)
+from app.models.event import Event
 from app.schemas.dashboard import CalibrationOffsetApply, CalibrationReferenceImport
 from app.services.calibration import (
     calculate_recommended_offset,
@@ -93,6 +100,19 @@ def test_reference_import_persists_comparison_and_applies_offset() -> None:
             )
             for index in range(12)
         )
+        event = Event(
+            timestamp=start.isoformat(),
+            event_type="AUDIO",
+            label="Test",
+            label_de="Test",
+            category="OTHER",
+            confidence=0.8,
+            db_level=55.0,
+            avg_db_level=53.0,
+            device="mic",
+        )
+        telemetry = DeviceTelemetry(device_id="mic", db_level=52.0)
+        db.add_all([event, telemetry])
         db.commit()
 
         run = import_calibration_reference(
@@ -115,3 +135,10 @@ def test_reference_import_persists_comparison_and_applies_offset() -> None:
         assert calibration.applied_offset_db == 0
         apply_calibration_offsets(CalibrationOffsetApply(device_ids=["mic"]), db, user)
         assert calibration.applied_offset_db == -5.0
+        assert event.db_level == 50.0
+        assert event.avg_db_level == 48.0
+        assert telemetry.db_level == 47.0
+        assert db.scalar(select(DeviceLevelSample).order_by(DeviceLevelSample.id)).db_level == 46.0
+
+        apply_calibration_offsets(CalibrationOffsetApply(device_ids=["mic"]), db, user)
+        assert event.db_level == 50.0
