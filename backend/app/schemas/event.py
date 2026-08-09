@@ -28,6 +28,7 @@ class EventRead(EventCreate):
     corrected_by: str | None
     corrected_at: str | None
     audio_available: bool = False
+    display_suppressed: bool = False
 
 
 class EventClassificationUpdate(BaseModel):

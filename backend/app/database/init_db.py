@@ -44,6 +44,7 @@ def add_missing_event_columns() -> None:
         ("classification_status", "VARCHAR(20) NOT NULL DEFAULT 'automatic'"),
         ("corrected_by", "VARCHAR(80)"),
         ("corrected_at", "VARCHAR"),
+        ("display_suppressed", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ):
         if name not in column_names:
             statements.append(f"ALTER TABLE events ADD COLUMN {name} {definition}")
@@ -80,6 +81,39 @@ def ensure_device_position_columns() -> None:
         for column in ("position_x", "position_y"):
             if column not in column_names:
                 connection.execute(text(f"ALTER TABLE devices ADD COLUMN {column} FLOAT"))
+
+
+def ensure_calibration_columns() -> None:
+    inspector = inspect(engine)
+    if "device_calibrations" not in inspector.get_table_names():
+        return
+    column_names = {column["name"] for column in inspector.get_columns("device_calibrations")}
+    definitions = {
+        "applied_offset_db": "FLOAT NOT NULL DEFAULT 0",
+        "reference_points": "INTEGER NOT NULL DEFAULT 0",
+        "reference_mae_db": "FLOAT",
+    }
+    with engine.begin() as connection:
+        for column, definition in definitions.items():
+            if column not in column_names:
+                connection.execute(
+                    text(f"ALTER TABLE device_calibrations ADD COLUMN {column} {definition}")
+                )
+
+
+def ensure_event_class_visibility_column() -> None:
+    inspector = inspect(engine)
+    if "event_classes" not in inspector.get_table_names():
+        return
+    column_names = {column["name"] for column in inspector.get_columns("event_classes")}
+    if "hidden_by_default" not in column_names:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE event_classes ADD COLUMN "
+                    "hidden_by_default BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
 
 
 def backfill_events() -> None:
@@ -124,6 +158,8 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     ensure_telemetry_counter_capacity()
     ensure_device_position_columns()
+    ensure_calibration_columns()
+    ensure_event_class_visibility_column()
     add_missing_event_columns()
     with Session(engine) as db:
         seed_event_classes(db)

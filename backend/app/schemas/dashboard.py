@@ -148,6 +148,7 @@ class EventClassWrite(BaseModel):
     parent_code: str | None = Field(default=None, pattern=r"^[A-Z0-9_]{2,80}$")
     active: bool = True
     trainable: bool = True
+    hidden_by_default: bool = False
     sort_order: int = Field(default=0, ge=0, le=10_000)
 
 
@@ -164,6 +165,7 @@ class EventClassUpdate(BaseModel):
     parent_code: str | None = Field(default=None, pattern=r"^[A-Z0-9_]{2,80}$")
     active: bool = True
     trainable: bool = True
+    hidden_by_default: bool = False
     sort_order: int = Field(default=0, ge=0, le=10_000)
 
 
@@ -183,7 +185,43 @@ class DeviceCalibrationRead(BaseModel):
     high_reference_db: float | None
     high_measured_db: float | None
     recommended_offset_db: float
+    applied_offset_db: float
+    reference_points: int
+    reference_mae_db: float | None
     updated_at: str
+
+
+class CalibrationReferenceImport(BaseModel):
+    filename: str = Field(min_length=1, max_length=240)
+    content_base64: str
+    device_ids: list[str] = Field(min_length=1)
+    tolerance_seconds: float = Field(default=3.0, ge=0.5, le=15.0)
+
+
+class CalibrationReferenceResultRead(BaseModel):
+    device_id: str
+    matched_points: int
+    mean_reference_db: float
+    mean_measured_db: float
+    mean_difference_db: float
+    mae_db: float
+    recommended_offset_db: float
+
+
+class CalibrationReferenceRunRead(BaseModel):
+    id: int
+    filename: str
+    started_at: str
+    ended_at: str
+    reference_points: int
+    tolerance_seconds: float
+    created_by: str
+    created_at: str
+    results: list[CalibrationReferenceResultRead]
+
+
+class CalibrationOffsetApply(BaseModel):
+    device_ids: list[str] = Field(min_length=1)
 
 
 class RuleCreate(BaseModel):

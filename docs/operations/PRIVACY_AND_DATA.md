@@ -19,9 +19,13 @@ EventMonitorAI verarbeitet potenziell sensible Audio- und Ereignisdaten. Die Arc
 - Exporte müssen bewusst ausgelöst werden.
 - Audio, Datenbanken und Modelle werden nicht in Git gespeichert.
 - Zugriff auf Gerät, Dateisystem und Backups muss geschützt werden.
-- Live-Audio wird nicht im Backend gespeichert. Der Pi überträgt flüchtige PCM-Blöcke nur an
-  aktuell verbundene Browser; sichtbar und abrufbar ist die Funktion ausschließlich für vom
-  Administrator pro Mikrofon freigegebene Benutzer.
+- Live-Audio wird für die Wiedergabe flüchtig übertragen. Das Backend hält pro Mikrofon einen
+  flüchtigen Fünf-Sekunden-Ringpuffer und persistiert daraus nur bei einem Ereignis einen
+  geschützten Clip. Sichtbar und abrufbar ist Live-Audio ausschließlich für vom Administrator
+  pro Mikrofon freigegebene Benutzer.
+- Als **Kein Lärm** verworfene Ereignisse und ihre Clips werden gelöscht. Für das automatische
+  Verwerfen bleibt nur das normalisierte Modelllabel mit einem Bestätigungszähler erhalten;
+  Uhrzeit, Pegel, Gerät und Audio werden nicht in diesem Lernmuster gespeichert.
 - Push-Abonnements werden dem angemeldeten Benutzer zugeordnet. Eine Bestätigung oder Ablehnung
   wird mit Benutzername, Ereignis-ID und Zeitstempel als Zeugenreaktion im Lärmprotokoll geführt;
   Antwortlinks sind signiert und laufen nach 24 Stunden ab.

@@ -21,6 +21,23 @@ fortgesetzt werden. Automatische Läufe wenden den aktuellen Klassenkatalog erne
 unveränderte ursprüngliche Modellerkennung an. Manuell bestätigte Zuordnungen werden niemals
 überschrieben.
 
+Ab drei manuellen, für dasselbe ursprüngliche Modelllabel übereinstimmenden
+Zuordnungen wird die Klasse bei mindestens 80 Prozent Eindeutigkeit für neue
+Ereignisse automatisch verwendet. Wind, Umgebung und technische Störungen
+sind lernfähig, aber standardmäßig aus Lagebild, Statistik und Live-Strom
+ausgeblendet. Sie bleiben in der Audio-Lab-Prüfung sichtbar.
+
+Die Klasse **Kein Lärm / verwerfen** entfernt Ereignis und Audioclip. Nur ein
+normalisiertes Modelllabel und die Zahl der Bestätigungen bleiben als
+anonymes Lernmuster erhalten. Nach drei Bestätigungen werden gleichartige
+Treffer bereits vor der Speicherung verworfen; Zeit, Pegel und Audio werden
+dann nicht persistiert.
+
+Personenprofile werden im Audio-Lab manuell angelegt. Erst bestätigte
+Zuordnungen von Stimmereignissen dürfen in Häufigkeitsstatistiken und spätere
+akustische Ähnlichkeitsprofile einfließen. Ein Profil ist kein Beweis für die
+Identität einer Person.
+
 Der integrierte Scheduler startet täglich um 03:00 Uhr in `Europe/Berlin` einen nächtlichen Lauf,
 sofern für den Tag noch kein Nachtlauf existiert und kein anderer Lauf aktiv ist. Die Stunde kann
 mit `NIGHTLY_REVIEW_HOUR` geändert werden. Neustarts sind sicher, weil Laufstatus, Fortschritt und

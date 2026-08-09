@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const selectedDate = () => days() === "today" ? new Date().toLocaleDateString("sv-SE") : "";
@@ -59,7 +59,7 @@ async function start() {
     if (!$("#calendar-date").value) $("#calendar-date").value = new Date().toLocaleDateString("sv-SE");
     await loadDevices();
     await loadEventClasses();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -88,8 +88,13 @@ async function loadCalibrations() {
   const calibrations = await api("/api/device-calibrations");
   const value = (reference, measured) => reference == null ? "–" : `${measured.toFixed(1)} / ${reference.toFixed(1)} dB`;
   $("#calibration-list").innerHTML = calibrations.length ? calibrations.map((item) =>
-    `<div class="calibration-row"><strong>${escapeHtml(item.device_id)}</strong><span>Leise: ${value(item.low_reference_db, item.low_measured_db)}</span><span>Mittel: ${value(item.medium_reference_db, item.medium_measured_db)}</span><span>Laut: ${value(item.high_reference_db, item.high_measured_db)}</span><b>Empfohlener Offset: ${item.recommended_offset_db >= 0 ? "+" : ""}${item.recommended_offset_db.toFixed(2)} dB</b></div>`
+    `<div class="calibration-row"><strong>${escapeHtml(item.device_id)}</strong><span>Leise: ${value(item.low_reference_db, item.low_measured_db)}</span><span>Mittel: ${value(item.medium_reference_db, item.medium_measured_db)}</span><span>Laut: ${value(item.high_reference_db, item.high_measured_db)}</span><b>Aktiv: ${item.applied_offset_db >= 0 ? "+" : ""}${item.applied_offset_db.toFixed(2)} dB<br>Empfohlen: ${item.recommended_offset_db >= 0 ? "+" : ""}${item.recommended_offset_db.toFixed(2)} dB${item.reference_points ? `<br>${item.reference_points} Vergleiche · MAE ${item.reference_mae_db.toFixed(2)} dB` : ""}</b></div>`
   ).join("") : "<p>Noch keine Referenzmessung erfasst.</p>";
+}
+
+async function loadCalibrationReferenceRuns() {
+  state.calibrationRuns = await api("/api/device-calibrations/reference-runs");
+  $("#calibration-reference-runs").innerHTML = state.calibrationRuns.length ? state.calibrationRuns.map((run) => `<div class="reference-run"><strong>${escapeHtml(run.filename)}</strong><span> · ${run.reference_points} CSV-Werte · ${formatTime(run.started_at)} bis ${formatTime(run.ended_at)}</span>${run.results.map((item) => `<div class="reference-result"><strong>${escapeHtml(item.device_id)}</strong><span>${item.matched_points} Treffer</span><span>Referenz Ø ${item.mean_reference_db.toFixed(1)} dB</span><span>Mikrofon Ø ${item.mean_measured_db.toFixed(1)} dB</span><span>Abweichung ${item.mean_difference_db >= 0 ? "+" : ""}${item.mean_difference_db.toFixed(2)} dB · MAE ${item.mae_db.toFixed(2)} dB</span>${state.role === "admin" ? `<button type="button" data-apply-offset="${escapeHtml(item.device_id)}">Offset ${item.recommended_offset_db >= 0 ? "+" : ""}${item.recommended_offset_db.toFixed(2)} dB anwenden</button>` : ""}</div>`).join("")}</div>`).join("") : "<p>Noch keine CSV-Referenzmessung importiert.</p>";
 }
 
 async function loadDevices() {
@@ -98,6 +103,7 @@ async function loadDevices() {
   $("#device-filter").innerHTML = `<option value="">Alle Geräte</option>${options}`;
   $("#rule-device").innerHTML = `<option value="*">Alle Geräte</option>${options}`;
   $("#import-device").innerHTML = options;
+  $("#calibration-reference-devices").innerHTML = state.devices.map((d) => `<label><input type="checkbox" name="calibration_device" value="${escapeHtml(d.device_id)}" ${d.enabled ? "checked" : ""}> ${escapeHtml(d.name)}</label>`).join("");
   const currentMapDevice = $("#map-position-device").value;
   $("#map-position-device").innerHTML = state.devices.map((d) => `<option value="${escapeHtml(d.device_id)}" ${d.device_id === currentMapDevice ? "selected" : ""}>${escapeHtml(d.name)}${d.position_x == null || d.position_y == null ? " · noch nicht platziert" : ""}</option>`).join("");
   renderDeviceManagement();
@@ -222,6 +228,7 @@ async function loadEventClasses() {
       <label>Basisklasse<select name="parent_code">${parentOptions.replace(`value="${item.parent_code || ""}"`, `value="${item.parent_code || ""}" selected`)}</select></label>
       <label class="active-toggle"><input name="active" type="checkbox" ${item.active ? "checked" : ""}> Aktiv</label>
       <label class="active-toggle"><input name="trainable" type="checkbox" ${item.trainable ? "checked" : ""}> Trainierbar</label>
+      <label class="active-toggle"><input name="hidden_by_default" type="checkbox" ${item.hidden_by_default ? "checked" : ""}> Ausblenden</label>
       <button type="submit">Speichern</button>
     </form>`).join("");
 }
@@ -673,6 +680,13 @@ async function saveClassification(form, reason) {
   const primary = form.elements.primary_class_code.value;
   const subclass = form.elements.subclass_code.value || null;
   if (!primary) return;
+  if (primary === "NO_NOISE") {
+    try {
+      await api(`/events/${form.dataset.eventId}/ignore`, { method: "POST" });
+      await Promise.all([loadRecentEvents(), loadEvents(), loadReview(), refresh(), loadSoundMap()]);
+    } catch (error) { button.textContent = error.message; }
+    return;
+  }
   const fine = state.eventClasses.filter((item) => item.active && item.level === "fine" && (item.parent_code == null || item.parent_code === primary));
   if (fine.length > 1 && !subclass) {
     button.textContent = "Feinzuordnung wählen";
@@ -813,8 +827,13 @@ $("#review-bulk-form").addEventListener("submit", async (e) => {
   const eventIds = Array.from(document.querySelectorAll("#review-events input:checked"), (item) => Number(item.value));
   if (!eventIds.length) { $("#review-status-text").textContent = "Bitte mindestens ein Ereignis auswählen."; return; }
   try {
-    await api("/events/review/bulk-classification", { method: "POST", body: JSON.stringify({ event_ids: eventIds, primary_class_code: $("#review-primary").value, subclass_code: $("#review-subclass").value || null, reason: $("#review-reason").value }) });
-    $("#review-status-text").textContent = `${eventIds.length} Ereignisse bestätigt.`;
+    if ($("#review-primary").value === "NO_NOISE") {
+      await Promise.all(eventIds.map((id) => api(`/events/${id}/ignore`, { method: "POST" })));
+      $("#review-status-text").textContent = `${eventIds.length} Ereignisse als kein Lärm verworfen.`;
+    } else {
+      await api("/events/review/bulk-classification", { method: "POST", body: JSON.stringify({ event_ids: eventIds, primary_class_code: $("#review-primary").value, subclass_code: $("#review-subclass").value || null, reason: $("#review-reason").value }) });
+      $("#review-status-text").textContent = `${eventIds.length} Ereignisse bestätigt.`;
+    }
     await Promise.all([loadReview(), loadRecentEvents(), loadEvents()]);
   } catch (error) { $("#review-status-text").textContent = error.message; }
 });
@@ -893,7 +912,7 @@ $("#user-list").addEventListener("submit", async (e) => {
 $("#class-create-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    await api("/api/event-classes", { method: "POST", body: JSON.stringify({ code: $("#class-code").value.toUpperCase(), name: $("#class-name").value, level: $("#class-level").value, parent_code: $("#class-parent").value || null }) });
+    await api("/api/event-classes", { method: "POST", body: JSON.stringify({ code: $("#class-code").value.toUpperCase(), name: $("#class-name").value, level: $("#class-level").value, parent_code: $("#class-parent").value || null, hidden_by_default: $("#class-hidden").checked }) });
     e.target.reset();
     $("#class-status").textContent = "Klasse angelegt.";
     await loadEventClasses();
@@ -904,7 +923,7 @@ $("#class-list").addEventListener("submit", async (e) => {
   const form = e.target.closest(".class-editor");
   if (!form) return;
   try {
-    await api(`/api/event-classes/${form.dataset.classId}`, { method: "PATCH", body: JSON.stringify({ name: form.elements.name.value, level: form.elements.level.value, parent_code: form.elements.parent_code.value || null, active: form.elements.active.checked, trainable: form.elements.trainable.checked, sort_order: Number(form.dataset.sortOrder) }) });
+    await api(`/api/event-classes/${form.dataset.classId}`, { method: "PATCH", body: JSON.stringify({ name: form.elements.name.value, level: form.elements.level.value, parent_code: form.elements.parent_code.value || null, active: form.elements.active.checked, trainable: form.elements.trainable.checked, hidden_by_default: form.elements.hidden_by_default.checked, sort_order: Number(form.dataset.sortOrder) }) });
     $("#class-status").textContent = "Klasse aktualisiert.";
     await loadEventClasses();
   } catch (error) { $("#class-status").textContent = error.message; }
@@ -959,6 +978,34 @@ $("#calibration-form").addEventListener("submit", async (e) => {
     $("#calibration-status").textContent = `${onlineIds.length} Mikrofone erfasst.`;
     await loadCalibrations();
   } catch (error) { $("#calibration-status").textContent = error.message; }
+});
+$("#calibration-import-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const file = $("#calibration-file").files?.[0];
+  const deviceIds = Array.from(document.querySelectorAll('input[name="calibration_device"]:checked'), (item) => item.value);
+  if (!file || file.size > 2 * 1024 * 1024) { $("#calibration-import-status").textContent = "Bitte eine CSV mit höchstens 2 MB auswählen."; return; }
+  if (!deviceIds.length) { $("#calibration-import-status").textContent = "Bitte mindestens ein Mikrofon auswählen."; return; }
+  $("#calibration-import-status").textContent = "Referenzwerte werden zeitlich abgeglichen …";
+  try {
+    const run = await api("/api/device-calibrations/reference-import", { method: "POST", body: JSON.stringify({ filename: file.name, content_base64: await fileAsBase64(file), device_ids: deviceIds, tolerance_seconds: Number($("#calibration-tolerance").value) }) });
+    $("#calibration-import-status").textContent = `${run.reference_points} Referenzwerte importiert und mit ${run.results.reduce((sum, item) => sum + item.matched_points, 0)} Mikrofonwerten verglichen.`;
+    e.target.reset();
+    await Promise.all([loadCalibrations(), loadCalibrationReferenceRuns()]);
+  } catch (error) { $("#calibration-import-status").textContent = error.message; }
+});
+$("#calibration-reference-runs").addEventListener("click", async (e) => {
+  const deviceId = e.target.dataset.applyOffset;
+  if (!deviceId) return;
+  try {
+    await api("/api/device-calibrations/apply-offsets", { method: "POST", body: JSON.stringify({ device_ids: [deviceId] }) });
+    $("#calibration-import-status").textContent = `Kalibrier-Offset für ${deviceId} ist ab dem nächsten Messwert aktiv.`;
+    await Promise.all([loadCalibrations(), loadCalibrationReferenceRuns()]);
+  } catch (error) { $("#calibration-import-status").textContent = error.message; }
+});
+$("#open-people").addEventListener("click", () => {
+  const button = document.querySelector('.nav[data-view="review"]');
+  if (button) button.click();
+  $("#person-name").focus();
 });
 $("#device-management-list").addEventListener("submit", async (e) => {
   e.preventDefault();

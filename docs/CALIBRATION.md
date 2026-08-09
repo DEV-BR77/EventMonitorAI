@@ -21,3 +21,28 @@ keine nicht vorhandene Linearität vor.
 
 Die Funktion dient der nachvollziehbaren Vergleichskalibrierung. Sie ersetzt
 keine zertifizierte oder behördlich anerkannte Schallpegelmessung.
+
+## Zeitreihe aus einem Referenzmessgerät
+
+Für eine belastbarere Vergleichsmessung kann unter **Mikrofone →
+CSV-Referenzmessung abgleichen** eine ein- bis dreiminütige Zeitreihe
+importiert werden. Die CSV muss UTF-8-kodiert sein und mindestens zwölf Werte
+enthalten. Unterstützt werden beispielsweise:
+
+```csv
+timestamp;reference_db
+2026-08-09T04:00:00+02:00;38,4
+2026-08-09T04:00:05+02:00;39,1
+```
+
+Alternativ sind die deutschen Spaltennamen `zeit`, `uhrzeit`, `zeitstempel`
+und `dezibel` zulässig. Reine Uhrzeiten werden dem aktuellen Kalendertag in
+`Europe/Berlin` zugeordnet. Für jeden gespeicherten Fünf-Sekunden-Wert wird
+innerhalb der gewählten Toleranz der zeitlich nächste Referenzwert verwendet.
+
+Das Ergebnis zeigt Trefferzahl, Mittelwerte, mittlere Differenz und den
+mittleren absoluten Fehler (MAE). Der Offset wird bewusst nicht automatisch
+aktiviert. Erst **Offset anwenden** übernimmt ihn für alle danach eingehenden
+Telemetrie- und Ereignispegel. Bereits gespeicherte Werte werden nicht
+nachträglich verändert. Zum Schutz vor fehlerhaften Dateien ist der Offset auf
+±30 dB begrenzt.

@@ -28,6 +28,7 @@ from app.models.dashboard import (
     EventClass,
     EventClassificationRevision,
     EventPersonAssignment,
+    IgnoredDetectionPattern,
     PersonProfile,
     ReviewRun,
     User,
@@ -53,6 +54,7 @@ from app.schemas.event import (
     TrainingExampleRead,
 )
 from app.services.audio import live_audio_hub
+from app.services.calibration import calibrated_db
 from app.services.clips import associate_nearest_clip, associate_nearest_event, store_training_clip
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
@@ -75,6 +77,30 @@ DatabaseSession = Annotated[Session, Depends(get_db)]
 def verify_ingest_key(x_api_key: Annotated[str | None, Header()] = None) -> None:
     if settings.ingest_api_key and x_api_key != settings.ingest_api_key:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+
+
+def _normalized_detection_label(label: str) -> str:
+    return " ".join(label.casefold().split())[:160]
+
+
+def _learned_class_for_detection(db: Session, label: str) -> tuple[str, str | None] | None:
+    rows = list(
+        db.execute(
+            select(Event.primary_class_code, Event.subclass_code).where(
+                Event.label == label,
+                Event.classification_status == "manual",
+                Event.primary_class_code.is_not(None),
+            )
+        ).all()
+    )
+    if len(rows) < 3:
+        return None
+    counts: dict[tuple[str, str | None], int] = {}
+    for primary, subclass in rows:
+        key = (primary, subclass)
+        counts[key] = counts.get(key, 0) + 1
+    learned, count = max(counts.items(), key=lambda item: item[1])
+    return learned if count / len(rows) >= 0.8 else None
 
 
 @router.post("/audio/{device_id}", status_code=status.HTTP_202_ACCEPTED)
@@ -106,6 +132,7 @@ def update_device_telemetry(
         select(DeviceTelemetry).where(DeviceTelemetry.device_id == data.device_id)
     )
     values = data.model_dump()
+    values["db_level"] = calibrated_db(db, data.device_id, values["db_level"])
     total = values["packets_received"] + values["packets_lost"]
     values["loss_rate"] = round(values["packets_lost"] / total, 6) if total else 0.0
     values["last_seen"] = now
@@ -166,6 +193,11 @@ async def create_event(
     )
 
     event_values = event_data.model_dump()
+    event_values["db_level"] = calibrated_db(db, event_data.device, event_values["db_level"])
+    if event_values["avg_db_level"] is not None:
+        event_values["avg_db_level"] = calibrated_db(
+            db, event_data.device, event_values["avg_db_level"]
+        )
 
     if event_values["end_timestamp"] is None:
         event_values["end_timestamp"] = event_values["timestamp"]
@@ -173,13 +205,40 @@ async def create_event(
     if event_values["avg_db_level"] is None:
         event_values["avg_db_level"] = event_values["db_level"]
 
+    learned_class = _learned_class_for_detection(db, event_data.label)
+    primary_code = (
+        learned_class[0]
+        if learned_class is not None
+        else base_class_for_detection(event_data.label, category)
+    )
+    subclass_code = learned_class[1] if learned_class is not None else None
+    primary = (
+        db.scalar(select(EventClass).where(EventClass.code == primary_code))
+        if primary_code
+        else None
+    )
+    suppressed = bool(primary and primary.hidden_by_default)
+    ignored = db.scalar(
+        select(IgnoredDetectionPattern).where(
+            IgnoredDetectionPattern.label_normalized
+            == _normalized_detection_label(event_data.label),
+            IgnoredDetectionPattern.confirmations >= 3,
+        )
+    )
     event = Event(
         **event_values,
         label_de=label_de,
         category=category,
-        primary_class_code=base_class_for_detection(event_data.label, category),
-        classification_status="automatic",
+        primary_class_code=primary_code,
+        subclass_code=subclass_code,
+        classification_status="ignored" if ignored else "automatic",
+        display_suppressed=suppressed or ignored is not None,
     )
+
+    if ignored is not None:
+        event.id = 0
+        event.audio_available = False
+        return event
 
     db.add(event)
     db.commit()
@@ -235,9 +294,10 @@ async def create_event(
     else:
         device.last_seen = event.timestamp
     db.commit()
-    await live_hub.broadcast(EventRead.model_validate(event).model_dump())
-    trigger_notifications(db, event)
-    background_tasks.add_task(send_event_pushes, event.id)
+    if not event.display_suppressed:
+        await live_hub.broadcast(EventRead.model_validate(event).model_dump())
+        trigger_notifications(db, event)
+        background_tasks.add_task(send_event_pushes, event.id)
 
     return event
 
@@ -362,6 +422,7 @@ def _assign_manual(
     event.classification_status = "manual"
     event.corrected_by = user.username
     event.corrected_at = now
+    event.display_suppressed = primary.hidden_by_default
 
 
 def _import_wav(db: Session, name: str, payload: bytes, device_id: str) -> bool:
@@ -711,6 +772,57 @@ def assign_event_person(
     db.commit()
 
 
+@router.post("/{event_id}/ignore", status_code=204)
+def ignore_event_as_no_noise(
+    event_id: int,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> None:
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
+    normalized = _normalized_detection_label(event.label)
+    pattern = db.scalar(
+        select(IgnoredDetectionPattern).where(
+            IgnoredDetectionPattern.label_normalized == normalized
+        )
+    )
+    now = datetime.now(UTC).isoformat()
+    if pattern is None:
+        pattern = IgnoredDetectionPattern(
+            label_normalized=normalized,
+            label_example=event.label[:160],
+            confirmations=1,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(pattern)
+    else:
+        pattern.confirmations += 1
+        pattern.updated_at = now
+    clip = db.scalar(select(AudioClip).where(AudioClip.event_id == event_id))
+    clip_path = Path(clip.path) if clip is not None else None
+    if clip is not None:
+        db.delete(clip)
+    db.delete(event)
+    db.commit()
+    if clip_path is not None:
+        try:
+            clip_path.unlink(missing_ok=True)
+        except OSError:
+            logger.exception(
+                "Audioclip für verworfenes Ereignis %s konnte nicht gelöscht werden",
+                event_id,
+            )
+    logger.info(
+        "Ereignis %s wurde von %s als kein Lärm verworfen; Lernmuster %s hat %s Bestätigungen",
+        event_id,
+        user.username,
+        normalized,
+        pattern.confirmations,
+    )
+
+
 @router.patch("/{event_id}/classification", response_model=EventRead)
 async def correct_event_classification(
     event_id: int,
@@ -772,8 +884,11 @@ def list_events(
     category: str | None = None,
     start: str | None = None,
     end: str | None = None,
+    include_suppressed: bool = False,
 ) -> list[Event]:
     statement = select(Event)
+    if not include_suppressed:
+        statement = statement.where(Event.display_suppressed.is_(False))
     if device:
         statement = statement.where(Event.device == device)
     if category:

@@ -82,7 +82,40 @@ class DeviceCalibration(Base):
     high_reference_db: Mapped[float | None] = mapped_column(Float, nullable=True)
     high_measured_db: Mapped[float | None] = mapped_column(Float, nullable=True)
     recommended_offset_db: Mapped[float] = mapped_column(Float, default=0.0)
+    applied_offset_db: Mapped[float] = mapped_column(Float, default=0.0)
+    reference_points: Mapped[int] = mapped_column(Integer, default=0)
+    reference_mae_db: Mapped[float | None] = mapped_column(Float, nullable=True)
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class CalibrationReferenceRun(Base):
+    __tablename__ = "calibration_reference_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    filename: Mapped[str] = mapped_column(String(240))
+    started_at: Mapped[str] = mapped_column(String)
+    ended_at: Mapped[str] = mapped_column(String)
+    reference_points: Mapped[int] = mapped_column(Integer)
+    tolerance_seconds: Mapped[float] = mapped_column(Float, default=3.0)
+    created_by: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class CalibrationReferenceResult(Base):
+    __tablename__ = "calibration_reference_results"
+    __table_args__ = (UniqueConstraint("run_id", "device_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("calibration_reference_runs.id", ondelete="CASCADE"), index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(120), index=True)
+    matched_points: Mapped[int] = mapped_column(Integer)
+    mean_reference_db: Mapped[float] = mapped_column(Float)
+    mean_measured_db: Mapped[float] = mapped_column(Float)
+    mean_difference_db: Mapped[float] = mapped_column(Float)
+    mae_db: Mapped[float] = mapped_column(Float)
+    recommended_offset_db: Mapped[float] = mapped_column(Float)
 
 
 class LiveAudioAccess(Base):
@@ -128,7 +161,19 @@ class EventClass(Base):
     parent_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     trainable: Mapped[bool] = mapped_column(Boolean, default=True)
+    hidden_by_default: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class IgnoredDetectionPattern(Base):
+    __tablename__ = "ignored_detection_patterns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    label_normalized: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    label_example: Mapped[str] = mapped_column(String(160))
+    confirmations: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 

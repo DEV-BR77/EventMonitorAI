@@ -1,3 +1,4 @@
+import base64
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
@@ -10,6 +11,8 @@ from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
     AssessmentConfig,
+    CalibrationReferenceResult,
+    CalibrationReferenceRun,
     Device,
     DeviceCalibration,
     DeviceLevelSample,
@@ -26,6 +29,10 @@ from app.schemas.dashboard import (
     AssessmentConfigRead,
     AssessmentConfigWrite,
     CalibrationCapture,
+    CalibrationOffsetApply,
+    CalibrationReferenceImport,
+    CalibrationReferenceResultRead,
+    CalibrationReferenceRunRead,
     DeviceCalibrationRead,
     DeviceCreate,
     DeviceLevelPoint,
@@ -43,7 +50,11 @@ from app.schemas.dashboard import (
     RuleRead,
     SoundMapPoint,
 )
-from app.services.calibration import calculate_recommended_offset
+from app.services.calibration import (
+    calculate_recommended_offset,
+    compare_reference_points,
+    parse_reference_csv,
+)
 from app.services.noise_assessment import assessment_for
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
@@ -69,13 +80,22 @@ def _events_since(
     if selected_date is not None:
         prefix = selected_date.isoformat()
         statement = (
-            select(Event).where(Event.timestamp.like(f"{prefix}%")).order_by(Event.timestamp)
+            select(Event)
+            .where(
+                Event.timestamp.like(f"{prefix}%"),
+                Event.display_suppressed.is_(False),
+            )
+            .order_by(Event.timestamp)
         )
         if device:
             statement = statement.where(Event.device == device)
         return list(db.scalars(statement).all())
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    statement = select(Event).where(Event.timestamp >= cutoff).order_by(Event.timestamp)
+    statement = (
+        select(Event)
+        .where(Event.timestamp >= cutoff, Event.display_suppressed.is_(False))
+        .order_by(Event.timestamp)
+    )
     if device:
         statement = statement.where(Event.device == device)
     return list(db.scalars(statement).all())
@@ -336,7 +356,9 @@ def capture_device_calibration(
             db.add(calibration)
         setattr(calibration, f"{data.level}_reference_db", data.reference_db)
         setattr(calibration, f"{data.level}_measured_db", telemetry_by_device[device_id].db_level)
-        calibration.recommended_offset_db = calculate_recommended_offset(calibration)
+        calibration.recommended_offset_db = round(
+            calibration.applied_offset_db + calculate_recommended_offset(calibration), 2
+        )
         calibration.updated_at = now
         result.append(calibration)
 
@@ -344,6 +366,170 @@ def capture_device_calibration(
     for calibration in result:
         db.refresh(calibration)
     return result
+
+
+def _reference_run_read(
+    run: CalibrationReferenceRun,
+    results: list[CalibrationReferenceResult],
+) -> CalibrationReferenceRunRead:
+    return CalibrationReferenceRunRead(
+        id=run.id,
+        filename=run.filename,
+        started_at=run.started_at,
+        ended_at=run.ended_at,
+        reference_points=run.reference_points,
+        tolerance_seconds=run.tolerance_seconds,
+        created_by=run.created_by,
+        created_at=run.created_at,
+        results=[
+            CalibrationReferenceResultRead(
+                device_id=item.device_id,
+                matched_points=item.matched_points,
+                mean_reference_db=item.mean_reference_db,
+                mean_measured_db=item.mean_measured_db,
+                mean_difference_db=item.mean_difference_db,
+                mae_db=item.mae_db,
+                recommended_offset_db=item.recommended_offset_db,
+            )
+            for item in results
+        ],
+    )
+
+
+@router.get(
+    "/device-calibrations/reference-runs",
+    response_model=list[CalibrationReferenceRunRead],
+)
+def list_calibration_reference_runs(
+    db: DatabaseSession,
+    _: CurrentUser,
+) -> list[CalibrationReferenceRunRead]:
+    runs = list(
+        db.scalars(
+            select(CalibrationReferenceRun).order_by(CalibrationReferenceRun.id.desc())
+        ).all()
+    )
+    return [
+        _reference_run_read(
+            run,
+            list(
+                db.scalars(
+                    select(CalibrationReferenceResult)
+                    .where(CalibrationReferenceResult.run_id == run.id)
+                    .order_by(CalibrationReferenceResult.device_id)
+                ).all()
+            ),
+        )
+        for run in runs
+    ]
+
+
+@router.post(
+    "/device-calibrations/reference-import",
+    response_model=CalibrationReferenceRunRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def import_calibration_reference(
+    data: CalibrationReferenceImport,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> CalibrationReferenceRunRead:
+    try:
+        payload = base64.b64decode(data.content_base64, validate=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="CSV-Inhalt ist ungültig") from exc
+    if len(payload) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="CSV darf höchstens 2 MB groß sein")
+    try:
+        reference = parse_reference_csv(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    device_ids = sorted(set(data.device_ids))
+    known = set(db.scalars(select(Device.device_id).where(Device.device_id.in_(device_ids))).all())
+    missing = sorted(set(device_ids) - known)
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Unbekannte Mikrofone: {', '.join(missing)}")
+    start = reference[0][0].isoformat()
+    end = reference[-1][0].isoformat()
+    run = CalibrationReferenceRun(
+        filename=data.filename,
+        started_at=start,
+        ended_at=end,
+        reference_points=len(reference),
+        tolerance_seconds=data.tolerance_seconds,
+        created_by=user.username,
+    )
+    db.add(run)
+    db.flush()
+    results: list[CalibrationReferenceResult] = []
+    now = datetime.now(UTC).isoformat()
+    for device_id in device_ids:
+        samples = list(
+            db.scalars(
+                select(DeviceLevelSample)
+                .where(
+                    DeviceLevelSample.device_id == device_id,
+                    DeviceLevelSample.timestamp >= start,
+                    DeviceLevelSample.timestamp <= end,
+                )
+                .order_by(DeviceLevelSample.timestamp)
+            ).all()
+        )
+        calibration = db.scalar(
+            select(DeviceCalibration).where(DeviceCalibration.device_id == device_id)
+        )
+        if calibration is None:
+            calibration = DeviceCalibration(device_id=device_id)
+            db.add(calibration)
+            db.flush()
+        try:
+            comparison = compare_reference_points(
+                samples,
+                reference,
+                data.tolerance_seconds,
+                calibration.applied_offset_db,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"{device_id}: {exc}") from exc
+        result = CalibrationReferenceResult(run_id=run.id, device_id=device_id, **comparison)
+        db.add(result)
+        results.append(result)
+        calibration.recommended_offset_db = float(comparison["recommended_offset_db"])
+        calibration.reference_points = int(comparison["matched_points"])
+        calibration.reference_mae_db = float(comparison["mae_db"])
+        calibration.updated_at = now
+    db.commit()
+    db.refresh(run)
+    for result in results:
+        db.refresh(result)
+    return _reference_run_read(run, results)
+
+
+@router.post(
+    "/device-calibrations/apply-offsets",
+    response_model=list[DeviceCalibrationRead],
+)
+def apply_calibration_offsets(
+    data: CalibrationOffsetApply,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> list[DeviceCalibration]:
+    calibrations = list(
+        db.scalars(
+            select(DeviceCalibration).where(DeviceCalibration.device_id.in_(data.device_ids))
+        ).all()
+    )
+    missing = sorted(set(data.device_ids) - {item.device_id for item in calibrations})
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Keine Kalibrierung für: {', '.join(missing)}")
+    now = datetime.now(UTC).isoformat()
+    for calibration in calibrations:
+        calibration.applied_offset_db = calibration.recommended_offset_db
+        calibration.updated_at = now
+    db.commit()
+    for calibration in calibrations:
+        db.refresh(calibration)
+    return calibrations
 
 
 @router.post("/devices", response_model=DeviceRead, status_code=status.HTTP_201_CREATED)

@@ -85,7 +85,14 @@ def noise_log(
     _: CurrentUser,
     limit: int = Query(default=100, ge=1, le=1000),
 ) -> list[NoiseLogEntry]:
-    events = list(db.scalars(select(Event).order_by(desc(Event.id)).limit(limit)).all())
+    events = list(
+        db.scalars(
+            select(Event)
+            .where(Event.display_suppressed.is_(False))
+            .order_by(desc(Event.id))
+            .limit(limit)
+        ).all()
+    )
     if not events:
         return []
     event_ids = {event.id for event in events}

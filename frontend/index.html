@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.3.0-audio-fix">
+  <link rel="stylesheet" href="/styles.css?v=0.3.0-calibration">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -124,6 +124,10 @@
           <p class="management-help">Das System stellt keine Identität als Tatsache fest. Es gruppiert akustisch ähnliche Stimmereignisse; Namen und Treffer müssen manuell bestätigt werden.</p>
           <div id="people-list"></div><span id="people-status"></span>
         </article>
+        <article class="panel learning-guide">
+          <div class="panel-head"><h2>So lernt die Klassifizierung</h2><span>Bestätigen → lernen → automatisch anwenden</span></div>
+          <ol><li>Ereignis anhören und Basis- sowie Feinzuordnung bestätigen.</li><li>Ab drei übereinstimmenden Bestätigungen mit mindestens 80 % Eindeutigkeit wird das ursprüngliche KI-Label künftig automatisch zugeordnet.</li><li>„Wind“, „Umgebung/Natur“ und technische Störungen werden gelernt, aber standardmäßig aus Übersicht, Karte und Live-Strom ausgeblendet.</li><li>„Kein Lärm / verwerfen“ löscht Ereignis und Aufnahme. Nach drei Bestätigungen wird dasselbe Modellmuster bereits beim Eingang verworfen.</li><li>Der Prüflauf arbeitet offene automatische Vorschläge erneut ab; manuelle Bestätigungen bleiben unverändert.</li></ol>
+        </article>
         <div class="metrics review-metrics">
           <article><span>Offen · unbekannt</span><strong id="r-open-unknown">–</strong></article>
           <article><span>Offen · KI erkannt</span><strong id="r-open-recognized">–</strong></article>
@@ -173,6 +177,18 @@
           <button type="submit">Alle Online-Mikrofone erfassen</button>
           <span id="calibration-status"></span>
         </form>
+        <article class="panel calibration-import">
+          <div class="panel-head"><h2>CSV-Referenzmessung abgleichen</h2><span>mindestens 12 Werte · empfohlen 1–3 Minuten</span></div>
+          <form id="calibration-import-form" class="import-form">
+            <label>Referenz-CSV<input id="calibration-file" type="file" accept=".csv,text/csv" required></label>
+            <label>Zeit-Toleranz<select id="calibration-tolerance"><option value="2">± 2 Sekunden</option><option value="3" selected>± 3 Sekunden</option><option value="5">± 5 Sekunden</option><option value="10">± 10 Sekunden</option></select></label>
+            <fieldset><legend>Mikrofone vergleichen</legend><div id="calibration-reference-devices" class="device-checks"></div></fieldset>
+            <button type="submit">CSV vergleichen</button>
+          </form>
+          <p class="management-help">Erlaubte Spalten: <code>timestamp,reference_db</code>; alternativ <code>zeit/dezibel</code>. Uhrzeiten ohne Datum werden dem heutigen Tag zugeordnet. Erst nach Prüfung wird der empfohlene Offset ausdrücklich angewendet.</p>
+          <span id="calibration-import-status"></span>
+          <div id="calibration-reference-runs"></div>
+        </article>
         <article class="panel">
           <div class="panel-head"><h2>Gerätestatus und Transportqualität</h2><span>Aktualisierung alle 30 Sekunden</span></div>
           <div id="device-health" class="device-health"></div>
@@ -180,6 +196,11 @@
         <article class="panel calibration-results">
           <div class="panel-head"><h2>Kalibrierprotokoll</h2><span>Leise · Mittel · Laut</span></div>
           <div id="calibration-list"></div>
+        </article>
+        <article class="panel people-shortcut">
+          <div class="panel-head"><h2>Personenprofile</h2><span>Stimmereignisse nur nach manueller Bestätigung</span></div>
+          <p class="management-help">Personenprofile werden im Audio-Lab angelegt. Anschließend können bestätigte Rufen-/Schreien-Ereignisse einem Profil zugeordnet werden; erst daraus entsteht ein akustisches Vergleichsprofil.</p>
+          <button id="open-people" type="button">Personenprofile im Audio-Lab öffnen</button>
         </article>
       </section>
 
@@ -230,6 +251,7 @@
             <label>Name<input id="class-name" maxlength="120" required></label>
             <label>Ebene<select id="class-level"><option value="base">Basisklasse</option><option value="fine">Feinzuordnung</option></select></label>
             <label>Basisklasse<select id="class-parent"><option value="">Keine</option></select></label>
+            <label class="active-toggle"><input id="class-hidden" type="checkbox"> Standardmäßig ausblenden</label>
             <button type="submit">Klasse anlegen</button>
           </form>
           <span id="class-status"></span>
@@ -238,6 +260,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-audio-fix"></script>
+  <script src="/app.js?v=0.3.0-calibration"></script>
 </body>
 </html>

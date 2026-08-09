@@ -148,6 +148,10 @@ So bekommst du früh ein brauchbares Lärmprotokoll, ohne dass wir dir falsche P
       Zuschlag, sowie Zeitstempel für Gerätestatus
 - [x] Phase-8-Abnahme: mobile Navigation und Bedienoberflächen ohne horizontales
       Seitenscrolling bei 390 Pixeln Breite
+- [x] Phase-8-Nachbesserung: CSV-Referenzzeitreihen mit Zeitabgleich, prüfbarer
+      Offset-Aktivierung und Anwendung auf neue Telemetrie- und Ereignispegel
+- [x] Phase-8-Nachbesserung: lernfähige Wind-, Umgebungs- und technische Klassen,
+      standardmäßige Ausblendung sowie datensparsame Aktion „Kein Lärm / verwerfen“
 
 https://github.com/DEV-BR77/EventMonitorAI/tree/main/tools/audio-lab
 

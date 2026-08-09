@@ -4,11 +4,11 @@ import wave
 from types import SimpleNamespace
 
 from app.api.dashboard import live_audio_devices, update_live_audio_permission
-from app.api.events import create_event, ingest_live_audio
+from app.api.events import create_event, ingest_live_audio, update_device_telemetry
 from app.core.config import settings
 from app.database.base import Base
-from app.models.dashboard import AudioClip, Device, LiveAudioAccess, User
-from app.schemas.dashboard import LiveAudioPermissionUpdate
+from app.models.dashboard import AudioClip, Device, DeviceCalibration, LiveAudioAccess, User
+from app.schemas.dashboard import DeviceTelemetryWrite, LiveAudioPermissionUpdate
 from app.schemas.event import EventCreate
 from app.services.audio import LiveAudioHub, live_audio_hub
 from fastapi import BackgroundTasks
@@ -74,6 +74,24 @@ def test_audio_ingest_broadcasts_pcm_only_for_active_device() -> None:
         result = asyncio.run(ingest_live_audio("mic", b"\x01\x00" * 100, db, None))
 
         assert result == {"bytes": 200, "listeners": 0}
+
+
+def test_applied_calibration_offset_changes_new_telemetry_values() -> None:
+    _, db = _database()
+    with db:
+        db.add_all(
+            [
+                Device(device_id="mic", name="Mic"),
+                DeviceCalibration(device_id="mic", applied_offset_db=-7.5),
+            ]
+        )
+        db.commit()
+
+        result = update_device_telemetry(
+            DeviceTelemetryWrite(device_id="mic", db_level=54.0), db, None
+        )
+
+        assert result.db_level == 46.5
 
 
 def test_live_audio_hub_sends_binary_pcm() -> None:
