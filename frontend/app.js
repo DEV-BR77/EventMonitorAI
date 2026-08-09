@@ -237,7 +237,7 @@ async function initializeAudioOutput() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) throw new Error("Dieser Browser unterstützt keine Audioausgabe.");
   if (state.audioContext) return;
-  state.audioContext = new AudioContextClass({ sampleRate: 16000 });
+  state.audioContext = new AudioContextClass();
   state.audioGain = state.audioContext.createGain();
   state.audioHighpass = state.audioContext.createBiquadFilter();
   state.audioHighpass.type = "highpass";
@@ -247,25 +247,7 @@ async function initializeAudioOutput() {
   state.audioLowpass.frequency.value = 6500;
   state.audioGain.gain.value = Number($("#audio-volume").value);
   updateAudioFilterChain();
-  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (mobile && state.audioContext.createMediaStreamDestination) {
-    try {
-      state.audioDestination = state.audioContext.createMediaStreamDestination();
-      state.audioLowpass.connect(state.audioDestination);
-      state.audioElement = new Audio();
-      state.audioElement.autoplay = true;
-      state.audioElement.playsInline = true;
-      state.audioElement.srcObject = state.audioDestination.stream;
-      await state.audioElement.play();
-    } catch (_) {
-      state.audioLowpass.disconnect();
-      state.audioLowpass.connect(state.audioContext.destination);
-      state.audioElement = null;
-      state.audioDestination = null;
-    }
-  } else {
-    state.audioLowpass.connect(state.audioContext.destination);
-  }
+  state.audioLowpass.connect(state.audioContext.destination);
   await state.audioContext.resume();
   if (state.audioContext.state !== "running") throw new Error("Audio wurde vom Browser blockiert. Bitte erneut tippen.");
 }
@@ -293,8 +275,15 @@ async function startAudio() {
   state.audioSocket = new WebSocket(`${scheme}://${location.host}/ws/audio/${encodeURIComponent(deviceId)}?token=${encodeURIComponent(state.token)}`);
   state.audioSocket.binaryType = "arraybuffer";
   state.audioSocket.onopen = () => { $("#audio-status").textContent = "Verbunden – Audiopuffer wird gefüllt"; $("#audio-toggle").textContent = "Wiedergabe stoppen"; };
-  state.audioSocket.onmessage = (message) => {
+  state.audioSocket.onmessage = async (message) => {
     if (typeof message.data === "string" || !state.audioContext) return;
+    if (state.audioContext.state !== "running") {
+      await state.audioContext.resume().catch(() => {});
+      if (state.audioContext.state !== "running") {
+        $("#audio-status").textContent = "Handy blockiert Audio – Wiedergabe stoppen und erneut starten";
+        return;
+      }
+    }
     const data = new DataView(message.data);
     const sampleCount = Math.floor(data.byteLength / 2);
     const buffer = state.audioContext.createBuffer(1, sampleCount, 16000);
@@ -668,23 +657,6 @@ async function playEventClip(eventId, button) {
   state.clipContext = context;
   state.clipButton = button;
   await context.resume();
-  let destination = context.destination;
-  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (mobile && context.createMediaStreamDestination) {
-    const streamDestination = context.createMediaStreamDestination();
-    const audioElement = new Audio();
-    audioElement.autoplay = true;
-    audioElement.playsInline = true;
-    audioElement.srcObject = streamDestination.stream;
-    try {
-      await audioElement.play();
-      state.clipAudioDestination = streamDestination;
-      state.clipAudioElement = audioElement;
-      destination = streamDestination;
-    } catch (_) {
-      audioElement.srcObject = null;
-    }
-  }
   const response = await fetch(`/events/${eventId}/audio`, { headers: { Authorization: `Bearer ${state.token}` } });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
@@ -696,10 +668,13 @@ async function playEventClip(eventId, button) {
   catch (_) { audioBuffer = decodePcmWav(payload, context); }
   const source = context.createBufferSource();
   source.buffer = audioBuffer;
-  connectStoredAudio(source, context, destination);
+  connectStoredAudio(source, context, context.destination);
   source.onended = () => { if (state.clipSource === source) stopEventClip(); };
   state.clipSource = source;
-  if (context.state !== "running") await context.resume();
+  if (context.state !== "running") await context.resume().catch(() => {});
+  if (context.state !== "running") {
+    throw new Error("Das Handy blockiert die Audioausgabe. Bitte erneut auf Anhören tippen.");
+  }
   source.start();
   button.textContent = "■ Stoppen";
 }
