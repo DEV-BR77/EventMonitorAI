@@ -2,7 +2,7 @@ name: eventmonitorai
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-eventmonitor}
       POSTGRES_USER: ${POSTGRES_USER:-eventmonitor}
@@ -36,7 +36,25 @@ services:
     volumes:
       - eventmonitor_clips_data:/data/clips
     ports:
-      - "8015:8000"
+      - "${DASHBOARD_PORT:-8015}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backup:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-eventmonitor}
+      POSTGRES_USER: ${POSTGRES_USER:-eventmonitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - eventmonitor_clips_data:/data/clips:ro
+      - ./backups:/backups
+      - ./ops/backup.sh:/usr/local/bin/eventmonitor-backup:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/eventmonitor-backup"]
     depends_on:
       postgres:
         condition: service_healthy

@@ -39,6 +39,8 @@ def create_token(user: User) -> str:
     payload = {
         "sub": user.username,
         "role": user.role,
+        "iat": int(time.time()),
+        "jti": secrets.token_urlsafe(16),
         "exp": int(time.time()) + settings.access_token_minutes * 60,
     }
     body = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=")

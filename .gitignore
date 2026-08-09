@@ -59,6 +59,7 @@ exports/*
 logs/*
 !logs/.gitkeep
 cache/
+backups/
 *.log
 
 # Build artifacts
@@ -75,6 +76,7 @@ firmware/**/.vscode/
 *.temp
 *.bak
 ~$*
+/.pytest-*/
 
 # Keep credential templates
 !**/secrets.example.h

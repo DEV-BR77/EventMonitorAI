@@ -2,11 +2,12 @@ import time
 from types import SimpleNamespace
 
 import pytest
-from app.api.auth import update_user
+from app.api.auth import login, update_user
 from app.core.security import create_token, decode_token, hash_password, verify_password
 from app.database.base import Base
 from app.models.dashboard import User
-from app.schemas.dashboard import UserUpdate
+from app.schemas.dashboard import LoginRequest, UserUpdate
+from app.services.login_guard import MAX_FAILURES, reset_for_tests
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -67,3 +68,21 @@ def test_admin_can_update_another_user_but_not_demote_self() -> None:
                 admin,
             )
         assert error.value.status_code == 409
+
+
+def test_repeated_failed_logins_are_temporarily_rate_limited() -> None:
+    reset_for_tests()
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        for _ in range(MAX_FAILURES):
+            with pytest.raises(HTTPException) as error:
+                login(LoginRequest(username="missing", password="not-the-password"), db)
+            assert error.value.status_code == 401
+
+        with pytest.raises(HTTPException) as error:
+            login(LoginRequest(username="missing", password="not-the-password"), db)
+
+        assert error.value.status_code == 429
+        assert int(error.value.headers["Retry-After"]) > 0
+    reset_for_tests()

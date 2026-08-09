@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.version import __version__
@@ -27,6 +28,21 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.database_url.startswith("postgresql"):
+            if self.auth_secret == "development-only-change-me" or len(self.auth_secret) < 32:
+                raise ValueError(
+                    "AUTH_SECRET muss im PostgreSQL-Betrieb mindestens 32 Zeichen haben"
+                )
+            if len(self.ingest_api_key) < 24:
+                raise ValueError(
+                    "INGEST_API_KEY muss im PostgreSQL-Betrieb mindestens 24 Zeichen haben"
+                )
+        if not 5 <= self.access_token_minutes <= 1440:
+            raise ValueError("ACCESS_TOKEN_MINUTES muss zwischen 5 und 1440 liegen")
+        return self
 
 
 settings = Settings()

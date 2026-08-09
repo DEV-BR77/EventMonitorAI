@@ -6,12 +6,21 @@ The project follows Semantic Versioning from the first tagged release onward.
 
 ## [Unreleased]
 
-### Planned
+### Added
 
-- Historical bulk-import management
-- Interactive dB timeline and spectrogram
-- Model-assisted labeling and similarity search
-- Case grouping and reporting
+- Reproduzierbare, geheimnisfreie Installations- und Release-Pakete
+- Dokumentierte Upgrade- und Rollback-Strategie für Docker Desktop
+- Automatisierte PostgreSQL- und Clip-Backups mit Prüfsummen und Aufbewahrung
+- Wiederherstellungsskript mit Integritätsprüfung und ausdrücklicher Freigabe
+- Performance-, Last- und Ringpuffer-Langzeittests
+- Security- und Datenschutzreview sowie verbindliche v1.0-Release-Kriterien
+
+### Security
+
+- Login-Drosselung gegen Brute-Force-Versuche
+- Aktive Benutzerprüfung für authentifizierte WebSocket-Verbindungen
+- Strengere Sicherheits- und Cache-Header für geschützte APIs
+- Validierung produktiver Geheimnisse und exakt fixierte Abhängigkeiten
 
 ## [0.1.0] - 2026-07-19
 

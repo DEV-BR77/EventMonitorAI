@@ -16,14 +16,12 @@ def _confirmed_case(conn) -> None:
         "INSERT INTO recordings(source_path,source_hash,audio_path,started_at) "
         "VALUES ('a','a','a.wav','2026-08-08T20:00:00')"
     )
-    event_id = conn.execute(
-        """
+    event_id = conn.execute("""
         INSERT INTO events(
             recording_id,start_seconds,end_seconds,primary_label,event_family,
             grouping_version,segment_count,peak_dba,mean_dba
         ) VALUES (1,2,5,'Rufen','voice','1.0.0',2,61.5,54.2)
-        """
-    ).lastrowid
+        """).lastrowid
     conn.commit()
     case_id = create_case(conn, "Abendlicher Ruf", [event_id])
     update_case(

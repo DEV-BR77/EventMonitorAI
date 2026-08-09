@@ -28,16 +28,14 @@ def test_boundary_validation_rejects_invalid_ranges() -> None:
 
 def test_update_boundaries_recalculates_metrics() -> None:
     conn = sqlite3.connect(":memory:")
-    conn.executescript(
-        """
+    conn.executescript("""
         CREATE TABLE segments (id INTEGER PRIMARY KEY, recording_id INTEGER, start_seconds REAL,
           end_seconds REAL, peak_dba REAL, mean_dba REAL, event_score REAL,
           boundaries_updated_at TEXT, UNIQUE(recording_id,start_seconds,end_seconds));
         CREATE TABLE db_samples (recording_id INTEGER, offset_seconds REAL, current_dba REAL);
         INSERT INTO segments VALUES (1,7,0,5,NULL,NULL,NULL,NULL);
         INSERT INTO db_samples VALUES (7,0,30),(7,1,40),(7,2,50),(7,3,60);
-        """
-    )
+        """)
     update_boundaries(conn, 1, 1, 3, 4)
     row = conn.execute("SELECT * FROM segments").fetchone()
     assert row[2:7] == pytest.approx((1, 3, 50, 45, 5))

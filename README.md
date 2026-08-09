@@ -6,7 +6,7 @@ EventMonitorAI verbindet ESP32-Audiosensoren, Raspberry-Pi-Edge-Verarbeitung, ei
 
 ## Projektstatus
 
-**Entwicklungsphase:** Alpha / aktiver Aufbau
+**Entwicklungsphase:** v1.0-Kandidat / Abnahme und Langzeittest
 
 Aktuell vorhanden:
 
@@ -20,9 +20,9 @@ Aktuell vorhanden:
 - deutsche Label- und Kategoriezuordnung
 - EventMonitor AudioLab für ZIP-Massenimport, Segmentierung, Anhören, Labeling und CSV-Export
 
-Noch nicht produktionsreif sind insbesondere die automatische Modellnachschulung,
-belastbare Ereigniszusammenfassung, Beweissicherung, Datenbankmigrationen und das
-abschließende Security-/Datenschutzreview.
+Die Funktionen bis Phase 9 sind implementiert. Ein v1.0-Tag wird erst nach dem
+dokumentierten 24-Stunden-Langzeittest, Restore-Test auf einer getrennten
+Datenbank und der Betreiber-/Datenschutzfreigabe erstellt.
 
 ## Schwerpunkt der Erkennung
 
@@ -51,9 +51,9 @@ Raspberry Pi / Edge Receiver
         ▼
 FastAPI Backend ───────────────► SQLite / später PostgreSQL
         │
-        ├── REST API
+        ├── REST API und geschütztes Dashboard
         ├── Live- und Ereignisdaten
-        └── zukünftiges Dashboard
+        └── PostgreSQL, automatische Backups und Clips
 
 Historische ZIP-/Audio-Messungen
         │
@@ -145,6 +145,11 @@ Die GitHub-CI prüft Python-Syntax, Tests, sensible Dateien und grundlegende Rep
 | Produkt-Backlog | [docs/ProductBacklog.md](docs/ProductBacklog.md) |
 | Entscheidungen | [docs/DecisionLog.md](docs/DecisionLog.md) und [docs/adr/](docs/adr/) |
 | Betrieb und Datenschutz | [docs/operations/PRIVACY_AND_DATA.md](docs/operations/PRIVACY_AND_DATA.md) |
+| Installation und Upgrade | [docs/operations/INSTALL_UPGRADE.md](docs/operations/INSTALL_UPGRADE.md) |
+| Backup und Restore | [docs/operations/BACKUP_RESTORE.md](docs/operations/BACKUP_RESTORE.md) |
+| Performance | [docs/operations/PERFORMANCE.md](docs/operations/PERFORMANCE.md) |
+| Security-Review | [docs/operations/SECURITY_PRIVACY_REVIEW.md](docs/operations/SECURITY_PRIVACY_REVIEW.md) |
+| v1.0-Kriterien | [docs/releases/V1_RELEASE_CRITERIA.md](docs/releases/V1_RELEASE_CRITERIA.md) |
 
 ## Leitprinzipien
 

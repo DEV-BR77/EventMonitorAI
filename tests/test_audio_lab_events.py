@@ -79,14 +79,12 @@ def test_rebuild_preserves_manual_event_and_its_segment(tmp_path: Path) -> None:
         "INSERT INTO segments(recording_id,start_seconds,end_seconds,label) "
         "VALUES (1,0,1,'Hund')"
     )
-    event_id = conn.execute(
-        """
+    event_id = conn.execute("""
         INSERT INTO events(
             recording_id,start_seconds,end_seconds,primary_label,event_family,
             grouping_version,segment_count,source
         ) VALUES (1,0,1,'Hund','label:Hund','manual',1,'manual')
-        """
-    ).lastrowid
+        """).lastrowid
     conn.execute(
         "INSERT INTO event_segments(event_id,segment_id,position) VALUES (?,1,0)", (event_id,)
     )

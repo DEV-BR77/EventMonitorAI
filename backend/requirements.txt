@@ -1,8 +1,8 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-psycopg[binary]
-pydantic
-pydantic-settings
-python-dotenv
-pywebpush
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+sqlalchemy==2.0.51
+psycopg[binary]==3.3.4
+pydantic==2.13.4
+pydantic-settings==2.15.0
+python-dotenv==1.2.2
+pywebpush==2.4.0

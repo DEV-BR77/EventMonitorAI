@@ -14,6 +14,7 @@ from app.core.security import (
 from app.database.session import get_db
 from app.models.dashboard import User
 from app.schemas.dashboard import LoginRequest, TokenResponse, UserCreate, UserRead, UserUpdate
+from app.services.login_guard import clear_failures, record_failure, retry_after
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -34,9 +35,21 @@ def bootstrap(data: LoginRequest, db: DatabaseSession) -> TokenResponse:
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: DatabaseSession) -> TokenResponse:
+    wait = retry_after(data.username)
+    if wait:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Zu viele fehlgeschlagene Anmeldeversuche. Bitte später erneut versuchen.",
+            headers={"Retry-After": str(wait)},
+        )
     user = db.scalar(select(User).where(User.username == data.username))
     if user is None or not user.active or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        record_failure(data.username)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Benutzername oder Passwort ist ungültig",
+        )
+    clear_failures(data.username)
     return TokenResponse(access_token=create_token(user), role=user.role, username=user.username)
 
 

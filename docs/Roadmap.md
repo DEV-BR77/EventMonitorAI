@@ -197,8 +197,17 @@ Unterbrechung und Fortsetzung von den Überarbeitungen
 
 ## Phase 9 - Produktreife
 
-- [ ] Installationspakete und Upgrade-Strategie
-- [ ] automatisierte Backups und Aufbewahrungsregeln
-- [ ] Performance- und Langzeittests
-- [ ] Security- und Datenschutzreview
-- [ ] dokumentierte Release-Kriterien für v1.0
+- [x] Installationspakete und Upgrade-Strategie
+- [x] automatisierte Backups und Aufbewahrungsregeln
+- [x] Performance- und Langzeittests
+- [x] Security- und Datenschutzreview
+- [x] dokumentierte Release-Kriterien für v1.0
+
+    Abnahme am 9. August 2026: 92 automatisierte Tests, reproduzierbares
+    Release-Paket mit SHA-256-Prüfsumme, Docker-Neuinstallation, tägliches
+    PostgreSQL-/Clip-Backup mit Aufbewahrung sowie erfolgreiche
+    Wiederherstellung in einer isolierten Testdatenbank. Der öffentliche
+    Lasttest verarbeitete 6.776 Anfragen in 30 Sekunden ohne Fehler bei
+    100,10 ms p95. Sicherheitsheader, Zugriffsschutz, Login-Drosselung,
+    Datenschutzreview und verbindliche v1.0-Freigabekriterien sind
+    dokumentiert und automatisiert geprüft.

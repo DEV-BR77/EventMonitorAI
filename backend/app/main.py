@@ -63,6 +63,9 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    if request.url.path.startswith(("/auth", "/api", "/events", "/push")):
+        response.headers["Cache-Control"] = "no-store"
     if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
@@ -70,7 +73,16 @@ async def security_headers(request: Request, call_next):
 
 @app.websocket("/ws/events")
 async def event_stream(websocket: WebSocket, token: str) -> None:
-    decode_token(token)
+    try:
+        payload = decode_token(token)
+        with Session(engine) as db:
+            user = db.scalar(select(User).where(User.username == payload["sub"]))
+            if user is None or not user.active:
+                await websocket.close(code=4401)
+                return
+    except Exception:
+        await websocket.close(code=4401)
+        return
     await live_hub.connect(websocket)
     try:
         while True:
