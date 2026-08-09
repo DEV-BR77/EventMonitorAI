@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import io
 import sys
@@ -5,11 +6,12 @@ import wave
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from app.api.events import event_audio, list_events, training_examples
+from app.api.events import event_audio, import_historical_data, list_events, training_examples
 from app.core.config import settings
 from app.database.base import Base
 from app.models.dashboard import User
 from app.models.event import Event
+from app.schemas.event import HistoricalImportFile, HistoricalImportRequest
 from app.services.clips import associate_nearest_clip, normalized_utc, store_training_clip
 from app.services.taxonomy import seed_event_classes
 from sqlalchemy import create_engine
@@ -111,3 +113,36 @@ def test_audiolab_imports_verified_live_example_once(tmp_path: Path) -> None:
         "SELECT label,base_class_code,fine_class_code,assignment_status FROM segments"
     ).fetchone()
     assert tuple(row) == ("Fußball gegen Metall", "IMPACT", "BALL_METAL", "manual")
+
+
+def test_historical_wav_import_creates_playable_review_event(tmp_path: Path) -> None:
+    original_directory = settings.clip_directory
+    settings.clip_directory = str(tmp_path / "clips")
+    try:
+        engine = create_engine("sqlite://")
+        Base.metadata.create_all(engine)
+        with Session(engine) as db:
+            user = User(username="operator", password_hash="x", role="operator")
+            db.add(user)
+            db.commit()
+            result = import_historical_data(
+                HistoricalImportRequest(
+                    device_id="mic",
+                    files=[
+                        HistoricalImportFile(
+                            name="historisch.wav",
+                            content_base64=base64.b64encode(_wav()).decode(),
+                        )
+                    ],
+                ),
+                db,
+                user,
+            )
+
+            assert result.imported_events == 1
+            assert result.imported_audio == 1
+            imported = list_events(db, user, 10, None, None, None, None)[0]
+            assert imported.audio_available is True
+            assert imported.label_de == "Historische Audioaufnahme"
+    finally:
+        settings.clip_directory = original_directory

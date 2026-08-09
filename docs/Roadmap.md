@@ -136,6 +136,18 @@ So bekommst du früh ein brauchbares Lärmprotokoll, ohne dass wir dir falsche P
 - [x] Automatische und nächtliche Prüfläufe
 - [x] Unterbrechung und Fortsetzung mit persistentem Fortschritt
 - [x] Beurteilungszeiten, Zuschläge und Referenzwerte zentral umgesetzt und getestet
+- [x] Phase-8-Abnahme: deutsche Kategorien, Tagesfilter und navigierbarer Kalender mit
+      beschrifteten Aktivitäts- und Überschreitungswerten
+- [x] Phase-8-Abnahme: Wiedergabe und automatische Einzelauswahl in Übersicht,
+      Live-Ereignisstrom und Sammelprüfung; Filter „nur mit Aufnahme“
+- [x] Phase-8-Abnahme: serverseitiger Fünf-Sekunden-Audiopuffer als Rückfallebene für
+      Ereignisclips, unabhängig vom ESP-Ereignisschwellwert
+- [x] Phase-8-Abnahme: historischer WAV-, CSV- und ZIP-Import im geschützten Dashboard
+- [x] Phase-8-Abnahme: Personenprofile, bestätigte Zuordnung und Häufigkeitsdarstellung
+- [x] Phase-8-Abnahme: konfigurierbarer 6-dB-Zuschlag, Live-Bewertung standardmäßig ohne
+      Zuschlag, sowie Zeitstempel für Gerätestatus
+- [x] Phase-8-Abnahme: mobile Navigation und Bedienoberflächen ohne horizontales
+      Seitenscrolling bei 390 Pixeln Breite
 
 https://github.com/DEV-BR77/EventMonitorAI/tree/main/tools/audio-lab
 

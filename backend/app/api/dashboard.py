@@ -1,5 +1,5 @@
 from collections import Counter, defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,17 +9,22 @@ from sqlalchemy.orm import Session
 from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
+    AssessmentConfig,
     Device,
     DeviceCalibration,
     DeviceLevelSample,
     DeviceTelemetry,
     EventClass,
+    EventPersonAssignment,
     LiveAudioAccess,
     NotificationRule,
+    PersonProfile,
     User,
 )
 from app.models.event import Event
 from app.schemas.dashboard import (
+    AssessmentConfigRead,
+    AssessmentConfigWrite,
     CalibrationCapture,
     DeviceCalibrationRead,
     DeviceCreate,
@@ -32,17 +37,43 @@ from app.schemas.dashboard import (
     EventClassWrite,
     LiveAudioPermissionRead,
     LiveAudioPermissionUpdate,
+    PersonRead,
+    PersonWrite,
     RuleCreate,
     RuleRead,
     SoundMapPoint,
 )
 from app.services.calibration import calculate_recommended_offset
+from app.services.noise_assessment import assessment_for
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
 
 
-def _events_since(db: Session, days: int, device: str | None = None) -> list[Event]:
+def _assessment_config(db: Session) -> AssessmentConfig:
+    config = db.get(AssessmentConfig, 1)
+    if config is None:
+        config = AssessmentConfig(id=1)
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    return config
+
+
+def _events_since(
+    db: Session,
+    days: int,
+    device: str | None = None,
+    selected_date: date | None = None,
+) -> list[Event]:
+    if selected_date is not None:
+        prefix = selected_date.isoformat()
+        statement = (
+            select(Event).where(Event.timestamp.like(f"{prefix}%")).order_by(Event.timestamp)
+        )
+        if device:
+            statement = statement.where(Event.device == device)
+        return list(db.scalars(statement).all())
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     statement = select(Event).where(Event.timestamp >= cutoff).order_by(Event.timestamp)
     if device:
@@ -56,8 +87,9 @@ def statistics(
     _: CurrentUser,
     days: int = Query(default=30, ge=1, le=366),
     device: str | None = None,
+    date: date | None = None,
 ) -> dict[str, object]:
-    events = _events_since(db, days, device)
+    events = _events_since(db, days, device, date)
     categories = Counter(event.category for event in events)
     devices = Counter(event.device for event in events)
     return {
@@ -78,9 +110,10 @@ def heatmap(
     _: CurrentUser,
     days: int = Query(default=30, ge=1, le=366),
     device: str | None = None,
+    date: date | None = None,
 ) -> list[dict[str, object]]:
     cells: dict[tuple[int, int], int] = defaultdict(int)
-    for event in _events_since(db, days, device):
+    for event in _events_since(db, days, device, date):
         try:
             value = datetime.fromisoformat(event.timestamp.replace("Z", "+00:00"))
         except ValueError:
@@ -98,14 +131,96 @@ def calendar(
     _: CurrentUser,
     days: int = Query(default=30, ge=1, le=366),
     device: str | None = None,
+    date: date | None = None,
 ) -> list[dict[str, object]]:
     daily: dict[str, Counter[str]] = defaultdict(Counter)
-    for event in _events_since(db, days, device):
-        daily[event.timestamp[:10]][event.category] += 1
+    config = _assessment_config(db)
+    for event in _events_since(db, days, device, date):
+        values = daily[event.timestamp[:10]]
+        values[event.category] += 1
+        if assessment_for(
+            event.timestamp,
+            event.db_level,
+            config.sensitive_surcharge_db,
+            config.apply_to_live,
+        )["exceeded"]:
+            values["__exceeded__"] += 1
     return [
-        {"date": date, "total": sum(values.values()), "categories": values}
-        for date, values in sorted(daily.items())
+        {
+            "date": day,
+            "total": sum(value for key, value in values.items() if key != "__exceeded__"),
+            "exceeded": values["__exceeded__"],
+            "categories": {key: value for key, value in values.items() if key != "__exceeded__"},
+        }
+        for day, values in sorted(daily.items())
     ]
+
+
+@router.get("/assessment-config", response_model=AssessmentConfigRead)
+def get_assessment_config(db: DatabaseSession, _: CurrentUser) -> AssessmentConfig:
+    return _assessment_config(db)
+
+
+@router.put("/assessment-config", response_model=AssessmentConfigRead)
+def update_assessment_config(
+    data: AssessmentConfigWrite,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> AssessmentConfig:
+    config = _assessment_config(db)
+    config.sensitive_surcharge_db = data.sensitive_surcharge_db
+    config.apply_to_live = data.apply_to_live
+    config.updated_at = datetime.now(UTC).isoformat()
+    db.commit()
+    db.refresh(config)
+    return config
+
+
+@router.get("/people", response_model=list[PersonRead])
+def list_people(db: DatabaseSession, _: CurrentUser) -> list[PersonRead]:
+    people = list(db.scalars(select(PersonProfile).order_by(PersonProfile.name)))
+    assignments = list(db.scalars(select(EventPersonAssignment)))
+    events = {
+        event.id: event
+        for event in db.scalars(
+            select(Event).where(Event.id.in_({item.event_id for item in assignments}))
+        )
+    }
+    by_person: dict[int, list[Event]] = defaultdict(list)
+    for assignment in assignments:
+        if assignment.confirmed and assignment.event_id in events:
+            by_person[assignment.person_id].append(events[assignment.event_id])
+    return [
+        PersonRead(
+            id=person.id,
+            name=person.name,
+            active=person.active,
+            created_at=person.created_at,
+            updated_at=person.updated_at,
+            frequency=len(by_person[person.id]),
+            total_duration_seconds=round(
+                sum(event.duration_seconds for event in by_person[person.id]), 1
+            ),
+            categories=dict(Counter(event.category for event in by_person[person.id])),
+        )
+        for person in people
+    ]
+
+
+@router.post("/people", response_model=PersonRead, status_code=201)
+def create_person(
+    data: PersonWrite,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> PersonRead:
+    name = " ".join(data.name.split())
+    if db.scalar(select(PersonProfile).where(PersonProfile.name == name)):
+        raise HTTPException(status_code=409, detail="Personenname existiert bereits")
+    person = PersonProfile(name=name, active=data.active)
+    db.add(person)
+    db.commit()
+    db.refresh(person)
+    return PersonRead.model_validate(person, from_attributes=True)
 
 
 @router.get("/devices", response_model=list[DeviceRead])

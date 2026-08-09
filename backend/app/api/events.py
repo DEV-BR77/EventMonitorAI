@@ -1,4 +1,13 @@
+import base64
+import csv
+import hashlib
+import io
+import math
+import struct
+import wave
+import zipfile
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, Query, status
@@ -10,23 +19,32 @@ from app.core.config import settings
 from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
+    AssessmentConfig,
     AudioClip,
     Device,
     DeviceLevelSample,
     DeviceTelemetry,
     EventClass,
     EventClassificationRevision,
+    EventPersonAssignment,
+    PersonProfile,
     ReviewRun,
     User,
 )
 from app.models.event import Event
-from app.schemas.dashboard import DeviceTelemetryRead, DeviceTelemetryWrite
+from app.schemas.dashboard import (
+    DeviceTelemetryRead,
+    DeviceTelemetryWrite,
+    PersonAssignmentWrite,
+)
 from app.schemas.event import (
     BulkClassificationUpdate,
     EventClassificationRevisionRead,
     EventClassificationUpdate,
     EventCreate,
     EventRead,
+    HistoricalImportRequest,
+    HistoricalImportResult,
     ReviewQueueItem,
     ReviewRunCreate,
     ReviewRunRead,
@@ -164,7 +182,24 @@ async def create_event(
     db.commit()
     db.refresh(event)
     linked_clip = associate_nearest_clip(db, event)
-    event.audio_available = linked_clip is not None
+    if linked_clip is None:
+        snapshot = live_audio_hub.wav_snapshot(event.device)
+        if snapshot is not None:
+            try:
+                linked_clip = store_training_clip(
+                    db,
+                    snapshot,
+                    device_id=event.device,
+                    trigger_id=f"server-{event.id}",
+                    trigger_uptime_ms=0,
+                    received_at=event.timestamp,
+                )
+                if linked_clip.event_id is None:
+                    linked_clip.event_id = event.id
+                    db.commit()
+            except (OSError, ValueError):
+                linked_clip = None
+    event.audio_available = linked_clip is not None and linked_clip.event_id == event.id
     device = db.scalar(select(Device).where(Device.device_id == event.device))
     if device is None:
         db.add(Device(device_id=event.device, name=event.device, last_seen=event.timestamp))
@@ -300,6 +335,159 @@ def _assign_manual(
     event.corrected_at = now
 
 
+def _import_wav(db: Session, name: str, payload: bytes, device_id: str) -> bool:
+    digest = hashlib.sha256(payload).hexdigest()
+    if db.scalar(select(AudioClip).where(AudioClip.sha256 == digest)):
+        return False
+    try:
+        with wave.open(io.BytesIO(payload), "rb") as source:
+            channels = source.getnchannels()
+            sample_width = source.getsampwidth()
+            sample_rate = source.getframerate()
+            frame_count = source.getnframes()
+            frames = source.readframes(frame_count)
+    except (wave.Error, EOFError) as exc:
+        raise ValueError(f"{name}: ungültige WAV-Datei") from exc
+    if channels != 1 or sample_width != 2 or not frames:
+        raise ValueError(f"{name}: benötigt Mono-PCM mit 16 Bit")
+    samples = struct.unpack(f"<{len(frames) // 2}h", frames)
+    rms = math.sqrt(sum(sample * sample for sample in samples) / len(samples))
+    peak = max(abs(sample) for sample in samples)
+    average_db = round(max(0.0, 94 + 20 * math.log10(max(rms, 1) / 32768)), 1)
+    peak_db = round(max(average_db, 94 + 20 * math.log10(max(peak, 1) / 32768)), 1)
+    timestamp = datetime.now(UTC).isoformat()
+    duration = frame_count / sample_rate
+    event = Event(
+        timestamp=timestamp,
+        end_timestamp=(datetime.now(UTC) + timedelta(seconds=duration)).isoformat(),
+        duration_seconds=duration,
+        event_type="HISTORICAL_AUDIO",
+        label="Unknown historical audio",
+        label_de="Historische Audioaufnahme",
+        category="OTHER",
+        confidence=0.0,
+        db_level=peak_db,
+        avg_db_level=average_db,
+        device=device_id,
+        classification_status="automatic",
+    )
+    db.add(event)
+    db.flush()
+    target = Path(settings.clip_directory) / f"import-{digest}.wav"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(payload)
+    db.add(
+        AudioClip(
+            device_id=device_id,
+            trigger_id=f"import-{event.id}",
+            received_at=timestamp,
+            sha256=digest,
+            path=str(target),
+            frame_count=frame_count,
+            sample_rate=sample_rate,
+            event_id=event.id,
+        )
+    )
+    return True
+
+
+def _import_csv(db: Session, name: str, payload: bytes, default_device: str) -> int:
+    try:
+        rows = csv.DictReader(io.StringIO(payload.decode("utf-8-sig")))
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"{name}: CSV muss UTF-8-kodiert sein") from exc
+    imported = 0
+    for row in rows:
+        timestamp = row.get("timestamp") or row.get("Zeitstempel")
+        level = row.get("db_level") or row.get("dB") or row.get("pegel")
+        if not timestamp or not level:
+            continue
+        label = row.get("label") or row.get("Ereignis") or "Historischer Messwert"
+        label_de, category = translate_label(label, row.get("device") or default_device)
+        db.add(
+            Event(
+                timestamp=timestamp,
+                end_timestamp=timestamp,
+                duration_seconds=float(row.get("duration_seconds") or 0),
+                event_type="HISTORICAL_CSV",
+                label=label,
+                label_de=label_de,
+                category=category,
+                confidence=float(row.get("confidence") or 0),
+                db_level=float(level.replace(",", ".")),
+                avg_db_level=float(level.replace(",", ".")),
+                device=row.get("device") or default_device,
+                classification_status="automatic",
+            )
+        )
+        imported += 1
+    return imported
+
+
+@router.post("/review/import", response_model=HistoricalImportResult)
+def import_historical_data(
+    data: HistoricalImportRequest,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> HistoricalImportResult:
+    files: list[tuple[str, bytes]] = []
+    total_size = 0
+    for item in data.files:
+        try:
+            payload = base64.b64decode(item.content_base64, validate=True)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"{item.name}: ungültige Daten") from exc
+        total_size += len(payload)
+        if total_size > 50 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Import ist auf 50 MB begrenzt")
+        if item.name.lower().endswith(".zip"):
+            try:
+                with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                    for member in archive.infolist():
+                        suffix = Path(member.filename).suffix.lower()
+                        if not member.is_dir() and suffix in {".wav", ".csv"}:
+                            total_size += member.file_size
+                            if total_size > 50 * 1024 * 1024:
+                                raise HTTPException(
+                                    status_code=413,
+                                    detail="Entpackter Import ist auf 50 MB begrenzt",
+                                )
+                            files.append((Path(member.filename).name, archive.read(member)))
+            except zipfile.BadZipFile as exc:
+                raise HTTPException(status_code=422, detail=f"{item.name}: ungültiges ZIP") from exc
+        else:
+            files.append((Path(item.name).name, payload))
+    if len(files) > 100:
+        raise HTTPException(
+            status_code=413, detail="Import ist auf 100 enthaltene Dateien begrenzt"
+        )
+    imported_audio = imported_events = skipped = 0
+    messages: list[str] = []
+    for name, payload in files:
+        try:
+            if name.lower().endswith(".wav"):
+                created = _import_wav(db, name, payload, data.device_id)
+                imported_audio += int(created)
+                imported_events += int(created)
+                skipped += int(not created)
+            elif name.lower().endswith(".csv"):
+                count = _import_csv(db, name, payload, data.device_id)
+                imported_events += count
+                messages.append(f"{name}: {count} Messwerte")
+            else:
+                skipped += 1
+        except (ValueError, wave.Error) as exc:
+            skipped += 1
+            messages.append(str(exc))
+    db.commit()
+    return HistoricalImportResult(
+        imported_events=imported_events,
+        imported_audio=imported_audio,
+        skipped=skipped,
+        messages=messages,
+    )
+
+
 @router.get("/review/summary", response_model=ReviewSummary)
 def review_summary(db: DatabaseSession, _: CurrentUser) -> ReviewSummary:
     events = list(db.scalars(select(Event)))
@@ -341,7 +529,24 @@ def review_queue(
         statement = statement.where(
             (Event.primary_class_code == class_code) | (Event.subclass_code == class_code)
         )
-    return list(db.scalars(statement.order_by(desc(Event.id)).limit(limit)))
+    events = list(db.scalars(statement.order_by(desc(Event.id)).limit(limit)))
+    event_ids = {event.id for event in events}
+    audio_event_ids = (
+        set(db.scalars(select(AudioClip.event_id).where(AudioClip.event_id.in_(event_ids))).all())
+        if event_ids
+        else set()
+    )
+    for event in events:
+        event.audio_available = event.id in audio_event_ids
+    assignments = {
+        item.event_id: item.person_id
+        for item in db.scalars(
+            select(EventPersonAssignment).where(EventPersonAssignment.event_id.in_(event_ids))
+        )
+    }
+    for event in events:
+        event.person_id = assignments.get(event.id)
+    return events
 
 
 @router.post("/review/bulk-classification", response_model=list[EventRead])
@@ -436,7 +641,45 @@ def event_assessment(event_id: int, db: DatabaseSession, _: CurrentUser) -> dict
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
-    return assessment_for(event.timestamp, event.db_level)
+    config = db.get(AssessmentConfig, 1) or AssessmentConfig(id=1)
+    return assessment_for(
+        event.timestamp,
+        event.db_level,
+        config.sensitive_surcharge_db,
+        config.apply_to_live,
+    )
+
+
+@router.put("/{event_id}/person", status_code=204)
+def assign_event_person(
+    event_id: int,
+    data: PersonAssignmentWrite,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> None:
+    if db.get(Event, event_id) is None:
+        raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
+    assignment = db.scalar(
+        select(EventPersonAssignment).where(EventPersonAssignment.event_id == event_id)
+    )
+    if data.person_id is None:
+        if assignment:
+            db.delete(assignment)
+            db.commit()
+        return
+    person = db.get(PersonProfile, data.person_id)
+    if person is None or not person.active:
+        raise HTTPException(status_code=422, detail="Person nicht gefunden oder inaktiv")
+    if assignment is None:
+        assignment = EventPersonAssignment(event_id=event_id, person_id=person.id)
+        db.add(assignment)
+    else:
+        assignment.person_id = person.id
+        assignment.source = "manual"
+        assignment.confidence = 1.0
+        assignment.confirmed = True
+        assignment.assigned_at = datetime.now(UTC).isoformat()
+    db.commit()
 
 
 @router.patch("/{event_id}/classification", response_model=EventRead)

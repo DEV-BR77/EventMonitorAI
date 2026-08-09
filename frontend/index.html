@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.3.0-live-actions">
+  <link rel="stylesheet" href="/styles.css?v=0.3.0-acceptance">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -43,7 +43,7 @@
         <div><p class="eyebrow">AKUSTISCHE LAGE</p><h1 id="title">Übersicht</h1></div>
         <div class="filters">
           <select id="device-filter"><option value="">Alle Geräte</option></select>
-          <select id="days-filter"><option value="7">7 Tage</option><option value="30" selected>30 Tage</option><option value="90">90 Tage</option></select>
+          <select id="days-filter"><option value="today" selected>Heute</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option></select>
         </div>
       </header>
 
@@ -58,7 +58,7 @@
           <article class="panel span2"><div class="panel-head"><h2>Timeline</h2><span>tägliche Ereignisse</span></div><div id="timeline" class="timeline"></div></article>
           <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="categories"></div></article>
           <article class="panel span3"><div class="panel-head"><h2>Aktivitäts-Heatmap</h2><span>Wochentag × Stunde</span></div><div id="heatmap" class="heatmap"></div></article>
-          <article class="panel span3"><div class="panel-head"><h2>Kalender</h2></div><div id="calendar" class="calendar"></div></article>
+          <article class="panel span3"><div class="panel-head"><h2>Kalender</h2><div class="calendar-nav"><button id="calendar-prev" class="ghost" type="button" aria-label="Vorheriger Tag">←</button><input id="calendar-date" type="date"><button id="calendar-next" class="ghost" type="button" aria-label="Nächster Tag">→</button></div></div><div id="calendar" class="calendar"></div></article>
           <article class="panel span3"><div class="panel-head"><h2>Letzte 5 Ereignisse</h2><span>inklusive Zeugenreaktionen</span></div><div id="recent-events" class="recent-events"></div></article>
         </div>
       </section>
@@ -86,7 +86,7 @@
           <div id="level-chart" class="level-chart"></div>
           <div class="level-chart-footer"><div id="level-legend" class="level-legend"></div><span id="level-chart-status">5-Sekunden-Werte · Aktualisierung alle 5 Sekunden</span></div>
         </article>
-        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><span id="connection">Verbindung wird aufgebaut…</span></div>
+        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle Ereignisse</option><option value="clips">Nur mit Aufnahme</option></select></label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
           <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span><span>Wiedergabe und Zuordnung</span></div>
           <div id="events" class="events"></div>
         </article>
@@ -98,6 +98,7 @@
           <div class="audio-controls">
             <label>Mikrofon<select id="audio-device"></select></label>
             <label>Lautstärke<input id="audio-volume" type="range" min="0" max="2" value="1" step="0.05"></label>
+            <label class="noise-toggle"><input id="audio-noise-filter" type="checkbox" checked> Rauschen reduzieren</label>
             <button id="audio-toggle" type="button">Wiedergabe starten</button>
             <button id="audio-test" type="button" class="ghost">Testton</button>
             <span id="audio-status">Bereit</span>
@@ -107,6 +108,22 @@
       </section>
 
       <section id="review" class="view hidden">
+        <article class="panel import-panel">
+          <div class="panel-head"><h2>Historische Messungen importieren</h2><span>WAV, CSV oder ZIP · maximal 50 MB</span></div>
+          <form id="historical-import-form" class="import-form">
+            <label>Mikrofon<select id="import-device" required></select></label>
+            <label>Dateien<input id="import-files" type="file" accept=".wav,.csv,.zip,audio/wav,text/csv,application/zip" multiple required></label>
+            <button type="submit">Importieren und zur Analyse vormerken</button>
+          </form>
+          <p class="management-help">WAV-Dateien werden mit Pegelwert und Wiedergabe in die Sammelprüfung übernommen. CSV unterstützt die Spalten timestamp, db_level, label, confidence und device.</p>
+          <span id="import-status"></span>
+        </article>
+        <article class="panel people-panel">
+          <div class="panel-head"><h2>Personen und wiederkehrende Stimmereignisse</h2><span>Nur bestätigte Zuordnungen</span></div>
+          <form id="person-create-form" class="person-create"><label>Neue Person / Bezeichnung<input id="person-name" maxlength="100" placeholder="z. B. Person Garten Nord" required></label><button type="submit">Person anlegen</button></form>
+          <p class="management-help">Das System stellt keine Identität als Tatsache fest. Es gruppiert akustisch ähnliche Stimmereignisse; Namen und Treffer müssen manuell bestätigt werden.</p>
+          <div id="people-list"></div><span id="people-status"></span>
+        </article>
         <div class="metrics review-metrics">
           <article><span>Offen · unbekannt</span><strong id="r-open-unknown">–</strong></article>
           <article><span>Offen · KI erkannt</span><strong id="r-open-recognized">–</strong></article>
@@ -149,12 +166,6 @@
           <div id="device-management-list"></div>
           <span id="device-management-status"></span>
         </article>
-        <article id="audio-permissions" class="panel device-management hidden">
-          <div class="panel-head"><h2>Live-Sound-Freigaben</h2><span>Pro Benutzer und Mikrofon</span></div>
-          <p class="management-help">Ohne eine Freigabe bleibt die Live-Sound-Funktion für den Benutzer vollständig verborgen.</p>
-          <div id="audio-permission-list"></div>
-          <span id="audio-permission-status"></span>
-        </article>
         <form id="calibration-form" class="panel calibration-controls">
           <div><h2>Gemeinsame Pegelkalibrierung</h2><p>Alle Mikrofone derselben Referenzquelle aussetzen und den tatsächlichen Referenzpegel eintragen.</p></div>
           <label>Pegelbereich<select id="calibration-level"><option value="low">Leise</option><option value="medium">Mittel</option><option value="high">Laut</option></select></label>
@@ -189,6 +200,18 @@
       </section>
 
       <section id="administration" class="view hidden">
+        <form id="assessment-config-form" class="panel assessment-config">
+          <div class="panel-head"><h2>Beurteilungszuschlag</h2><span>Empfindliche Tageszeiten</span></div>
+          <p class="management-help">Der Zuschlag bleibt im Lärmprotokoll ausgewiesen. Hier wird festgelegt, ob er zusätzlich in die aktuelle Dashboard-Bewertung eingerechnet wird.</p>
+          <div class="config-row"><label>Zuschlag (dB)<input id="surcharge-db" type="number" min="0" max="20" step="0.5" value="6"></label><label class="active-toggle"><input id="surcharge-live" type="checkbox"> In aktueller/live Bewertung einrechnen</label><button type="submit">Einstellung speichern</button></div>
+          <span id="assessment-config-status"></span>
+        </form>
+        <article id="audio-permissions" class="panel device-management hidden">
+          <div class="panel-head"><h2>Benutzerrechte für Live-Sound</h2><span>Pro Benutzer und Mikrofon</span></div>
+          <p class="management-help">Administratoren verwalten alles. Operatoren dürfen Ereignisse zuordnen. Betrachter dürfen ausschließlich ansehen. Der Zugriff auf Live-Audio wird zusätzlich je Benutzer und Mikrofon freigegeben; ohne Freigabe ist die Funktion verborgen.</p>
+          <div id="audio-permission-list"></div>
+          <span id="audio-permission-status"></span>
+        </article>
         <div class="rules-layout">
           <form id="user-create-form" class="panel">
             <h2>Benutzer anlegen</h2>
@@ -215,6 +238,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-live-actions"></script>
+  <script src="/app.js?v=0.3.0-acceptance"></script>
 </body>
 </html>

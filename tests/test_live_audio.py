@@ -1,4 +1,6 @@
 import asyncio
+import io
+import wave
 from types import SimpleNamespace
 
 from app.api.dashboard import live_audio_devices, update_live_audio_permission
@@ -93,3 +95,15 @@ def test_live_audio_hub_sends_binary_pcm() -> None:
         return delivered, socket.payloads
 
     assert asyncio.run(exercise()) == (1, [b"pcm"])
+
+
+def test_live_audio_hub_keeps_five_second_wav_ring_buffer() -> None:
+    hub = LiveAudioHub()
+    asyncio.run(hub.broadcast("mic", b"\x01\x00" * 16_000 * 6))
+
+    snapshot = hub.wav_snapshot("mic")
+
+    assert snapshot is not None
+    with wave.open(io.BytesIO(snapshot), "rb") as audio:
+        assert audio.getframerate() == 16_000
+        assert audio.getnframes() == 16_000 * 5

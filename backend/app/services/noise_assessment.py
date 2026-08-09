@@ -29,7 +29,12 @@ def is_national_holiday(day: date) -> bool:
     return (day.month, day.day) in fixed or day in movable
 
 
-def assessment_for(timestamp: str, db_level: float) -> dict[str, object]:
+def assessment_for(
+    timestamp: str,
+    db_level: float,
+    sensitive_surcharge_db: float = 6.0,
+    apply_surcharge: bool = True,
+) -> dict[str, object]:
     instant = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     if instant.tzinfo is None:
         instant = instant.replace(tzinfo=BERLIN)
@@ -53,12 +58,14 @@ def assessment_for(timestamp: str, db_level: float) -> dict[str, object]:
         sensitive = local.weekday() < 5 and (
             time(6) <= clock < time(7) or time(20) <= clock < time(22)
         )
-    surcharge = 6.0 if sensitive else 0.0
-    assessed = round(db_level + surcharge, 1)
+    surcharge = sensitive_surcharge_db if sensitive else 0.0
+    applied_surcharge = surcharge if apply_surcharge else 0.0
+    assessed = round(db_level + applied_surcharge, 1)
     return {
         "period": period,
         "reference_db": reference,
         "surcharge_db": surcharge,
+        "surcharge_applied": apply_surcharge,
         "assessed_db": assessed,
         "exceeded": assessed > reference,
         "local_timestamp": local.isoformat(),

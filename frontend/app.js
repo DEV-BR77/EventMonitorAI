@@ -1,7 +1,9 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioElement: null, audioDestination: null, audioPackets: 0, clipAudio: null, clipUrl: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], role: null, reviewClass: "", reviewEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipAudio: null, clipUrl: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
+const selectedDate = () => days() === "today" ? new Date().toLocaleDateString("sv-SE") : "";
+const categoryNames = { DEVICE: "Geräuschquelle", VOCALIZATION: "Lautäußerung", VOICE: "Stimme", HUMAN_SOUND: "Menschliches Geräusch", HOUSEHOLD: "Haushalt", ANIMAL: "Tier", AMBIENT: "Umgebung", MUSIC: "Musik", VEHICLE: "Fahrzeug", IMPACT: "Schlag/Aufprall", OTHER: "Sonstiges" };
 
 async function api(path, options = {}) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
@@ -54,9 +56,10 @@ async function start() {
     $("#review-nav").classList.toggle("hidden", me.role === "viewer");
     $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
     $("#map-stage").classList.toggle("positioning", me.role === "admin");
+    if (!$("#calendar-date").value) $("#calendar-date").value = new Date().toLocaleDateString("sv-SE");
     await loadDevices();
     await loadEventClasses();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -76,7 +79,7 @@ async function loadTelemetry() {
     return `<div class="device-card">
       <div><i class="status-dot ${online && configured?.enabled !== false ? "online" : "offline"}"></i><strong>${escapeHtml(configured?.name || item.device_id)}</strong></div>
       <span>${configured?.enabled === false ? "Administrativ inaktiv" : online ? "Online" : `Seit ${ageSeconds} s ohne Signal`} · ${escapeHtml(configured?.location || item.device_id)}</span>
-      <dl><dt>Firmware</dt><dd>${escapeHtml(item.firmware_version || "Legacy")}</dd><dt>Quelle</dt><dd>${escapeHtml(item.source_ip)}</dd><dt>Aktueller Pegel</dt><dd>${item.db_level.toFixed(1)} dB</dd><dt>Pakete</dt><dd>${total.toLocaleString("de-DE")}</dd><dt>Verlust</dt><dd>${(item.loss_rate * 100).toFixed(3)} %</dd><dt>Samplerate</dt><dd>${item.sample_rate.toLocaleString("de-DE")} Hz</dd><dt>Peak</dt><dd>${item.peak}</dd></dl>
+      <dl><dt>Messwert von</dt><dd>${formatTime(item.last_seen)}</dd><dt>Alter</dt><dd>${ageSeconds} s</dd><dt>Firmware</dt><dd>${escapeHtml(item.firmware_version || "Legacy")}</dd><dt>Quelle</dt><dd>${escapeHtml(item.source_ip)}</dd><dt>Aktueller Pegel</dt><dd>${item.db_level.toFixed(1)} dB</dd><dt>Pakete</dt><dd>${total.toLocaleString("de-DE")}</dd><dt>Verlust</dt><dd>${(item.loss_rate * 100).toFixed(3)} %</dd><dt>Samplerate</dt><dd>${item.sample_rate.toLocaleString("de-DE")} Hz</dd><dt>Peak</dt><dd>${item.peak}</dd></dl>
     </div>`;
   }).join("") : "<p>Noch keine Telemetriedaten. Legacy-Firmware sendet weiterhin Audio, aber noch keinen Gerätestatus.</p>";
 }
@@ -94,6 +97,7 @@ async function loadDevices() {
   const options = state.devices.map((d) => `<option value="${escapeHtml(d.device_id)}">${escapeHtml(d.name)}</option>`).join("");
   $("#device-filter").innerHTML = `<option value="">Alle Geräte</option>${options}`;
   $("#rule-device").innerHTML = `<option value="*">Alle Geräte</option>${options}`;
+  $("#import-device").innerHTML = options;
   const currentMapDevice = $("#map-position-device").value;
   $("#map-position-device").innerHTML = state.devices.map((d) => `<option value="${escapeHtml(d.device_id)}" ${d.device_id === currentMapDevice ? "selected" : ""}>${escapeHtml(d.name)}${d.position_x == null || d.position_y == null ? " · noch nicht platziert" : ""}</option>`).join("");
   renderDeviceManagement();
@@ -119,7 +123,8 @@ async function loadLiveAudioDevices() {
 }
 
 async function loadSoundMap() {
-  state.soundMap = await api(`/api/sound-map?days=${days()}&threshold_db=55`);
+  const range = days() === "today" ? 1 : days();
+  state.soundMap = await api(`/api/sound-map?days=${range}&threshold_db=55`);
   renderSoundMap();
 }
 
@@ -164,7 +169,7 @@ function renderSoundMap() {
     </div>`).join("");
   const unpositioned = state.soundMap.filter((item) => item.position_x == null || item.position_y == null);
   $("#map-unpositioned").textContent = unpositioned.length ? `Noch ohne Kartenposition: ${unpositioned.map((item) => item.name).join(", ")}` : "";
-  $("#sound-map-period").textContent = `letzte ${days()} Tage · Überschreitung ab 55 dB`;
+  $("#sound-map-period").textContent = `${days() === "today" ? "heute" : `letzte ${days()} Tage`} · Überschreitung ab 55 dB`;
 }
 
 async function loadAudioPermissions() {
@@ -187,6 +192,21 @@ async function loadUsers() {
       <label>Neues Passwort<input name="password" type="password" minlength="10" placeholder="unverändert"></label>
       <button type="submit">Speichern</button>
     </form>`).join("");
+}
+
+async function loadAssessmentConfig() {
+  const config = await api("/api/assessment-config");
+  $("#surcharge-db").value = config.sensitive_surcharge_db;
+  $("#surcharge-live").checked = config.apply_to_live;
+}
+
+function fileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",", 2)[1]);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 async function loadEventClasses() {
@@ -212,28 +232,47 @@ async function initializeAudioOutput() {
   if (state.audioContext) return;
   state.audioContext = new AudioContextClass({ sampleRate: 16000 });
   state.audioGain = state.audioContext.createGain();
+  state.audioHighpass = state.audioContext.createBiquadFilter();
+  state.audioHighpass.type = "highpass";
+  state.audioHighpass.frequency.value = 120;
+  state.audioLowpass = state.audioContext.createBiquadFilter();
+  state.audioLowpass.type = "lowpass";
+  state.audioLowpass.frequency.value = 7200;
   state.audioGain.gain.value = Number($("#audio-volume").value);
+  updateAudioFilterChain();
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (mobile && state.audioContext.createMediaStreamDestination) {
     try {
       state.audioDestination = state.audioContext.createMediaStreamDestination();
-      state.audioGain.connect(state.audioDestination);
+      state.audioLowpass.connect(state.audioDestination);
       state.audioElement = new Audio();
       state.audioElement.autoplay = true;
       state.audioElement.playsInline = true;
       state.audioElement.srcObject = state.audioDestination.stream;
       await state.audioElement.play();
     } catch (_) {
-      state.audioGain.disconnect();
-      state.audioGain.connect(state.audioContext.destination);
+      state.audioLowpass.disconnect();
+      state.audioLowpass.connect(state.audioContext.destination);
       state.audioElement = null;
       state.audioDestination = null;
     }
   } else {
-    state.audioGain.connect(state.audioContext.destination);
+    state.audioLowpass.connect(state.audioContext.destination);
   }
   await state.audioContext.resume();
   if (state.audioContext.state !== "running") throw new Error("Audio wurde vom Browser blockiert. Bitte erneut tippen.");
+}
+
+function updateAudioFilterChain() {
+  if (!state.audioGain || !state.audioHighpass || !state.audioLowpass) return;
+  state.audioGain.disconnect();
+  state.audioHighpass.disconnect();
+  if ($("#audio-noise-filter").checked) {
+    state.audioGain.connect(state.audioHighpass);
+    state.audioHighpass.connect(state.audioLowpass);
+  } else {
+    state.audioGain.connect(state.audioLowpass);
+  }
 }
 
 async function startAudio() {
@@ -253,7 +292,10 @@ async function startAudio() {
     const sampleCount = Math.floor(data.byteLength / 2);
     const buffer = state.audioContext.createBuffer(1, sampleCount, 16000);
     const channel = buffer.getChannelData(0);
-    for (let index = 0; index < sampleCount; index++) channel[index] = data.getInt16(index * 2, true) / 32768;
+    for (let index = 0; index < sampleCount; index++) {
+      const sample = data.getInt16(index * 2, true) / 32768;
+      channel[index] = $("#audio-noise-filter").checked && Math.abs(sample) < 0.008 ? 0 : sample;
+    }
     const source = state.audioContext.createBufferSource();
     source.buffer = buffer;
     source.connect(state.audioGain);
@@ -279,6 +321,8 @@ function stopAudio(message = "Wiedergabe gestoppt") {
   state.audioContext?.close();
   state.audioContext = null;
   state.audioGain = null;
+  state.audioHighpass = null;
+  state.audioLowpass = null;
   state.audioElement = null;
   state.audioDestination = null;
   state.audioPackets = 0;
@@ -345,7 +389,8 @@ async function enablePush() {
 }
 
 async function refresh() {
-  const query = `days=${days()}${device() ? `&device=${encodeURIComponent(device())}` : ""}`;
+  const range = days() === "today" ? 1 : days();
+  const query = `days=${range}${selectedDate() ? `&date=${selectedDate()}` : ""}${device() ? `&device=${encodeURIComponent(device())}` : ""}`;
   const [stats, heatmap, calendar] = await Promise.all([
     api(`/api/statistics?${query}`), api(`/api/heatmap?${query}`), api(`/api/calendar?${query}`),
   ]);
@@ -363,7 +408,8 @@ function renderTimeline(data) {
   const countByDate = new Map(data.map((item) => [item.date, item.total]));
   const entries = [];
   const today = new Date();
-  for (let offset = Number(days()) - 1; offset >= 0; offset--) {
+  const dayCount = days() === "today" ? 1 : Number(days());
+  for (let offset = dayCount - 1; offset >= 0; offset--) {
     const date = new Date(today);
     date.setHours(12, 0, 0, 0);
     date.setDate(today.getDate() - offset);
@@ -425,7 +471,7 @@ function renderLiveLevels(points, minutes) {
 function renderCategories(categories, total) {
   const entries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
   $("#categories").innerHTML = entries.length ? entries.map(([name, count]) =>
-    `<div class="category"><span>${escapeHtml(name)}</span><strong>${count}</strong><div class="category-track"><div class="category-fill" style="width:${count / total * 100}%"></div></div></div>`
+    `<div class="category"><span>${escapeHtml(categoryNames[name] || name)}</span><strong>${count}</strong><div class="category-track"><div class="category-fill" style="width:${count / total * 100}%"></div></div></div>`
   ).join("") : "<span>Keine Daten</span>";
 }
 
@@ -446,9 +492,9 @@ function renderHeatmap(data) {
 }
 
 function renderCalendar(data) {
-  $("#calendar").innerHTML = data.length ? data.map((d) =>
-    `<div class="day">${new Date(`${d.date}T12:00:00`).toLocaleDateString("de-DE", { day: "2-digit", month: "short" })}<strong>${d.total}</strong></div>`
-  ).join("") : "<span>Keine Kalendereinträge</span>";
+  const chosen = $("#calendar-date").value;
+  const entry = data.find((item) => item.date === chosen) || data.at(-1);
+  $("#calendar").innerHTML = entry ? `<div class="day calendar-summary"><strong>${new Date(`${entry.date}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</strong><span><b>${entry.total}</b> Lärmaktivitäten gemessen</span><span class="calendar-exceeded"><b>${entry.exceeded || 0}</b> oberhalb des zulässigen Beurteilungspegels</span></div>` : `<div class="day calendar-summary"><strong>${new Date(`${chosen}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</strong><span>Keine Lärmaktivitäten gemessen</span><span class="calendar-exceeded">0 Überschreitungen</span></div>`;
 }
 
 async function loadRecentEvents() {
@@ -457,8 +503,9 @@ async function loadRecentEvents() {
     const witnesses = entry.witnesses.length ? entry.witnesses.map((item) => `<span class="witness ${item.response}">${escapeHtml(item.username)}: ${item.response === "confirmed" ? "bestätigt" : "abgelehnt"}</span>`).join("") : "<span class=\"witness pending\">Keine Zeugenreaktion</span>";
     const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
     const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
-    const correction = state.role === "viewer" ? "" : `<form class="classification-editor" data-event-id="${entry.event_id}"><select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><input name="reason" minlength="3" placeholder="Korrekturgrund" required><button type="submit">Zuordnung speichern</button></form>`;
-    return `<div class="recent-event"><time>${formatTime(entry.timestamp)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(entry.classification_status === "manual" ? `manuell durch ${entry.corrected_by}` : "automatisch")}</span><div>${witnesses}${correction}</div></div>`;
+    const play = state.role === "viewer" ? `<button type="button" class="ghost" disabled>Keine Audioberechtigung</button>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<button type="button" class="ghost" disabled>▶ Kein Clip</button>`;
+    const correction = state.role === "viewer" ? play : `<form class="classification-editor ${entry.classification_status === "manual" ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${entry.classification_status === "manual" ? "Korrigieren" : "Übernehmen"}</button></form>`;
+    return `<div class="recent-event ${entry.classification_status === "manual" ? "confirmed" : ""}"><time>${formatTime(entry.timestamp)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : "automatisch")}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
   document.querySelectorAll(".classification-editor").forEach((form) => populateSubclassOptions(form));
 }
@@ -468,16 +515,18 @@ function populateSubclassOptions(form) {
   const current = form.elements.subclass_code.dataset.current;
   const fine = state.eventClasses.filter((item) => item.active && item.level === "fine" && (item.parent_code == null || item.parent_code === primaryCode));
   form.elements.subclass_code.innerHTML = `<option value="">Keine Feinzuordnung</option>${fine.map((item) => `<option value="${escapeHtml(item.code)}" ${current === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
+  if (!current && fine.length === 1) form.elements.subclass_code.value = fine[0].code;
 }
 
 function reviewSubclassOptions() {
   const primary = $("#review-primary").value;
   const fine = state.eventClasses.filter((item) => item.active && item.level === "fine" && (item.parent_code == null || item.parent_code === primary));
   $("#review-subclass").innerHTML = `<option value="">Keine Feinzuordnung</option>${fine.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("")}`;
+  if (fine.length === 1) $("#review-subclass").value = fine[0].code;
 }
 
 async function loadReview() {
-  const [summary, runs] = await Promise.all([api("/events/review/summary"), api("/events/review/runs")]);
+  const [summary, runs] = await Promise.all([api("/events/review/summary"), api("/events/review/runs"), loadPeople()]);
   $("#r-open-unknown").textContent = summary.open_unknown;
   $("#r-open-recognized").textContent = summary.open_recognized;
   $("#r-done-unknown").textContent = summary.completed_unknown;
@@ -493,7 +542,8 @@ async function loadReview() {
   $("#review-runs").innerHTML = runs.length ? runs.map((run) => {
     const progress = run.total ? Math.round(run.processed / run.total * 100) : 0;
     const action = run.status === "running" || run.status === "pending" ? `<button data-run-pause="${run.id}">Unterbrechen</button>` : run.status === "paused" ? `<button data-run-resume="${run.id}">Fortsetzen</button>` : "";
-    return `<div class="review-run"><div><strong>${escapeHtml(run.kind)}</strong><br><small>${escapeHtml(run.status)} · ${run.changed} verbessert</small></div><div><span>${run.processed} / ${run.total}</span><div class="review-progress"><i style="width:${progress}%"></i></div></div>${action}</div>`;
+    const timing = run.finished_at ? `Beendet: ${formatTime(run.finished_at)}` : run.started_at ? `Gestartet: ${formatTime(run.started_at)}` : `Angelegt: ${formatTime(run.created_at)}`;
+    return `<div class="review-run"><div><strong>${escapeHtml(run.kind)}</strong><br><small>${escapeHtml(run.status)} · ${run.changed} verbessert<br>${timing}</small></div><div><span>${run.processed} / ${run.total}</span><div class="review-progress"><i style="width:${progress}%"></i></div></div>${action}</div>`;
   }).join("") : "<p>Noch kein Prüflauf vorhanden.</p>";
   await loadReviewQueue();
 }
@@ -502,8 +552,14 @@ async function loadReviewQueue() {
   const query = new URLSearchParams({ status: $("#review-status").value, limit: "500" });
   if (state.reviewClass) query.set("class_code", state.reviewClass);
   state.reviewEvents = await api(`/events/review/queue?${query}`);
-  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %</span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
+  const personOptions = `<option value="">Keine Person</option>${state.people.filter((person) => person.active).map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("")}`;
+  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}" ${event.audio_available ? "" : "disabled"}>${event.audio_available ? "▶ Anhören" : "Kein Clip"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select></span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
   updateReviewSelection();
+}
+
+async function loadPeople() {
+  state.people = await api("/api/people");
+  $("#people-list").innerHTML = state.people.length ? state.people.map((person) => `<div class="person-row"><strong>${escapeHtml(person.name)}</strong><span>${person.frequency} bestätigte Ereignisse · ${person.total_duration_seconds.toFixed(1)} s</span><small>${Object.entries(person.categories).map(([category, count]) => `${categoryNames[category] || category}: ${count}`).join(" · ") || "Noch keine Zuordnung"}</small></div>`).join("") : "<p>Noch keine Personenprofile angelegt oder erkannt.</p>";
 }
 
 function updateReviewSelection() {
@@ -514,13 +570,18 @@ function updateReviewSelection() {
 async function loadEvents() {
   const query = `${device() ? `?device=${encodeURIComponent(device())}&` : "?"}limit=1000`;
   const events = await api(`/events${query}`);
+  state.liveEvents = events;
+  renderEvents();
+}
+
+function renderEvents() {
   $("#events").innerHTML = "";
-  events.reverse().forEach(addEvent);
+  state.liveEvents.filter((event) => $("#clip-filter").value !== "clips" || event.audio_available).slice().reverse().forEach(addEvent);
 }
 
 function addEvent(event) {
   const row = document.createElement("div");
-  row.className = "event-row";
+  row.className = `event-row ${event.classification_status === "manual" ? "confirmed" : ""}`;
   row.dataset.eventId = event.id;
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
   const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${event.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
@@ -528,7 +589,7 @@ function addEvent(event) {
     ${event.audio_available ? `<button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>` : `<button type="button" class="ghost clip-unavailable" disabled>▶ Kein Clip</button>`}
     <select name="primary_class_code">${primaryOptions}</select>
     <select name="subclass_code" data-current="${escapeHtml(event.subclass_code || "")}"></select>
-    <button type="submit">Bestätigen</button>
+    <button type="submit">${event.classification_status === "manual" ? "Korrigieren" : "Übernehmen"}</button>
   </form>`;
   row.innerHTML = `<span>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>${actions}`;
   const classification = row.querySelector(".live-actions");
@@ -559,6 +620,37 @@ async function playEventClip(eventId, button) {
   button.textContent = "■ Stoppen";
 }
 
+async function saveClassification(form, reason) {
+  const button = form.querySelector("button[type=submit]");
+  const primary = form.elements.primary_class_code.value;
+  const subclass = form.elements.subclass_code.value || null;
+  if (!primary) return;
+  const fine = state.eventClasses.filter((item) => item.active && item.level === "fine" && (item.parent_code == null || item.parent_code === primary));
+  if (fine.length > 1 && !subclass) {
+    button.textContent = "Feinzuordnung wählen";
+    return;
+  }
+  try {
+    await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: primary, subclass_code: subclass, reason }) });
+    form.classList.add("confirmed");
+    form.closest(".event-row,.recent-event")?.classList.add("confirmed");
+    button.textContent = "Korrigieren";
+    await Promise.all([loadRecentEvents(), loadReview()]);
+  } catch (error) { button.textContent = error.message; }
+}
+
+async function shiftCalendar(daysToMove) {
+  const date = new Date(`${$("#calendar-date").value}T12:00:00`);
+  date.setDate(date.getDate() + daysToMove);
+  $("#calendar-date").value = date.toLocaleDateString("sv-SE");
+  await loadCalendarDate();
+}
+
+async function loadCalendarDate() {
+  const query = `days=1&date=${$("#calendar-date").value}${device() ? `&device=${encodeURIComponent(device())}` : ""}`;
+  renderCalendar(await api(`/api/calendar?${query}`));
+}
+
 function connectLive() {
   state.socket?.close();
   const scheme = location.protocol === "https:" ? "wss" : "ws";
@@ -585,6 +677,10 @@ $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 $("#days-filter").addEventListener("change", () => Promise.all([refresh(), loadSoundMap()]));
 $("#device-filter").addEventListener("change", () => Promise.all([refresh(), loadEvents(), loadLiveLevels()]));
+$("#calendar-prev").addEventListener("click", () => shiftCalendar(-1));
+$("#calendar-next").addEventListener("click", () => shiftCalendar(1));
+$("#calendar-date").addEventListener("change", loadCalendarDate);
+$("#clip-filter").addEventListener("change", renderEvents);
 $("#level-minutes").addEventListener("change", loadLiveLevels);
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("active", n === button));
@@ -592,16 +688,21 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
   $(`#${button.dataset.view}`).classList.remove("hidden");
   $("#title").textContent = button.textContent.trim();
   if (button.dataset.view === "live") loadLiveLevels().catch(() => {});
+  if (button.dataset.view === "sound-map") requestAnimationFrame(renderSoundMap);
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
 $("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
 $("#audio-volume").addEventListener("input", () => { if (state.audioGain) state.audioGain.gain.value = Number($("#audio-volume").value); });
+$("#audio-noise-filter").addEventListener("change", updateAudioFilterChain);
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
 $("#events").addEventListener("change", (e) => {
   const form = e.target.closest(".live-actions");
   if (form && e.target.name === "primary_class_code") {
     form.elements.subclass_code.dataset.current = "";
     populateSubclassOptions(form);
+    if (form.elements.subclass_code.options.length === 2) saveClassification(form, "Im Live-Ereignisstrom automatisch übernommen");
+  } else if (form && e.target.name === "subclass_code" && e.target.value) {
+    saveClassification(form, "Im Live-Ereignisstrom automatisch übernommen");
   }
 });
 $("#events").addEventListener("click", async (e) => {
@@ -615,12 +716,7 @@ $("#events").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.target.closest(".live-actions");
   if (!form) return;
-  const submit = form.querySelector("button[type=submit]");
-  try {
-    await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: form.elements.primary_class_code.value, subclass_code: form.elements.subclass_code.value || null, reason: "Im Live-Ereignisstrom bestätigt" }) });
-    submit.textContent = "Bestätigt ✓";
-    await Promise.all([loadRecentEvents(), loadReview()]);
-  } catch (error) { submit.textContent = error.message; }
+  await saveClassification(form, "Im Live-Ereignisstrom bestätigt oder korrigiert");
 });
 $("#map-stage").addEventListener("click", async (e) => {
   if (state.role !== "admin") return;
@@ -652,6 +748,15 @@ $("#review-classes").addEventListener("click", async (e) => {
 $("#review-status").addEventListener("change", loadReviewQueue);
 $("#review-primary").addEventListener("change", reviewSubclassOptions);
 $("#review-events").addEventListener("change", updateReviewSelection);
+$("#review-events").addEventListener("change", async (e) => {
+  const select = e.target.closest("[data-person-event]");
+  if (!select) return;
+  try {
+    await api(`/events/${select.dataset.personEvent}/person`, { method: "PUT", body: JSON.stringify({ person_id: select.value ? Number(select.value) : null }) });
+    $("#people-status").textContent = "Personenzuordnung gespeichert.";
+    await loadPeople();
+  } catch (error) { $("#people-status").textContent = error.message; }
+});
 $("#review-select-all").addEventListener("click", () => {
   document.querySelectorAll("#review-events input").forEach((item) => { item.checked = true; });
   updateReviewSelection();
@@ -669,6 +774,29 @@ $("#review-bulk-form").addEventListener("submit", async (e) => {
 $("#review-run").addEventListener("click", async () => {
   try { await api("/events/review/runs", { method: "POST", body: JSON.stringify({ kind: "automatic" }) }); await loadReview(); }
   catch (error) { $("#review-status-text").textContent = error.message; }
+});
+$("#historical-import-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const files = Array.from($("#import-files").files || []);
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (!files.length || total > 50 * 1024 * 1024) { $("#import-status").textContent = "Bitte 1–20 Dateien mit insgesamt höchstens 50 MB auswählen."; return; }
+  $("#import-status").textContent = "Dateien werden eingelesen …";
+  try {
+    const payload = await Promise.all(files.map(async (file) => ({ name: file.name, content_base64: await fileAsBase64(file) })));
+    const result = await api("/events/review/import", { method: "POST", body: JSON.stringify({ device_id: $("#import-device").value, files: payload }) });
+    $("#import-status").textContent = `${result.imported_events} Ereignisse importiert, davon ${result.imported_audio} mit Wiedergabe; ${result.skipped} übersprungen.${result.messages.length ? ` ${result.messages.join(" · ")}` : ""}`;
+    e.target.reset();
+    await Promise.all([loadReview(), loadEvents(), loadRecentEvents(), refresh()]);
+  } catch (error) { $("#import-status").textContent = error.message; }
+});
+$("#person-create-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/people", { method: "POST", body: JSON.stringify({ name: $("#person-name").value, active: true }) });
+    e.target.reset();
+    $("#people-status").textContent = "Personenprofil angelegt.";
+    await loadReview();
+  } catch (error) { $("#people-status").textContent = error.message; }
 });
 $("#review-runs").addEventListener("click", async (e) => {
   const pause = e.target.dataset.runPause;
@@ -696,6 +824,14 @@ $("#user-create-form").addEventListener("submit", async (e) => {
     $("#user-create-status").textContent = "Benutzer angelegt.";
     await Promise.all([loadUsers(), loadAudioPermissions()]);
   } catch (error) { $("#user-create-status").textContent = error.message; }
+});
+$("#assessment-config-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    await api("/api/assessment-config", { method: "PUT", body: JSON.stringify({ sensitive_surcharge_db: Number($("#surcharge-db").value), apply_to_live: $("#surcharge-live").checked }) });
+    $("#assessment-config-status").textContent = "Beurteilungseinstellung gespeichert.";
+    await refresh();
+  } catch (error) { $("#assessment-config-status").textContent = error.message; }
 });
 $("#user-list").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -731,16 +867,27 @@ $("#recent-events").addEventListener("change", (e) => {
   if (form && e.target.name === "primary_class_code") {
     form.elements.subclass_code.dataset.current = "";
     populateSubclassOptions(form);
+    if (form.elements.subclass_code.options.length === 2) saveClassification(form, "In der Übersicht automatisch übernommen");
+  } else if (form && e.target.name === "subclass_code" && e.target.value) {
+    saveClassification(form, "In der Übersicht automatisch übernommen");
   }
+});
+$("#recent-events").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-play-event]");
+  if (!button) return;
+  try { await playEventClip(button.dataset.playEvent, button); } catch (error) { button.textContent = error.message; }
+});
+$("#review-events").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-play-event]");
+  if (!button) return;
+  e.preventDefault();
+  try { await playEventClip(button.dataset.playEvent, button); } catch (error) { button.textContent = error.message; }
 });
 $("#recent-events").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.target.closest(".classification-editor");
   if (!form) return;
-  try {
-    await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: form.elements.primary_class_code.value, subclass_code: form.elements.subclass_code.value || null, reason: form.elements.reason.value }) });
-    await Promise.all([loadRecentEvents(), loadEvents()]);
-  } catch (error) { form.elements.reason.setCustomValidity(error.message); form.reportValidity(); }
+  await saveClassification(form, "In der Übersicht bestätigt oder korrigiert");
 });
 $("#rule-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -787,6 +934,7 @@ $("#device-management-list").addEventListener("submit", async (e) => {
 function formatTime(value) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("de-DE"); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }
 if (state.token) start();
+window.addEventListener("resize", () => requestAnimationFrame(renderSoundMap));
 setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
 setInterval(() => { if (state.token) loadLiveLevels().catch(() => {}); }, 5000);
 window.addEventListener("resize", () => { if (state.token) renderSoundMap(); });

@@ -180,6 +180,40 @@ class ReviewRun(Base):
     message: Mapped[str] = mapped_column(String(500), default="")
 
 
+class AssessmentConfig(Base):
+    __tablename__ = "assessment_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    sensitive_surcharge_db: Mapped[float] = mapped_column(Float, default=6.0)
+    apply_to_live: Mapped[bool] = mapped_column(Boolean, default=False)
+    updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class PersonProfile(Base):
+    __tablename__ = "person_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class EventPersonAssignment(Base):
+    __tablename__ = "event_person_assignments"
+    __table_args__ = (UniqueConstraint("event_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("person_profiles.id", ondelete="CASCADE"), index=True
+    )
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confirmed: Mapped[bool] = mapped_column(Boolean, default=True)
+    assigned_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
 class NotificationRule(Base):
     __tablename__ = "notification_rules"
 

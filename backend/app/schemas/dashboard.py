@@ -137,6 +137,7 @@ class NoiseLogEntry(BaseModel):
     classification_status: str
     corrected_by: str | None
     db_level: float
+    audio_available: bool = False
     witnesses: list[WitnessResponseRead]
 
 
@@ -200,3 +201,30 @@ class RuleRead(RuleCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
     last_triggered_at: str | None
+
+
+class AssessmentConfigWrite(BaseModel):
+    sensitive_surcharge_db: float = Field(default=6.0, ge=0, le=20)
+    apply_to_live: bool = False
+
+
+class AssessmentConfigRead(AssessmentConfigWrite):
+    updated_at: str
+
+
+class PersonWrite(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    active: bool = True
+
+
+class PersonRead(PersonWrite):
+    id: int
+    created_at: str
+    updated_at: str
+    frequency: int = 0
+    total_duration_seconds: float = 0
+    categories: dict[str, int] = Field(default_factory=dict)
+
+
+class PersonAssignmentWrite(BaseModel):
+    person_id: int | None = None

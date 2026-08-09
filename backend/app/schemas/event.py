@@ -72,6 +72,8 @@ class ReviewQueueItem(BaseModel):
     primary_class_code: str | None
     subclass_code: str | None
     classification_status: str
+    audio_available: bool = False
+    person_id: int | None = None
 
 
 class ReviewSummary(BaseModel):
@@ -104,3 +106,20 @@ class ReviewRunRead(BaseModel):
     started_at: str | None
     finished_at: str | None
     message: str
+
+
+class HistoricalImportFile(BaseModel):
+    name: str = Field(min_length=1, max_length=240)
+    content_base64: str
+
+
+class HistoricalImportRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=120)
+    files: list[HistoricalImportFile] = Field(min_length=1, max_length=20)
+
+
+class HistoricalImportResult(BaseModel):
+    imported_events: int
+    imported_audio: int
+    skipped: int
+    messages: list[str]
