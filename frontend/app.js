@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const selectedDate = () => days() === "today" ? new Date().toLocaleDateString("sv-SE") : "";
@@ -241,10 +241,10 @@ async function initializeAudioOutput() {
   state.audioGain = state.audioContext.createGain();
   state.audioHighpass = state.audioContext.createBiquadFilter();
   state.audioHighpass.type = "highpass";
-  state.audioHighpass.frequency.value = 120;
+  state.audioHighpass.frequency.value = 80;
   state.audioLowpass = state.audioContext.createBiquadFilter();
   state.audioLowpass.type = "lowpass";
-  state.audioLowpass.frequency.value = 7200;
+  state.audioLowpass.frequency.value = 6500;
   state.audioGain.gain.value = Number($("#audio-volume").value);
   updateAudioFilterChain();
   const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -300,8 +300,7 @@ async function startAudio() {
     const buffer = state.audioContext.createBuffer(1, sampleCount, 16000);
     const channel = buffer.getChannelData(0);
     for (let index = 0; index < sampleCount; index++) {
-      const sample = data.getInt16(index * 2, true) / 32768;
-      channel[index] = $("#audio-noise-filter").checked && Math.abs(sample) < 0.008 ? 0 : sample;
+      channel[index] = data.getInt16(index * 2, true) / 32768;
     }
     const source = state.audioContext.createBufferSource();
     source.buffer = buffer;
@@ -611,10 +610,16 @@ function stopEventClip() {
     try { state.clipSource.stop(); } catch (_) { /* already stopped */ }
   }
   state.clipContext?.close().catch(() => {});
+  if (state.clipAudioElement) {
+    state.clipAudioElement.pause();
+    state.clipAudioElement.srcObject = null;
+  }
   if (state.clipButton) state.clipButton.textContent = "▶ Anhören";
   state.clipSource = null;
   state.clipContext = null;
   state.clipButton = null;
+  state.clipAudioElement = null;
+  state.clipAudioDestination = null;
 }
 
 function decodePcmWav(payload, context) {
@@ -637,27 +642,20 @@ function decodePcmWav(payload, context) {
   return buffer;
 }
 
-function connectStoredAudio(source, context, audioBuffer) {
-  const noiseReduction = $("#clip-noise-filter")?.checked !== false;
-  if (!noiseReduction) {
-    source.connect(context.destination);
+function connectStoredAudio(source, context, destination) {
+  if (!state.clipNoiseReduction) {
+    source.connect(destination);
     return;
-  }
-  for (let channelIndex = 0; channelIndex < audioBuffer.numberOfChannels; channelIndex++) {
-    const channel = audioBuffer.getChannelData(channelIndex);
-    for (let sampleIndex = 0; sampleIndex < channel.length; sampleIndex++) {
-      if (Math.abs(channel[sampleIndex]) < 0.008) channel[sampleIndex] = 0;
-    }
   }
   const highpass = context.createBiquadFilter();
   highpass.type = "highpass";
-  highpass.frequency.value = 120;
+  highpass.frequency.value = 80;
   const lowpass = context.createBiquadFilter();
   lowpass.type = "lowpass";
-  lowpass.frequency.value = 7200;
+  lowpass.frequency.value = 6500;
   source.connect(highpass);
   highpass.connect(lowpass);
-  lowpass.connect(context.destination);
+  lowpass.connect(destination);
 }
 
 async function playEventClip(eventId, button) {
@@ -670,6 +668,23 @@ async function playEventClip(eventId, button) {
   state.clipContext = context;
   state.clipButton = button;
   await context.resume();
+  let destination = context.destination;
+  const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (mobile && context.createMediaStreamDestination) {
+    const streamDestination = context.createMediaStreamDestination();
+    const audioElement = new Audio();
+    audioElement.autoplay = true;
+    audioElement.playsInline = true;
+    audioElement.srcObject = streamDestination.stream;
+    try {
+      await audioElement.play();
+      state.clipAudioDestination = streamDestination;
+      state.clipAudioElement = audioElement;
+      destination = streamDestination;
+    } catch (_) {
+      audioElement.srcObject = null;
+    }
+  }
   const response = await fetch(`/events/${eventId}/audio`, { headers: { Authorization: `Bearer ${state.token}` } });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
@@ -681,9 +696,10 @@ async function playEventClip(eventId, button) {
   catch (_) { audioBuffer = decodePcmWav(payload, context); }
   const source = context.createBufferSource();
   source.buffer = audioBuffer;
-  connectStoredAudio(source, context, audioBuffer);
+  connectStoredAudio(source, context, destination);
   source.onended = () => { if (state.clipSource === source) stopEventClip(); };
   state.clipSource = source;
+  if (context.state !== "running") await context.resume();
   source.start();
   button.textContent = "■ Stoppen";
 }
@@ -779,11 +795,14 @@ $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio
 $("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
 $("#audio-volume").addEventListener("input", () => { if (state.audioGain) state.audioGain.gain.value = Number($("#audio-volume").value); });
 $("#audio-noise-filter").addEventListener("change", updateAudioFilterChain);
-const storedClipNoiseFilter = localStorage.getItem("em_clip_noise_filter");
-if (storedClipNoiseFilter !== null) $("#clip-noise-filter").checked = storedClipNoiseFilter === "true";
-$("#clip-noise-filter").addEventListener("change", (event) => {
-  localStorage.setItem("em_clip_noise_filter", String(event.target.checked));
-});
+for (const checkbox of document.querySelectorAll("[data-clip-noise-filter]")) {
+  checkbox.checked = state.clipNoiseReduction;
+  checkbox.addEventListener("change", (event) => {
+    state.clipNoiseReduction = event.target.checked;
+    localStorage.setItem("em_clip_noise_filter", String(state.clipNoiseReduction));
+    document.querySelectorAll("[data-clip-noise-filter]").forEach((item) => { item.checked = state.clipNoiseReduction; });
+  });
+}
 $("#audio-device").addEventListener("change", () => stopAudio("Mikrofon ausgewählt – bereit"));
 $("#events").addEventListener("change", (e) => {
   const form = e.target.closest(".live-actions");

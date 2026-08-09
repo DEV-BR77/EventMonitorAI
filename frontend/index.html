@@ -86,7 +86,7 @@
           <div id="level-chart" class="level-chart"></div>
           <div class="level-chart-footer"><div id="level-legend" class="level-legend"></div><span id="level-chart-status">5-Sekunden-Werte · Aktualisierung alle 5 Sekunden</span></div>
         </article>
-        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle Ereignisse</option><option value="clips">Nur mit Aufnahme</option></select></label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
+        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle Ereignisse</option><option value="clips">Nur mit Aufnahme</option></select></label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
           <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span><span>Wiedergabe und Zuordnung</span></div>
           <div id="events" class="events"></div>
         </article>
@@ -140,7 +140,7 @@
           <div class="review-toolbar">
             <select id="review-status"><option value="open">Offen</option><option value="completed">Erledigt</option><option value="all">Alle</option></select>
             <button id="review-select-all" type="button" class="ghost">Alle sichtbaren wählen</button>
-            <label class="noise-toggle"><input id="clip-noise-filter" type="checkbox" checked> Rauschen beim Anhören reduzieren</label>
+            <label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label>
             <span id="review-selection">0 ausgewählt</span>
           </div>
           <p class="management-help">Die Rauschunterdrückung wirkt nur auf die Wiedergabe. Originalaufnahme, Messwert und Trainingsdatei bleiben unverändert.</p>
@@ -262,6 +262,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.3.0-calibration-csv-format"></script>
+  <script src="/app.js?v=0.3.0-mobile-audio-filter"></script>
 </body>
 </html>
