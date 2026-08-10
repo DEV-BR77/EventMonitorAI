@@ -3,7 +3,7 @@ function loadListenedEvents() {
   try { return new Set(JSON.parse(localStorage.getItem("em_listened_events") || "[]").map(String)); }
   catch (_) { return new Set(); }
 }
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], speakerClusters: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents() };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents() };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const localDate = (value) => value.toLocaleDateString("sv-SE");
@@ -458,6 +458,13 @@ async function refresh() {
   renderCalendar(calendar);
 }
 
+function mediaMime(file, kind) {
+  if (file.type) return file.type;
+  const suffix = file.name.toLowerCase().split(".").pop();
+  const types = kind === "video" ? { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" } : { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
+  return types[suffix] || "application/octet-stream";
+}
+
 function renderRanked(target, values, translate = false) {
   const entries = Object.entries(values || {});
   const maximum = Math.max(1, ...entries.map(([, count]) => count));
@@ -651,14 +658,57 @@ async function loadReviewQueue() {
 }
 
 async function loadPeople() {
+  state.personMediaUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.personMediaUrls = [];
   state.people = await api("/api/people");
-  $("#people-list").innerHTML = state.people.length ? state.people.map((person) => `<div class="person-row"><strong>${escapeHtml(person.name)}</strong><span>${person.frequency} bestätigte Ereignisse · ${person.total_duration_seconds.toFixed(1)} s</span><small>${Object.entries(person.categories).map(([category, count]) => `${categoryNames[category] || category}: ${count}`).join(" · ") || "Noch keine Zuordnung"}</small></div>`).join("") : "<p>Noch keine Personenprofile angelegt oder erkannt.</p>";
+  $("#people-list").innerHTML = state.people.length ? state.people.map((person) => `<article class="person-card" data-person-id="${person.id}"><div class="person-photo">${person.photo_available ? `<img data-person-photo="${person.id}" alt="Profilbild von ${escapeHtml(person.name)}">` : `<span>Kein Bild</span>`}</div><div class="person-summary"><span>${person.frequency} bestätigte Ereignisse · ${person.total_duration_seconds.toFixed(1)} s</span><small>${Object.entries(person.categories).map(([category, count]) => `${categoryNames[category] || category}: ${count}`).join(" · ") || "Noch keine Zuordnung"}</small><small>${person.video_voice_similarity == null ? "Noch kein Videostimmen-Vergleich" : `Videostimme ↔ ${escapeHtml(person.video_voice_cluster_name || "Stimmgruppe")}: ${Math.round(person.video_voice_similarity * 100)} % Ähnlichkeit`}</small></div><form class="person-editor"><label>Name<input name="name" value="${escapeHtml(person.name)}" maxlength="100" required></label><label class="active-toggle"><input name="active" type="checkbox" ${person.active ? "checked" : ""}> Profil aktiv</label><label class="active-toggle"><input name="monitoring_enabled" type="checkbox" ${person.monitoring_enabled ? "checked" : ""}> In Lärmüberwachung einbeziehen</label><button type="submit">Profil speichern</button></form><form class="person-photo-upload"><label>Profilbild aktualisieren<input name="photo" type="file" accept="image/jpeg,image/png" required></label><button type="submit">Bild speichern</button></form><form class="person-video-upload"><label>Kurzes Prüfvideo<input name="video" type="file" accept="video/mp4,video/quicktime,video/webm" required></label><button type="submit">Video importieren</button></form>${person.video_available ? `<button type="button" class="ghost" data-open-person-video="${person.id}">Video und Stimmprobe prüfen</button>` : ""}<div class="person-video-review hidden"><video controls playsinline preload="metadata"></video><audio controls preload="none" class="hidden"></audio><div><button type="button" data-capture-person-photo="${person.id}">Aktuellen Videoframe als Bild übernehmen</button></div></div><span class="person-media-status"></span></article>`).join("") : "<p>Noch keine Personenprofile angelegt oder erkannt.</p>";
+  await Promise.all(state.people.filter((person) => person.photo_available).map(async (person) => {
+    const image = document.querySelector(`[data-person-photo="${person.id}"]`);
+    if (image) image.src = await authorizedMediaUrl(`/api/people/${person.id}/media/photo`).catch(() => "");
+  }));
+}
+
+async function authorizedMediaUrl(path) {
+  const response = await fetch(path, { headers: { Authorization: `Bearer ${state.token}` } });
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`);
+  const url = URL.createObjectURL(await response.blob());
+  state.personMediaUrls.push(url);
+  return url;
 }
 
 async function loadSpeakerClusters() {
   state.speakerClusters = await api("/api/speaker-clusters");
   const people = `<option value="">Noch keiner bekannten Person zugeordnet</option>${state.people.filter((item) => item.active).map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`;
-  $("#speaker-clusters").innerHTML = state.speakerClusters.length ? state.speakerClusters.map((cluster) => `<form class="speaker-cluster" data-cluster-id="${cluster.id}"><div><strong>${escapeHtml(cluster.name)}</strong><small>${cluster.sample_count} Aufnahmen · Ø ${Math.round(cluster.average_similarity * 100)} % Ähnlichkeit<br>${cluster.first_seen ? `${formatTime(cluster.first_seen)} bis ${formatTime(cluster.last_seen)}` : "Keine Aufnahme"}</small></div><label>Bezeichnung<input name="name" value="${escapeHtml(cluster.name)}" maxlength="100" required></label><label>Bekannte Person<select name="person_id">${people.replace(`value="${cluster.person_id || ""}"`, `value="${cluster.person_id || ""}" selected`)}</select></label><button type="submit">Speichern</button></form>`).join("") : "<p>Noch keine automatische Stimmgruppierung ausgeführt.</p>";
+  $("#speaker-clusters").innerHTML = state.speakerClusters.length ? state.speakerClusters.map((cluster) => `<form class="speaker-cluster" data-cluster-id="${cluster.id}"><div><strong>${escapeHtml(cluster.name)}</strong><small>${cluster.sample_count} Aufnahmen · Ø ${Math.round(cluster.average_similarity * 100)} % Ähnlichkeit<br>${cluster.pending_count} ungeprüft · ${cluster.confirmed_count} bestätigt · ${cluster.rejected_count} ausgeschlossen<br>${cluster.first_seen ? `${formatTime(cluster.first_seen)} bis ${formatTime(cluster.last_seen)}` : "Keine Aufnahme"}</small></div><label>Bezeichnung<input name="name" value="${escapeHtml(cluster.name)}" maxlength="100" required></label><label>Bekannte Person<select name="person_id">${people.replace(`value="${cluster.person_id || ""}"`, `value="${cluster.person_id || ""}" selected`)}</select></label><div class="speaker-cluster-actions"><button type="button" data-review-speaker="${cluster.id}">Aufnahmen prüfen</button><button type="submit">Speichern</button></div></form>`).join("") : "<p>Noch keine automatische Stimmgruppierung ausgeführt.</p>";
+  if (state.speakerClusterId && !state.speakerClusters.some((item) => item.id === state.speakerClusterId)) closeSpeakerReview();
+}
+
+function speakerStatusName(status) {
+  return { pending: "Ungeprüft", confirmed: "Bestätigt", rejected: "Nicht passend", no_voice: "Keine Stimme" }[status] || status;
+}
+
+function closeSpeakerReview() {
+  state.speakerClusterId = null;
+  state.speakerSampleOffset = 0;
+  $("#speaker-review").classList.add("hidden");
+  $("#speaker-samples").innerHTML = "";
+}
+
+async function loadSpeakerSamples(append = false) {
+  if (!state.speakerClusterId) return;
+  if (!append) state.speakerSampleOffset = 0;
+  const query = new URLSearchParams({ review_status: $("#speaker-review-filter").value, limit: "50", offset: String(state.speakerSampleOffset) });
+  const result = await api(`/api/speaker-clusters/${state.speakerClusterId}/samples?${query}`);
+  state.speakerSampleTotal = result.total;
+  const targetOptions = state.speakerClusters.filter((item) => item.id !== state.speakerClusterId).map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("");
+  const rows = result.items.map((sample) => `<article class="speaker-sample ${sample.review_status}" data-speaker-event="${sample.event_id}"><div><strong>${escapeHtml(sample.label)}</strong><small>${formatTime(sample.timestamp)} · ${escapeHtml(sample.device)} · ${sample.db_level.toFixed(1)} dB · ${Math.round(sample.similarity * 100)} % ähnlich</small><span>${speakerStatusName(sample.review_status)}${sample.reviewed_by ? ` · ${escapeHtml(sample.reviewed_by)}` : ""}</span></div><button type="button" class="ghost" data-play-event="${sample.event_id}" ${sample.audio_available ? "" : "disabled"}>${sample.audio_available ? "▶ Anhören" : "Kein Clip"}</button><div class="speaker-sample-actions"><button type="button" data-speaker-action="confirm">Bestätigen</button><button type="button" class="ghost" data-speaker-action="reject">Nicht passend</button><button type="button" class="ghost" data-speaker-action="no_voice">Keine Stimme</button><select aria-label="Andere Stimmgruppe">${targetOptions || '<option value="">Keine weitere Gruppe</option>'}</select><button type="button" class="ghost" data-speaker-action="move" ${targetOptions ? "" : "disabled"}>Verschieben</button><button type="button" class="ghost" data-speaker-action="new_cluster">Neue Gruppe</button></div></article>`).join("");
+  if (append) $("#speaker-samples").insertAdjacentHTML("beforeend", rows); else $("#speaker-samples").innerHTML = rows || "<p>Keine Aufnahmen mit diesem Prüfstatus.</p>";
+  state.speakerSampleOffset += result.items.length;
+  const cluster = state.speakerClusters.find((item) => item.id === state.speakerClusterId);
+  $("#speaker-review-title").textContent = `${cluster?.name || "Stimmgruppe"} prüfen`;
+  $("#speaker-review-count").textContent = `${Math.min(state.speakerSampleOffset, result.total)} von ${result.total}`;
+  $("#speaker-review-more").classList.toggle("hidden", state.speakerSampleOffset >= result.total);
+  $("#speaker-review").classList.remove("hidden");
 }
 
 function updateReviewSelection() {
@@ -1049,6 +1099,82 @@ $("#person-create-form").addEventListener("submit", async (e) => {
     await loadReview();
   } catch (error) { $("#people-status").textContent = error.message; }
 });
+$("#people-list").addEventListener("submit", async (e) => {
+  const editor = e.target.closest(".person-editor");
+  if (editor) {
+    e.preventDefault();
+    const card = editor.closest("[data-person-id]");
+    const status = card.querySelector(".person-media-status");
+    try {
+      await api(`/api/people/${card.dataset.personId}`, { method: "PATCH", body: JSON.stringify({ name: editor.elements.name.value, active: editor.elements.active.checked, monitoring_enabled: editor.elements.monitoring_enabled.checked }) });
+      await Promise.all([loadPeople(), refresh(), loadKpis(), loadSoundMap()]);
+      $("#people-status").textContent = "Personenprofil und Einbeziehung in die Lärmüberwachung gespeichert.";
+    } catch (error) { status.textContent = error.message; }
+    return;
+  }
+  const photoForm = e.target.closest(".person-photo-upload");
+  if (photoForm) {
+    e.preventDefault();
+    const card = photoForm.closest("[data-person-id]");
+    const file = photoForm.elements.photo.files?.[0];
+    const status = card.querySelector(".person-media-status");
+    if (!file || file.size > 5 * 1024 * 1024) { status.textContent = "Bitte ein JPEG- oder PNG-Bild mit höchstens 5 MB auswählen."; return; }
+    try {
+      await api(`/api/people/${card.dataset.personId}/media`, { method: "POST", body: JSON.stringify({ media_type: "photo", filename: file.name, mime_type: mediaMime(file, "photo"), content_base64: await fileAsBase64(file) }) });
+      await loadPeople();
+      $("#people-status").textContent = "Profilbild aktualisiert.";
+    } catch (error) { status.textContent = error.message; }
+    return;
+  }
+  const form = e.target.closest(".person-video-upload");
+  if (!form) return;
+  e.preventDefault();
+  const card = form.closest("[data-person-id]");
+  const file = form.elements.video.files?.[0];
+  const status = card.querySelector(".person-media-status");
+  if (!file || file.size > 50 * 1024 * 1024) { status.textContent = "Bitte ein Video mit höchstens 50 MB auswählen."; return; }
+  const button = form.querySelector("button");
+  button.disabled = true; status.textContent = "Video wird gespeichert, Tonspur extrahiert und verglichen …";
+  try {
+    const result = await api(`/api/people/${card.dataset.personId}/media`, { method: "POST", body: JSON.stringify({ media_type: "video", filename: file.name, mime_type: mediaMime(file, "video"), content_base64: await fileAsBase64(file) }) });
+    await loadPeople();
+    $("#people-status").textContent = `${result.message}${result.similarity == null ? "" : ` · ${Math.round(result.similarity * 100)} % Ähnlichkeit zu ${result.cluster_name}`}`;
+  } catch (error) { status.textContent = error.message; button.disabled = false; }
+});
+$("#people-list").addEventListener("click", async (e) => {
+  const open = e.target.closest("[data-open-person-video]");
+  if (open) {
+    const card = open.closest("[data-person-id]");
+    const review = card.querySelector(".person-video-review");
+    const video = review.querySelector("video");
+    const audio = review.querySelector("audio");
+    review.classList.remove("hidden");
+    if (!video.src) video.src = await authorizedMediaUrl(`/api/people/${card.dataset.personId}/media/video`);
+    const person = state.people.find((item) => item.id === Number(card.dataset.personId));
+    if (person?.video_audio_available && !audio.src) {
+      audio.src = await authorizedMediaUrl(`/api/people/${card.dataset.personId}/media/voice`);
+      audio.classList.remove("hidden");
+    }
+    return;
+  }
+  const capture = e.target.closest("[data-capture-person-photo]");
+  if (!capture) return;
+  const card = capture.closest("[data-person-id]");
+  const video = card.querySelector("video");
+  const status = card.querySelector(".person-media-status");
+  if (!video.videoWidth || !video.videoHeight) { status.textContent = "Bitte das Video zuerst starten und am gewünschten Bild anhalten."; return; }
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) { status.textContent = "Das Einzelbild konnte nicht erstellt werden."; return; }
+  capture.disabled = true; status.textContent = "Profilbild wird gespeichert …";
+  try {
+    await api(`/api/people/${card.dataset.personId}/media`, { method: "POST", body: JSON.stringify({ media_type: "photo", filename: "videoframe.jpg", mime_type: "image/jpeg", content_base64: await fileAsBase64(blob) }) });
+    await loadPeople();
+    $("#people-status").textContent = "Videoframe als Profilbild gespeichert.";
+  } catch (error) { status.textContent = error.message; capture.disabled = false; }
+});
 $("#speaker-analyze").addEventListener("click", async () => {
   const button = $("#speaker-analyze");
   button.disabled = true; button.textContent = "Stimmen werden gruppiert …";
@@ -1068,6 +1194,38 @@ $("#speaker-clusters").addEventListener("submit", async (e) => {
     $("#speaker-status").textContent = "Stimmgruppe gespeichert.";
     await Promise.all([loadSpeakerClusters(), loadPeople()]);
   } catch (error) { $("#speaker-status").textContent = error.message; }
+});
+$("#speaker-clusters").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-review-speaker]");
+  if (!button) return;
+  state.speakerClusterId = Number(button.dataset.reviewSpeaker);
+  await loadSpeakerSamples();
+  $("#speaker-review").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("#speaker-review-close").addEventListener("click", closeSpeakerReview);
+$("#speaker-review-filter").addEventListener("change", () => loadSpeakerSamples().catch((error) => { $("#speaker-status").textContent = error.message; }));
+$("#speaker-review-more").addEventListener("click", () => loadSpeakerSamples(true).catch((error) => { $("#speaker-status").textContent = error.message; }));
+$("#speaker-review").addEventListener("click", async (e) => {
+  const play = e.target.closest("[data-play-event]");
+  if (play) {
+    try { await playEventClip(play.dataset.playEvent, play); } catch (error) { showClipError(play, error); }
+    return;
+  }
+  const actionButton = e.target.closest("[data-speaker-action]");
+  if (!actionButton) return;
+  const row = actionButton.closest("[data-speaker-event]");
+  const payload = { action: actionButton.dataset.speakerAction };
+  if (payload.action === "move") payload.target_cluster_id = Number(row.querySelector("select").value);
+  actionButton.disabled = true;
+  try {
+    await api(`/api/speaker-clusters/${state.speakerClusterId}/samples/${row.dataset.speakerEvent}`, { method: "PATCH", body: JSON.stringify(payload) });
+    await loadSpeakerClusters();
+    await loadSpeakerSamples();
+    $("#speaker-status").textContent = "Prüfentscheidung gespeichert und Stimmprofil aktualisiert.";
+  } catch (error) {
+    $("#speaker-status").textContent = error.message;
+    actionButton.disabled = false;
+  }
 });
 $("#review-runs").addEventListener("click", async (e) => {
   const pause = e.target.dataset.runPause;
@@ -1210,7 +1368,7 @@ $("#calibration-reference-runs").addEventListener("click", async (e) => {
   } catch (error) { $("#calibration-import-status").textContent = error.message; }
 });
 $("#open-people").addEventListener("click", () => {
-  const button = document.querySelector('.nav[data-view="review"]');
+  const button = document.querySelector('.nav[data-view="people"]');
   if (button) button.click();
   $("#person-name").focus();
 });

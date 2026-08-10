@@ -1,9 +1,11 @@
 import base64
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
     AssessmentConfig,
+    AudioClip,
     CalibrationReferenceResult,
     CalibrationReferenceRun,
     Device,
@@ -48,10 +51,13 @@ from app.schemas.dashboard import (
     LiveAudioPermissionRead,
     LiveAudioPermissionUpdate,
     PersonRead,
+    PersonMediaUpload,
+    PersonUpdate,
     PersonWrite,
     RuleCreate,
     RuleRead,
     SoundMapPoint,
+    SpeakerSampleReview,
     SpeakerClusterUpdate,
 )
 from app.services.calibration import (
@@ -60,7 +66,13 @@ from app.services.calibration import (
     parse_reference_csv,
 )
 from app.services.noise_assessment import assessment_for
-from app.services.speaker_clustering import cluster_existing_voice_clips, link_cluster_to_person
+from app.services.person_media import store_photo, store_video_and_compare
+from app.services.speaker_clustering import (
+    cluster_existing_voice_clips,
+    create_cluster_from_event,
+    link_cluster_to_person,
+    recompute_cluster_centroid,
+)
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -112,6 +124,7 @@ def _events_since(
             Event.timestamp >= start.isoformat(),
             Event.timestamp < (end + timedelta(days=1)).isoformat(),
             Event.display_suppressed.is_(False),
+            Event.person_monitoring_excluded.is_(False),
         )
         if device:
             statement = statement.where(Event.device == device)
@@ -123,6 +136,7 @@ def _events_since(
             .where(
                 Event.timestamp.like(f"{prefix}%"),
                 Event.display_suppressed.is_(False),
+                Event.person_monitoring_excluded.is_(False),
             )
             .order_by(Event.timestamp)
         )
@@ -132,7 +146,11 @@ def _events_since(
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     statement = (
         select(Event)
-        .where(Event.timestamp >= cutoff, Event.display_suppressed.is_(False))
+        .where(
+            Event.timestamp >= cutoff,
+            Event.display_suppressed.is_(False),
+            Event.person_monitoring_excluded.is_(False),
+        )
         .order_by(Event.timestamp)
     )
     if device:
@@ -303,7 +321,10 @@ def update_assessment_config(
 
 
 @router.get("/people", response_model=list[PersonRead])
-def list_people(db: DatabaseSession, _: CurrentUser) -> list[PersonRead]:
+def list_people(
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> list[PersonRead]:
     people = list(db.scalars(select(PersonProfile).order_by(PersonProfile.name)))
     assignments = list(db.scalars(select(EventPersonAssignment)))
     events = {
@@ -313,6 +334,7 @@ def list_people(db: DatabaseSession, _: CurrentUser) -> list[PersonRead]:
         )
     }
     by_person: dict[int, list[Event]] = defaultdict(list)
+    cluster_names = {item.id: item.name for item in db.scalars(select(SpeakerCluster))}
     for assignment in assignments:
         if assignment.confirmed and assignment.event_id in events:
             by_person[assignment.person_id].append(events[assignment.event_id])
@@ -321,6 +343,7 @@ def list_people(db: DatabaseSession, _: CurrentUser) -> list[PersonRead]:
             id=person.id,
             name=person.name,
             active=person.active,
+            monitoring_enabled=person.monitoring_enabled,
             created_at=person.created_at,
             updated_at=person.updated_at,
             frequency=len(by_person[person.id]),
@@ -328,6 +351,12 @@ def list_people(db: DatabaseSession, _: CurrentUser) -> list[PersonRead]:
                 sum(event.duration_seconds for event in by_person[person.id]), 1
             ),
             categories=dict(Counter(event.category for event in by_person[person.id])),
+            photo_available=bool(person.photo_path),
+            video_available=bool(person.video_path),
+            video_audio_available=bool(person.video_audio_path),
+            video_voice_similarity=person.video_voice_similarity,
+            video_voice_cluster_id=person.video_voice_cluster_id,
+            video_voice_cluster_name=cluster_names.get(person.video_voice_cluster_id),
         )
         for person in people
     ]
@@ -337,20 +366,119 @@ def list_people(db: DatabaseSession, _: CurrentUser) -> list[PersonRead]:
 def create_person(
     data: PersonWrite,
     db: DatabaseSession,
-    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+    _: Annotated[User, Depends(require_roles("admin"))],
 ) -> PersonRead:
     name = " ".join(data.name.split())
     if db.scalar(select(PersonProfile).where(PersonProfile.name == name)):
         raise HTTPException(status_code=409, detail="Personenname existiert bereits")
-    person = PersonProfile(name=name, active=data.active)
+    person = PersonProfile(
+        name=name,
+        active=data.active,
+        monitoring_enabled=data.monitoring_enabled,
+    )
     db.add(person)
     db.commit()
     db.refresh(person)
     return PersonRead.model_validate(person, from_attributes=True)
 
 
+@router.patch("/people/{person_id}", status_code=204)
+def update_person(
+    person_id: int,
+    data: PersonUpdate,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> None:
+    person = db.get(PersonProfile, person_id)
+    if person is None:
+        raise HTTPException(status_code=404, detail="Personenprofil nicht gefunden")
+    name = " ".join(data.name.split())
+    duplicate = db.scalar(
+        select(PersonProfile).where(PersonProfile.name == name, PersonProfile.id != person.id)
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="Personenname existiert bereits")
+    person.name = name
+    person.active = data.active
+    person.monitoring_enabled = data.monitoring_enabled
+    person.updated_at = datetime.now(UTC).isoformat()
+    event_ids = set(
+        db.scalars(
+            select(EventPersonAssignment.event_id).where(
+                EventPersonAssignment.person_id == person.id,
+                EventPersonAssignment.confirmed.is_(True),
+            )
+        )
+    )
+    if event_ids:
+        for event in db.scalars(select(Event).where(Event.id.in_(event_ids))):
+            event.person_monitoring_excluded = not person.monitoring_enabled
+    db.commit()
+
+
+def _person_media_file(person: PersonProfile, kind: str) -> FileResponse:
+    path_value = {
+        "photo": person.photo_path,
+        "video": person.video_path,
+        "voice": person.video_audio_path,
+    }[kind]
+    if not path_value:
+        raise HTTPException(status_code=404, detail="Medium nicht vorhanden")
+    root = Path(settings.person_media_directory).resolve()
+    path = Path(path_value).resolve()
+    if root not in path.parents or not path.is_file():
+        raise HTTPException(status_code=404, detail="Mediendatei nicht gefunden")
+    media_type = {
+        "photo": "image/png" if path.suffix.lower() == ".png" else "image/jpeg",
+        "video": {".webm": "video/webm", ".mov": "video/quicktime"}.get(path.suffix.lower(), "video/mp4"),
+        "voice": "audio/wav",
+    }[kind]
+    return FileResponse(path, media_type=media_type)
+
+
+@router.post("/people/{person_id}/media")
+def upload_person_media(
+    person_id: int,
+    data: PersonMediaUpload,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> dict[str, object]:
+    person = db.get(PersonProfile, person_id)
+    if person is None:
+        raise HTTPException(status_code=404, detail="Personenprofil nicht gefunden")
+    try:
+        if data.media_type == "photo":
+            store_photo(person, data.content_base64, data.mime_type)
+            result: dict[str, object] = {"message": "Profilbild gespeichert"}
+        else:
+            result = store_video_and_compare(db, person, data.content_base64, data.mime_type)
+    except (OSError, ValueError, TimeoutError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    person.updated_at = datetime.now(UTC).isoformat()
+    db.commit()
+    return result
+
+
+@router.get("/people/{person_id}/media/{kind}")
+def person_media(
+    person_id: int,
+    kind: str,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> FileResponse:
+    if kind not in {"photo", "video", "voice"}:
+        raise HTTPException(status_code=404, detail="Unbekannter Medientyp")
+    person = db.get(PersonProfile, person_id)
+    if person is None:
+        raise HTTPException(status_code=404, detail="Personenprofil nicht gefunden")
+    return _person_media_file(person, kind)
+
+
 @router.get("/speaker-clusters")
-def list_speaker_clusters(db: DatabaseSession, _: CurrentUser) -> list[dict[str, object]]:
+def list_speaker_clusters(
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> list[dict[str, object]]:
     people = {item.id: item.name for item in db.scalars(select(PersonProfile))}
     clusters = list(db.scalars(select(SpeakerCluster).order_by(SpeakerCluster.id)))
     result = []
@@ -361,6 +489,7 @@ def list_speaker_clusters(db: DatabaseSession, _: CurrentUser) -> list[dict[str,
             )
         )
         event_ids = [item.event_id for item in assignments]
+        status_counts = Counter(item.review_status for item in assignments)
         events = list(db.scalars(select(Event).where(Event.id.in_(event_ids)))) if event_ids else []
         result.append(
             {
@@ -369,6 +498,9 @@ def list_speaker_clusters(db: DatabaseSession, _: CurrentUser) -> list[dict[str,
                 "person_id": cluster.linked_person_id,
                 "person_name": people.get(cluster.linked_person_id),
                 "sample_count": len(assignments),
+                "pending_count": status_counts["pending"],
+                "confirmed_count": status_counts["confirmed"],
+                "rejected_count": status_counts["rejected"] + status_counts["no_voice"],
                 "average_similarity": (
                     round(sum(item.similarity for item in assignments) / len(assignments), 3)
                     if assignments
@@ -376,7 +508,6 @@ def list_speaker_clusters(db: DatabaseSession, _: CurrentUser) -> list[dict[str,
                 ),
                 "first_seen": min((item.timestamp for item in events), default=None),
                 "last_seen": max((item.timestamp for item in events), default=None),
-                "event_ids": event_ids[:20],
                 "algorithm": cluster.algorithm,
             }
         )
@@ -386,7 +517,7 @@ def list_speaker_clusters(db: DatabaseSession, _: CurrentUser) -> list[dict[str,
 @router.post("/speaker-clusters/analyze")
 def analyze_speaker_clusters(
     db: DatabaseSession,
-    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+    _: Annotated[User, Depends(require_roles("admin"))],
 ) -> dict[str, int]:
     return cluster_existing_voice_clips(db)
 
@@ -396,7 +527,7 @@ def update_speaker_cluster(
     cluster_id: int,
     data: SpeakerClusterUpdate,
     db: DatabaseSession,
-    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+    _: Annotated[User, Depends(require_roles("admin"))],
 ) -> dict[str, object]:
     cluster = db.get(SpeakerCluster, cluster_id)
     if cluster is None:
@@ -422,6 +553,113 @@ def update_speaker_cluster(
         cluster.updated_at = datetime.now(UTC).isoformat()
         db.commit()
     return {"id": cluster.id, "name": cluster.name, "person_id": cluster.linked_person_id}
+
+
+@router.get("/speaker-clusters/{cluster_id}/samples")
+def list_speaker_cluster_samples(
+    cluster_id: int,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+    review_status: str = Query(default="pending", pattern="^(pending|confirmed|rejected|no_voice|all)$"),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, object]:
+    cluster = db.get(SpeakerCluster, cluster_id)
+    if cluster is None:
+        raise HTTPException(status_code=404, detail="Stimmgruppe nicht gefunden")
+    statement = (
+        select(EventSpeakerCluster, Event, AudioClip)
+        .join(Event, Event.id == EventSpeakerCluster.event_id)
+        .outerjoin(AudioClip, AudioClip.event_id == Event.id)
+        .where(EventSpeakerCluster.cluster_id == cluster_id)
+    )
+    if review_status != "all":
+        statement = statement.where(EventSpeakerCluster.review_status == review_status)
+    rows = db.execute(statement.order_by(Event.timestamp.desc())).all()
+    items = [
+        {
+            "event_id": assignment.event_id,
+            "similarity": round(assignment.similarity, 4),
+            "review_status": assignment.review_status,
+            "reviewed_by": assignment.reviewed_by,
+            "reviewed_at": assignment.reviewed_at,
+            "timestamp": event.timestamp,
+            "label": event.label_de or event.label,
+            "device": event.device,
+            "db_level": event.db_level,
+            "audio_available": clip is not None,
+        }
+        for assignment, event, clip in rows[offset : offset + limit]
+    ]
+    return {"cluster_id": cluster_id, "total": len(rows), "offset": offset, "items": items}
+
+
+@router.patch("/speaker-clusters/{cluster_id}/samples/{event_id}")
+def review_speaker_cluster_sample(
+    cluster_id: int,
+    event_id: int,
+    data: SpeakerSampleReview,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin"))],
+) -> dict[str, object]:
+    cluster = db.get(SpeakerCluster, cluster_id)
+    assignment = db.scalar(
+        select(EventSpeakerCluster).where(
+            EventSpeakerCluster.cluster_id == cluster_id,
+            EventSpeakerCluster.event_id == event_id,
+        )
+    )
+    if cluster is None or assignment is None:
+        raise HTTPException(status_code=404, detail="Aufnahme in dieser Stimmgruppe nicht gefunden")
+
+    target = cluster
+    new_status = {
+        "confirm": "confirmed",
+        "reject": "rejected",
+        "no_voice": "no_voice",
+        "move": "pending",
+        "new_cluster": "confirmed",
+    }[data.action]
+    if data.action == "move":
+        if data.target_cluster_id is None or data.target_cluster_id == cluster_id:
+            raise HTTPException(status_code=422, detail="Bitte eine andere Zielgruppe auswählen")
+        target = db.get(SpeakerCluster, data.target_cluster_id)
+        if target is None:
+            raise HTTPException(status_code=404, detail="Zielgruppe nicht gefunden")
+        assignment.cluster_id = target.id
+    elif data.action == "new_cluster":
+        try:
+            target = create_cluster_from_event(db, event_id)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        assignment.cluster_id = target.id
+
+    person_assignment = db.scalar(
+        select(EventPersonAssignment).where(
+            EventPersonAssignment.event_id == event_id,
+            EventPersonAssignment.source == "speaker_cluster",
+        )
+    )
+    if person_assignment is not None:
+        db.delete(person_assignment)
+        event = db.get(Event, event_id)
+        if event is not None:
+            event.person_monitoring_excluded = False
+    assignment.review_status = new_status
+    assignment.reviewed_by = user.username
+    assignment.reviewed_at = datetime.now(UTC).isoformat()
+    recompute_cluster_centroid(db, cluster)
+    if target.id != cluster.id:
+        recompute_cluster_centroid(db, target)
+    db.commit()
+    if target.linked_person_id is not None and new_status == "confirmed":
+        person = db.get(PersonProfile, target.linked_person_id)
+        link_cluster_to_person(db, target, person)
+    return {
+        "event_id": event_id,
+        "cluster_id": target.id,
+        "review_status": new_status,
+    }
 
 
 @router.get("/devices", response_model=list[DeviceRead])

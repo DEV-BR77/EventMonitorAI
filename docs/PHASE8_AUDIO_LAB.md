@@ -51,6 +51,28 @@ Zuordnungen von Stimmereignissen dürfen in Häufigkeitsstatistiken und spätere
 akustische Ähnlichkeitsprofile einfließen. Ein Profil ist kein Beweis für die
 Identität einer Person.
 
+## Stimmgruppenprüfung und Personenverwaltung
+
+Anonyme Stimmgruppen besitzen eine persistente Einzelprüfung. Administratoren können
+zugeordnete Clips anhören, bestätigen, als nicht passend oder als keine verwertbare
+Stimme markieren und in eine vorhandene oder neue Gruppe verschieben. Abgelehnte
+Proben bleiben vom erneuten Gruppieren ausgeschlossen. Sobald Bestätigungen vorliegen,
+wird der Gruppenmittelpunkt ausschließlich aus bestätigten Proben neu berechnet.
+
+Personen werden in einem eigenen Administrationsmenü verwaltet. Profilbilder und kurze
+Prüfvideos liegen ausschließlich im lokalen, geschützten Medienverzeichnis. Aus einem
+angehaltenen Video kann manuell ein Profilbild übernommen werden. Die Videotonspur wird
+lokal mit FFmpeg als Mono-WAV extrahiert und mit demselben Stimmabdruckverfahren gegen
+bestätigte Gruppen der Person beziehungsweise ersatzweise gegen anonyme Gruppen geprüft.
+Ähnlichkeitswerte sind keine Identitätswahrscheinlichkeiten und erfordern eine manuelle
+Bewertung.
+
+Mit **In Lärmüberwachung einbeziehen** lässt sich je Profil festlegen, ob bestätigte
+Ereignisse in Dashboard-Kennzahlen und Belastungsbewertung einfließen. Beim Ausschluss
+bleiben Ereignisse und Zuordnungen für die persönliche Ansicht erhalten. Die Einstellung
+ist reversibel und verwendet eine eigene Ereignismarkierung, unabhängig von anderen
+Ausblendungsgründen.
+
 Der integrierte Scheduler startet täglich um 03:00 Uhr in `Europe/Berlin` einen nächtlichen Lauf,
 sofern für den Tag noch kein Nachtlauf existiert und kein anderer Lauf aktiv ist. Die Stunde kann
 mit `NIGHTLY_REVIEW_HOUR` geändert werden. Neustarts sind sicher, weil Laufstatus, Fortschritt und

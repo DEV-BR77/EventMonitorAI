@@ -869,7 +869,8 @@ def assign_event_person(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_roles("admin", "operator"))],
 ) -> None:
-    if db.get(Event, event_id) is None:
+    event = db.get(Event, event_id)
+    if event is None:
         raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
     assignment = db.scalar(
         select(EventPersonAssignment).where(EventPersonAssignment.event_id == event_id)
@@ -877,7 +878,8 @@ def assign_event_person(
     if data.person_id is None:
         if assignment:
             db.delete(assignment)
-            db.commit()
+        event.person_monitoring_excluded = False
+        db.commit()
         return
     person = db.get(PersonProfile, data.person_id)
     if person is None or not person.active:
@@ -891,6 +893,7 @@ def assign_event_person(
         assignment.confidence = 1.0
         assignment.confirmed = True
         assignment.assigned_at = datetime.now(UTC).isoformat()
+    event.person_monitoring_excluded = not person.monitoring_enabled
     db.commit()
 
 

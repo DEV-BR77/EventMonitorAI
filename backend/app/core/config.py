@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     vapid_public_key: str = ""
     vapid_subject: str = "mailto:admin@eventmonitor.eu"
     clip_directory: str = "/data/clips"
+    person_media_directory: str = "/data/person-media"
     nightly_review_hour: int = 3
     support_url: str = ""
     support_target_eur: float = 1450

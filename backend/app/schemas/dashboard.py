@@ -255,6 +255,13 @@ class AssessmentConfigRead(AssessmentConfigWrite):
 class PersonWrite(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     active: bool = True
+    monitoring_enabled: bool = True
+
+
+class PersonUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    active: bool = True
+    monitoring_enabled: bool = True
 
 
 class PersonRead(PersonWrite):
@@ -264,6 +271,12 @@ class PersonRead(PersonWrite):
     frequency: int = 0
     total_duration_seconds: float = 0
     categories: dict[str, int] = Field(default_factory=dict)
+    photo_available: bool = False
+    video_available: bool = False
+    video_audio_available: bool = False
+    video_voice_similarity: float | None = None
+    video_voice_cluster_id: int | None = None
+    video_voice_cluster_name: str | None = None
 
 
 class PersonAssignmentWrite(BaseModel):
@@ -273,3 +286,15 @@ class PersonAssignmentWrite(BaseModel):
 class SpeakerClusterUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     person_id: int | None = None
+
+
+class SpeakerSampleReview(BaseModel):
+    action: Literal["confirm", "reject", "no_voice", "move", "new_cluster"]
+    target_cluster_id: int | None = None
+
+
+class PersonMediaUpload(BaseModel):
+    media_type: Literal["photo", "video"]
+    filename: str = Field(min_length=1, max_length=180)
+    mime_type: str = Field(min_length=1, max_length=100)
+    content_base64: str

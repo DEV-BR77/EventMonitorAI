@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
-from sqlalchemy import delete, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.dashboard import (
@@ -68,19 +68,6 @@ def _cosine(left: np.ndarray, right: np.ndarray) -> float:
 
 
 def cluster_existing_voice_clips(db: Session) -> dict[str, int]:
-    linked_ids = set(
-        db.scalars(select(SpeakerCluster.id).where(SpeakerCluster.linked_person_id.is_not(None)))
-    )
-    if linked_ids:
-        db.execute(
-            delete(EventSpeakerCluster).where(EventSpeakerCluster.cluster_id.not_in(linked_ids))
-        )
-        db.execute(delete(SpeakerCluster).where(SpeakerCluster.id.not_in(linked_ids)))
-    else:
-        db.execute(delete(EventSpeakerCluster))
-        db.execute(delete(SpeakerCluster))
-    db.flush()
-
     assigned_events = set(db.scalars(select(EventSpeakerCluster.event_id)))
     rows = db.execute(
         select(Event, AudioClip)
@@ -133,16 +120,78 @@ def cluster_existing_voice_clips(db: Session) -> dict[str, int]:
             index = len(clusters) - 1
             score = 1.0
         cluster, centroid = clusters[index]
-        count = cluster.sample_count
-        updated = centroid * count + vector
-        updated /= max(np.linalg.norm(updated), 1e-9)
-        cluster.sample_count = count + 1
-        cluster.centroid_json = json.dumps(updated.tolist())
+        has_confirmed = db.scalar(
+            select(EventSpeakerCluster.id).where(
+                EventSpeakerCluster.cluster_id == cluster.id,
+                EventSpeakerCluster.review_status == "confirmed",
+            ).limit(1)
+        )
+        if has_confirmed is None:
+            count = cluster.sample_count
+            updated = centroid * count + vector
+            updated /= max(np.linalg.norm(updated), 1e-9)
+            cluster.sample_count = count + 1
+            cluster.centroid_json = json.dumps(updated.tolist())
+            clusters[index] = (cluster, updated)
         cluster.updated_at = datetime.now(UTC).isoformat()
-        clusters[index] = (cluster, updated)
         db.add(EventSpeakerCluster(event_id=event.id, cluster_id=cluster.id, similarity=score))
     db.commit()
     return {"analyzed": analyzed, "clusters": len(clusters), "skipped": skipped}
+
+
+def recompute_cluster_centroid(db: Session, cluster: SpeakerCluster) -> None:
+    assignments = list(
+        db.scalars(
+            select(EventSpeakerCluster).where(
+                EventSpeakerCluster.cluster_id == cluster.id,
+                EventSpeakerCluster.review_status == "confirmed",
+            )
+        )
+    )
+    if not assignments:
+        assignments = list(
+            db.scalars(
+                select(EventSpeakerCluster).where(
+                    EventSpeakerCluster.cluster_id == cluster.id,
+                    EventSpeakerCluster.review_status == "pending",
+                )
+            )
+        )
+    vectors: list[np.ndarray] = []
+    for assignment in assignments:
+        clip = db.scalar(select(AudioClip).where(AudioClip.event_id == assignment.event_id))
+        if clip is None:
+            continue
+        try:
+            vectors.append(voiceprint(clip.path))
+        except (OSError, ValueError, wave.Error):
+            continue
+    if vectors:
+        centroid = np.mean(vectors, axis=0)
+        centroid /= max(np.linalg.norm(centroid), 1e-9)
+        cluster.centroid_json = json.dumps(centroid.tolist())
+    cluster.sample_count = len(assignments)
+    cluster.updated_at = datetime.now(UTC).isoformat()
+
+
+def create_cluster_from_event(db: Session, event_id: int) -> SpeakerCluster:
+    clip = db.scalar(select(AudioClip).where(AudioClip.event_id == event_id))
+    if clip is None:
+        raise ValueError("Für dieses Ereignis ist kein Audioclip vorhanden")
+    vector = voiceprint(clip.path)
+    used_names = set(db.scalars(select(SpeakerCluster.name)))
+    number = 1
+    while f"Person {number}" in used_names:
+        number += 1
+    cluster = SpeakerCluster(
+        name=f"Person {number}",
+        centroid_json=json.dumps(vector.tolist()),
+        sample_count=1,
+        algorithm=ALGORITHM,
+    )
+    db.add(cluster)
+    db.flush()
+    return cluster
 
 
 def link_cluster_to_person(
@@ -150,9 +199,29 @@ def link_cluster_to_person(
 ) -> None:
     cluster.linked_person_id = person.id if person else None
     cluster.updated_at = datetime.now(UTC).isoformat()
+    all_event_ids = set(
+        db.scalars(
+            select(EventSpeakerCluster.event_id).where(
+                EventSpeakerCluster.cluster_id == cluster.id
+            )
+        )
+    )
+    for assignment in db.scalars(
+        select(EventPersonAssignment).where(
+            EventPersonAssignment.event_id.in_(all_event_ids),
+            EventPersonAssignment.source == "speaker_cluster",
+        )
+    ):
+        db.delete(assignment)
+        event = db.get(Event, assignment.event_id)
+        if event is not None:
+            event.person_monitoring_excluded = False
     event_ids = set(
         db.scalars(
-            select(EventSpeakerCluster.event_id).where(EventSpeakerCluster.cluster_id == cluster.id)
+            select(EventSpeakerCluster.event_id).where(
+                EventSpeakerCluster.cluster_id == cluster.id,
+                EventSpeakerCluster.review_status == "confirmed",
+            )
         )
     )
     if person is not None:
@@ -174,4 +243,7 @@ def link_cluster_to_person(
                 assignment.person_id = person.id
                 assignment.source = "speaker_cluster"
                 assignment.confirmed = True
+            event = db.get(Event, event_id)
+            if event is not None:
+                event.person_monitoring_excluded = not person.monitoring_enabled
     db.commit()

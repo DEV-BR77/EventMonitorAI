@@ -10,6 +10,7 @@ EventMonitorAI verarbeitet potenziell sensible Audio- und Ereignisdaten. Die Arc
 4. Modellvorhersagen
 5. menschlich bestätigte Labels und Notizen
 6. trainierte Modelle und Embeddings
+7. optional hinterlegte Personenbilder, kurze Prüfvideos und daraus extrahierte Stimmproben
 
 ## Grundregeln
 
@@ -19,6 +20,9 @@ EventMonitorAI verarbeitet potenziell sensible Audio- und Ereignisdaten. Die Arc
 - Exporte müssen bewusst ausgelöst werden.
 - Audio, Datenbanken und Modelle werden nicht in Git gespeichert.
 - Zugriff auf Gerät, Dateisystem und Backups muss geschützt werden.
+- Personenbilder, Prüfvideos und extrahierte Videotonspuren bleiben im lokalen
+  Medienverzeichnis und sind über das Dashboard ausschließlich für Administratoren
+  abrufbar. Ein Videoimport oder Profilbild muss bewusst ausgelöst werden.
 - Live-Audio wird für die Wiedergabe flüchtig übertragen. Das Backend hält pro Mikrofon einen
   flüchtigen Fünf-Sekunden-Ringpuffer und persistiert daraus nur bei einem Ereignis einen
   geschützten Clip. Sichtbar und abrufbar ist Live-Audio ausschließlich für vom Administrator
@@ -33,6 +37,8 @@ EventMonitorAI verarbeitet potenziell sensible Audio- und Ereignisdaten. Die Arc
 ## Aussagegrenzen
 
 Eine akustische Klassifikation beschreibt ein Muster wie „Schreien“, „Rufen“ oder „Aufprall“. Sie beweist weder die Identität einer Person noch sicher die konkrete Ursache. Berichte sollten automatische und bestätigte Bewertungen klar unterscheiden.
+Auch eine hohe Stimmgruppenähnlichkeit ist keine Identitätswahrscheinlichkeit. Die
+Zuordnung eines Bildes, Videos, Namens oder Stimmprofils bleibt eine manuelle Bewertung.
 
 ## Rechtlicher Hinweis
 

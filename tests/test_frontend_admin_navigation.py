@@ -11,6 +11,7 @@ def test_microphones_and_audio_lab_are_grouped_under_admin_navigation() -> None:
     admin_navigation = html[admin_start:admin_end]
 
     assert 'data-view="devices">Mikrofone' in admin_navigation
+    assert 'data-view="people">Personen' in admin_navigation
     assert 'data-view="review">Audio-Lab' in admin_navigation
 
 

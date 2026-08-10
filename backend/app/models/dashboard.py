@@ -240,6 +240,14 @@ class PersonProfile(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    monitoring_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    photo_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    video_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    video_audio_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    video_voice_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    video_voice_cluster_id: Mapped[int | None] = mapped_column(
+        ForeignKey("speaker_clusters.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
@@ -284,6 +292,9 @@ class EventSpeakerCluster(Base):
         ForeignKey("speaker_clusters.id", ondelete="CASCADE"), index=True
     )
     similarity: Mapped[float] = mapped_column(Float)
+    review_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    reviewed_at: Mapped[str | None] = mapped_column(String, nullable=True)
     assigned_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 

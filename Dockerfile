@@ -5,10 +5,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN addgroup --system eventmonitor \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && addgroup --system eventmonitor \
     && adduser --system --ingroup eventmonitor --home /app eventmonitor \
-    && mkdir -p /data/clips \
-    && chown eventmonitor:eventmonitor /data/clips
+    && mkdir -p /data/clips /data/person-media \
+    && chown -R eventmonitor:eventmonitor /data
 
 COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt

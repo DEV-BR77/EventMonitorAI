@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.4.1-admin-navigation">
+  <link rel="stylesheet" href="/styles.css?v=0.5.0-person-review">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -37,6 +37,7 @@
           <span>Administration</span>
           <button id="admin-nav" class="nav" data-view="administration">Benutzer &amp; Einstellungen</button>
           <button id="devices-nav" class="nav" data-view="devices">Mikrofone</button>
+          <button id="people-nav" class="nav" data-view="people">Personen</button>
           <button id="review-nav" class="nav" data-view="review">Audio-Lab</button>
         </div>
       </nav>
@@ -141,15 +142,16 @@
           <span id="import-status"></span>
         </article>
         <article class="panel people-panel">
-          <div class="panel-head"><h2>Personen und wiederkehrende Stimmereignisse</h2><span>Nur bestätigte Zuordnungen</span></div>
-          <form id="person-create-form" class="person-create"><label>Neue Person / Bezeichnung<input id="person-name" maxlength="100" placeholder="z. B. Person Garten Nord" required></label><button type="submit">Person anlegen</button></form>
-          <p class="management-help">Das System stellt keine Identität als Tatsache fest. Es gruppiert akustisch ähnliche Stimmereignisse; Namen und Treffer müssen manuell bestätigt werden.</p>
-          <div id="people-list"></div><span id="people-status"></span>
-        </article>
-        <article class="panel people-panel">
           <div class="panel-head"><h2>Automatisch erkannte Stimmgruppen</h2><button id="speaker-analyze" type="button">Vorhandene Aufnahmen gruppieren</button></div>
-          <p class="management-help">Ein eigener lokaler Stimmabdruck-Algorithmus gruppiert ähnliche Sprachaufnahmen zunächst anonym als „Person 1“, „Person 2“ usw. Die Gruppen sind nur akustische Vorschläge, keine festgestellten Identitäten. Sie können umbenannt oder später einer bekannten Person zugeordnet werden.</p>
+          <p class="management-help">Ein eigener lokaler Stimmabdruck-Algorithmus gruppiert ähnliche Sprachaufnahmen zunächst anonym als „Person 1“, „Person 2“ usw. Die Prozentangabe beschreibt akustische Ähnlichkeit, nicht die Wahrscheinlichkeit einer Identität. Vor der Zuordnung zu einer bekannten Person sollten die Aufnahmen einzeln geprüft werden.</p>
           <div id="speaker-clusters"></div><span id="speaker-status"></span>
+          <section id="speaker-review" class="speaker-review hidden">
+            <div class="panel-head"><h3 id="speaker-review-title">Stimmgruppe prüfen</h3><button id="speaker-review-close" class="ghost" type="button">Schließen</button></div>
+            <div class="speaker-review-toolbar"><label>Prüfstatus<select id="speaker-review-filter"><option value="pending">Ungeprüft</option><option value="confirmed">Bestätigt</option><option value="rejected">Nicht passend</option><option value="no_voice">Keine Stimme</option><option value="all">Alle</option></select></label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="speaker-review-count"></span></div>
+            <p class="management-help">„Bestätigen“ nimmt den Clip in das geprüfte Stimmprofil auf. „Nicht passend“ und „Keine Stimme“ schließen ihn dauerhaft aus. Verschobene Clips werden in der Zielgruppe erneut zur Prüfung vorgelegt.</p>
+            <div id="speaker-samples"></div>
+            <button id="speaker-review-more" class="ghost hidden" type="button">Weitere Aufnahmen laden</button>
+          </section>
         </article>
         <article class="panel learning-guide">
           <div class="panel-head"><h2>So lernt die Klassifizierung</h2><span>Bestätigen → lernen → automatisch anwenden</span></div>
@@ -283,6 +285,15 @@
         <article class="panel support-transparency"><h2>Transparenz statt Spendenaufruf</h2><p>Die Aufstellung zeigt, was für das gemeinsame Projekt bereits eingesetzt wurde. Die nachweisbaren Kaufpreise und die mit rund 3 € geschätzten Filamentkosten ergeben zusammen mindestens 349,73 €. Noch nicht eingerechnet sind IONOS-Domain, Strom für den durchgängigen Betrieb, Netzwerk- und Serverbetrieb sowie persönliche Arbeitszeit. Weitere Beträge werden nur ergänzt, wenn sie belastbar vorliegen.</p></article>
       </section>
 
+      <section id="people" class="view hidden">
+        <article class="panel people-panel">
+          <div class="panel-head"><h2>Personenprofile verwalten</h2><span>Nur für Administratoren</span></div>
+          <form id="person-create-form" class="person-create"><label>Neue Person / Bezeichnung<input id="person-name" maxlength="100" placeholder="z. B. Person Garten Nord" required></label><button type="submit">Person anlegen</button></form>
+          <p class="management-help">Namen, Bilder, Videos und Stimmvergleiche sind manuell gepflegte Prüfhinweise und keine automatisch festgestellte Identität. Wird „In Lärmüberwachung einbeziehen“ deaktiviert, bleiben zugeordnete Ereignisse sichtbar, fließen aber nicht in Lärmkennzahlen und Belastungsbewertung ein.</p>
+          <div id="people-list"></div><span id="people-status"></span>
+        </article>
+      </section>
+
       <section id="administration" class="view hidden">
         <form id="assessment-config-form" class="panel assessment-config">
           <div class="panel-head"><h2>Beurteilungszuschlag</h2><span>Empfindliche Tageszeiten</span></div>
@@ -328,6 +339,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.4.1-admin-navigation"></script>
+  <script src="/app.js?v=0.5.0-person-review"></script>
 </body>
 </html>

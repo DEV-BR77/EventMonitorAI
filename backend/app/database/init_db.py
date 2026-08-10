@@ -46,6 +46,7 @@ def add_missing_event_columns() -> None:
         ("corrected_by", "VARCHAR(80)"),
         ("corrected_at", "VARCHAR"),
         ("display_suppressed", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("person_monitoring_excluded", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ):
         if name not in column_names:
             statements.append(f"ALTER TABLE events ADD COLUMN {name} {definition}")
@@ -117,6 +118,47 @@ def ensure_event_class_visibility_column() -> None:
             )
 
 
+def ensure_speaker_review_columns() -> None:
+    inspector = inspect(engine)
+    if "event_speaker_clusters" not in inspector.get_table_names():
+        return
+    column_names = {
+        column["name"] for column in inspector.get_columns("event_speaker_clusters")
+    }
+    definitions = {
+        "review_status": "VARCHAR(20) NOT NULL DEFAULT 'pending'",
+        "reviewed_by": "VARCHAR(80)",
+        "reviewed_at": "VARCHAR",
+    }
+    with engine.begin() as connection:
+        for column, definition in definitions.items():
+            if column not in column_names:
+                connection.execute(
+                    text(f"ALTER TABLE event_speaker_clusters ADD COLUMN {column} {definition}")
+                )
+
+
+def ensure_person_media_columns() -> None:
+    inspector = inspect(engine)
+    if "person_profiles" not in inspector.get_table_names():
+        return
+    column_names = {column["name"] for column in inspector.get_columns("person_profiles")}
+    definitions = {
+        "monitoring_enabled": "BOOLEAN NOT NULL DEFAULT TRUE",
+        "photo_path": "TEXT",
+        "video_path": "TEXT",
+        "video_audio_path": "TEXT",
+        "video_voice_similarity": "FLOAT",
+        "video_voice_cluster_id": "INTEGER REFERENCES speaker_clusters(id) ON DELETE SET NULL",
+    }
+    with engine.begin() as connection:
+        for column, definition in definitions.items():
+            if column not in column_names:
+                connection.execute(
+                    text(f"ALTER TABLE person_profiles ADD COLUMN {column} {definition}")
+                )
+
+
 def backfill_events() -> None:
     with Session(engine) as db:
         events = list(db.scalars(select(Event)).all())
@@ -161,6 +203,8 @@ def init_db() -> None:
     ensure_device_position_columns()
     ensure_calibration_columns()
     ensure_event_class_visibility_column()
+    ensure_speaker_review_columns()
+    ensure_person_media_columns()
     add_missing_event_columns()
     with Session(engine) as db:
         seed_event_classes(db)

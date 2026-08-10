@@ -159,6 +159,13 @@ So bekommst du früh ein brauchbares Lärmprotokoll, ohne dass wir dir falsche P
       Offset-Aktivierung und Anwendung auf neue Telemetrie- und Ereignispegel
 - [x] Phase-8-Nachbesserung: lernfähige Wind-, Umgebungs- und technische Klassen,
       standardmäßige Ausblendung sowie datensparsame Aktion „Kein Lärm / verwerfen“
+- [x] Phase-8-Nachbesserung: dauerhaft prüfbare anonyme Stimmgruppen mit Wiedergabe,
+      Bestätigung, Ausschluss, Verschieben und Neuberechnung aus bestätigten Proben
+- [x] Phase-8-Nachbesserung: administrative Personenprofile mit Name, Profilbild,
+      geschütztem Prüfvideo, manuell übernehmbarem Videoframe und Vergleich der
+      extrahierten Videotonspur mit bestätigten beziehungsweise anonymen Stimmgruppen
+- [x] Phase-8-Nachbesserung: Personen können reversibel von Lärmkennzahlen und
+      Belastungsbewertung ausgenommen werden, ohne ihre persönlichen Ereignisse zu löschen
 
 https://github.com/DEV-BR77/EventMonitorAI/tree/main/tools/audio-lab
 
