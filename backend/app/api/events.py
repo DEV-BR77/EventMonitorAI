@@ -102,13 +102,19 @@ def _learned_class_for_detection(db: Session, label: str) -> tuple[str, str | No
     )
     if len(rows) < 2:
         return None
-    counts: dict[tuple[str, str | None], int] = {}
+    primary_counts: Counter[str] = Counter()
+    counts: Counter[tuple[str, str | None]] = Counter()
     for primary, subclass in rows:
-        key = (primary, subclass)
-        counts[key] = counts.get(key, 0) + 1
-    learned, count = max(counts.items(), key=lambda item: item[1])
+        primary_counts[primary] += 1
+        counts[(primary, subclass)] += 1
+    learned_primary, primary_count = primary_counts.most_common(1)[0]
     required_ratio = 1.0 if len(rows) == 2 else 0.8
-    return learned if count / len(rows) >= required_ratio else None
+    if primary_count / len(rows) < required_ratio:
+        return None
+    learned, count = max(counts.items(), key=lambda item: item[1])
+    if learned[0] == learned_primary and count / primary_count >= required_ratio:
+        return learned
+    return learned_primary, None
 
 
 def _is_voice_candidate(label: str, category: str) -> bool:
@@ -154,8 +160,10 @@ def _apply_learned_classifications(db: Session, source: Event) -> int:
             )
         ):
             event.primary_class_code, event.subclass_code = learned
-            event.classification_status = "learned"
-            event.corrected_by = "Lernregel"
+            event.classification_status = "learned" if learned[1] is not None else "automatic"
+            event.corrected_by = (
+                "Lernregel" if learned[1] is not None else "Lernregel (Basisklasse)"
+            )
             event.corrected_at = datetime.now(UTC).isoformat()
             changed += 1
     if source.primary_class_code == "VOICE_LOUD" and source.subclass_code:
@@ -284,10 +292,12 @@ async def create_event(
         event_values["avg_db_level"] = event_values["db_level"]
 
     learned_class = _learned_class_for_detection(db, event_data.label)
-    if learned_class is None:
-        learned_class = _contextual_class_for_detection(
+    if learned_class is None or learned_class[1] is None:
+        contextual_class = _contextual_class_for_detection(
             db, event_data.timestamp, event_data.label, category
         )
+        if contextual_class is not None:
+            learned_class = contextual_class
     primary_code = (
         learned_class[0]
         if learned_class is not None
@@ -314,7 +324,9 @@ async def create_event(
         primary_class_code=primary_code,
         subclass_code=subclass_code,
         classification_status=(
-            "ignored" if ignored else ("learned" if learned_class else "automatic")
+            "ignored"
+            if ignored
+            else ("learned" if learned_class and learned_class[1] is not None else "automatic")
         ),
         display_suppressed=suppressed or ignored is not None,
     )

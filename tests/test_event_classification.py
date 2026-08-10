@@ -139,6 +139,22 @@ def test_conflicting_confirmations_do_not_create_a_rule() -> None:
         assert _learned_class_for_detection(db, "Animal") is None
 
 
+def test_primary_class_is_learned_when_subclasses_are_still_ambiguous() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        for subclass in ("VOICE_SUSTAINED",) * 5 + ("LOUD_SCREAM",) * 4:
+            event = _event()
+            event.label = "Animal"
+            event.classification_status = "manual"
+            event.primary_class_code = "VOICE_LOUD"
+            event.subclass_code = subclass
+            db.add(event)
+        db.flush()
+
+        assert _learned_class_for_detection(db, "Animal") == ("VOICE_LOUD", None)
+
+
 def test_voice_context_bridges_different_detector_labels() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

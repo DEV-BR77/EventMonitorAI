@@ -24,7 +24,8 @@ unveränderte ursprüngliche Modellerkennung an. Manuell bestätigte Zuordnungen
 Ab zwei manuellen, für dasselbe ursprüngliche Modelllabel vollständig übereinstimmenden
 Zuordnungen wird die Klasse automatisch verwendet; ab drei Bestätigungen sind
 mindestens 80 Prozent Eindeutigkeit erforderlich. Die Lernregel gilt für neue und
-noch offene gleichartige Ereignisse. Bei Stimmereignissen überbrückt zusätzlich ein
+noch offene gleichartige Ereignisse. Ist nur die Basisklasse eindeutig, bleibt das
+Ereignis mit dieser Vorauswahl bis zur manuellen Feinzuordnung offen. Bei Stimmereignissen überbrückt zusätzlich ein
 enger Zeitkontext von zwölf Sekunden unterschiedliche Modelllabels beider Mikrofone,
 etwa „Sprache“ und eine fälschliche „Katze“-Erkennung. Automatisch gelernte Treffer
 gelten als erledigt, bleiben aber korrigierbar. Wind, Umgebung und technische Störungen
