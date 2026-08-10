@@ -13,6 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
+from app.database.tenancy import TenantScopedMixin
 
 
 def utc_now() -> str:
@@ -30,7 +31,54 @@ class User(Base):
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class Device(Base):
+class Tenant(Base):
+    __tablename__ = "tenants"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    slug: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class TenantMembership(Base):
+    __tablename__ = "tenant_memberships"
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(20), default="viewer")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class TenantSubscription(Base):
+    __tablename__ = "tenant_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), unique=True, index=True)
+    plan: Mapped[str] = mapped_column(String(40), default="self_hosted")
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    max_devices: Mapped[int] = mapped_column(Integer, default=2)
+    retention_days: Mapped[int] = mapped_column(Integer, default=30)
+    features_json: Mapped[str] = mapped_column(Text, default="{}")
+    updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class DeviceCredential(Base):
+    __tablename__ = "device_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    device_id: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    secret_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    last_used_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class Device(TenantScopedMixin, Base):
     __tablename__ = "devices"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -43,7 +91,7 @@ class Device(Base):
     last_seen: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
-class DeviceTelemetry(Base):
+class DeviceTelemetry(TenantScopedMixin, Base):
     __tablename__ = "device_telemetry"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -61,7 +109,7 @@ class DeviceTelemetry(Base):
     last_seen: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class DeviceLevelSample(Base):
+class DeviceLevelSample(TenantScopedMixin, Base):
     __tablename__ = "device_level_samples"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -70,7 +118,7 @@ class DeviceLevelSample(Base):
     db_level: Mapped[float] = mapped_column(Float)
 
 
-class DeviceCalibration(Base):
+class DeviceCalibration(TenantScopedMixin, Base):
     __tablename__ = "device_calibrations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -88,7 +136,7 @@ class DeviceCalibration(Base):
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class CalibrationReferenceRun(Base):
+class CalibrationReferenceRun(TenantScopedMixin, Base):
     __tablename__ = "calibration_reference_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -101,7 +149,7 @@ class CalibrationReferenceRun(Base):
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class CalibrationReferenceResult(Base):
+class CalibrationReferenceResult(TenantScopedMixin, Base):
     __tablename__ = "calibration_reference_results"
     __table_args__ = (UniqueConstraint("run_id", "device_id"),)
 
@@ -118,7 +166,7 @@ class CalibrationReferenceResult(Base):
     recommended_offset_db: Mapped[float] = mapped_column(Float)
 
 
-class LiveAudioAccess(Base):
+class LiveAudioAccess(TenantScopedMixin, Base):
     __tablename__ = "live_audio_access"
     __table_args__ = (UniqueConstraint("user_id", "device_id"),)
 
@@ -128,7 +176,7 @@ class LiveAudioAccess(Base):
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class PushSubscription(Base):
+class PushSubscription(TenantScopedMixin, Base):
     __tablename__ = "push_subscriptions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -139,7 +187,7 @@ class PushSubscription(Base):
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class EventWitnessResponse(Base):
+class EventWitnessResponse(TenantScopedMixin, Base):
     __tablename__ = "event_witness_responses"
     __table_args__ = (UniqueConstraint("event_id", "user_id"),)
 
@@ -167,18 +215,19 @@ class EventClass(Base):
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class IgnoredDetectionPattern(Base):
+class IgnoredDetectionPattern(TenantScopedMixin, Base):
     __tablename__ = "ignored_detection_patterns"
+    __table_args__ = (UniqueConstraint("tenant_id", "label_normalized"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    label_normalized: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    label_normalized: Mapped[str] = mapped_column(String(160), index=True)
     label_example: Mapped[str] = mapped_column(String(160))
     confirmations: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class EventClassificationRevision(Base):
+class EventClassificationRevision(TenantScopedMixin, Base):
     __tablename__ = "event_classification_revisions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -191,7 +240,7 @@ class EventClassificationRevision(Base):
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class AudioClip(Base):
+class AudioClip(TenantScopedMixin, Base):
     __tablename__ = "audio_clips"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -208,7 +257,7 @@ class AudioClip(Base):
     )
 
 
-class ReviewRun(Base):
+class ReviewRun(TenantScopedMixin, Base):
     __tablename__ = "review_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -225,7 +274,7 @@ class ReviewRun(Base):
     message: Mapped[str] = mapped_column(String(500), default="")
 
 
-class AssessmentConfig(Base):
+class AssessmentConfig(TenantScopedMixin, Base):
     __tablename__ = "assessment_config"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
@@ -234,11 +283,12 @@ class AssessmentConfig(Base):
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class PersonProfile(Base):
+class PersonProfile(TenantScopedMixin, Base):
     __tablename__ = "person_profiles"
+    __table_args__ = (UniqueConstraint("tenant_id", "name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str] = mapped_column(String(100))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     monitoring_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     photo_path: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -252,7 +302,7 @@ class PersonProfile(Base):
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class EventPersonAssignment(Base):
+class EventPersonAssignment(TenantScopedMixin, Base):
     __tablename__ = "event_person_assignments"
     __table_args__ = (UniqueConstraint("event_id"),)
 
@@ -267,11 +317,12 @@ class EventPersonAssignment(Base):
     assigned_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class SpeakerCluster(Base):
+class SpeakerCluster(TenantScopedMixin, Base):
     __tablename__ = "speaker_clusters"
+    __table_args__ = (UniqueConstraint("tenant_id", "name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str] = mapped_column(String(100))
     linked_person_id: Mapped[int | None] = mapped_column(
         ForeignKey("person_profiles.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -282,7 +333,7 @@ class SpeakerCluster(Base):
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class EventSpeakerCluster(Base):
+class EventSpeakerCluster(TenantScopedMixin, Base):
     __tablename__ = "event_speaker_clusters"
     __table_args__ = (UniqueConstraint("event_id"),)
 
@@ -298,7 +349,7 @@ class EventSpeakerCluster(Base):
     assigned_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
-class NotificationRule(Base):
+class NotificationRule(TenantScopedMixin, Base):
     __tablename__ = "notification_rules"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

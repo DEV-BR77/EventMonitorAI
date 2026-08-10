@@ -24,6 +24,7 @@ from app.models.dashboard import (
     AssessmentConfig,
     AudioClip,
     Device,
+    DeviceCredential,
     DeviceLevelSample,
     DeviceTelemetry,
     EventClass,
@@ -81,9 +82,36 @@ router = APIRouter(
 DatabaseSession = Annotated[Session, Depends(get_db)]
 
 
-def verify_ingest_key(x_api_key: Annotated[str | None, Header()] = None) -> None:
+def verify_ingest_key(
+    db: DatabaseSession,
+    x_api_key: Annotated[str | None, Header()] = None,
+    x_device_id: Annotated[str | None, Header()] = None,
+    x_device_secret: Annotated[str | None, Header()] = None,
+) -> None:
+    if x_device_id and x_device_secret:
+        digest = hashlib.sha256(x_device_secret.encode()).hexdigest()
+        credential = db.scalar(
+            select(DeviceCredential).where(
+                DeviceCredential.device_id == x_device_id,
+                DeviceCredential.secret_hash == digest,
+                DeviceCredential.active.is_(True),
+            )
+        )
+        if credential is None:
+            raise HTTPException(status_code=401, detail="Ungültige Gerätezugangsdaten")
+        db.info["tenant_id"] = credential.tenant_id
+        db.info["authenticated_device_id"] = credential.device_id
+        credential.last_used_at = datetime.now(UTC).isoformat()
+        return
     if settings.ingest_api_key and x_api_key != settings.ingest_api_key:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+    db.info["tenant_id"] = 1
+
+
+def _ensure_ingest_device(db: Session, device_id: str) -> None:
+    authenticated = db.info.get("authenticated_device_id")
+    if authenticated is not None and authenticated != device_id:
+        raise HTTPException(status_code=403, detail="Gerätekennung stimmt nicht mit Zugang überein")
 
 
 def _normalized_detection_label(label: str) -> str:
@@ -190,6 +218,7 @@ async def ingest_live_audio(
     db: DatabaseSession,
     _: Annotated[None, Depends(verify_ingest_key)],
 ) -> dict[str, int]:
+    _ensure_ingest_device(db, device_id)
     if not pcm or len(pcm) > 64_000 or len(pcm) % 2:
         raise HTTPException(status_code=422, detail="Invalid 16-bit PCM chunk")
     device = db.scalar(select(Device).where(Device.device_id == device_id))
@@ -211,6 +240,7 @@ def update_device_telemetry(
     db: DatabaseSession,
     _: Annotated[None, Depends(verify_ingest_key)],
 ) -> DeviceTelemetry:
+    _ensure_ingest_device(db, data.device_id)
     now = datetime.now(UTC).isoformat()
     telemetry = db.scalar(
         select(DeviceTelemetry).where(DeviceTelemetry.device_id == data.device_id)
@@ -271,6 +301,7 @@ async def create_event(
     db: DatabaseSession,
     _: Annotated[None, Depends(verify_ingest_key)],
 ) -> Event:
+    _ensure_ingest_device(db, event_data.device)
     label_de, category = translate_label(
         event_data.label,
         event_data.device,
@@ -340,7 +371,7 @@ async def create_event(
             db.scalars(select(AudioClip).where(AudioClip.event_id == merged.id)).first() is not None
         )
         if not merged.display_suppressed:
-            await live_hub.broadcast(EventRead.model_validate(merged).model_dump())
+            await live_hub.broadcast(db.info.get("tenant_id", 1), EventRead.model_validate(merged).model_dump())
         return merged
 
     db.add(event)
@@ -398,7 +429,7 @@ async def create_event(
         device.last_seen = event.timestamp
     db.commit()
     if not event.display_suppressed:
-        await live_hub.broadcast(EventRead.model_validate(event).model_dump())
+        await live_hub.broadcast(db.info.get("tenant_id", 1), EventRead.model_validate(event).model_dump())
         trigger_notifications(db, event)
         background_tasks.add_task(send_event_pushes, event.id)
 
@@ -415,6 +446,7 @@ def ingest_training_clip(
     x_trigger_uptime_ms: Annotated[int, Header(ge=0)],
     x_received_at: Annotated[str | None, Header()] = None,
 ) -> dict[str, object]:
+    _ensure_ingest_device(db, device_id)
     if db.scalar(select(Device.id).where(Device.device_id == device_id)) is None:
         raise HTTPException(status_code=404, detail="Unknown device")
     try:
@@ -853,7 +885,7 @@ def event_assessment(event_id: int, db: DatabaseSession, _: CurrentUser) -> dict
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
-    config = db.get(AssessmentConfig, 1) or AssessmentConfig(id=1)
+    config = db.scalar(select(AssessmentConfig).order_by(AssessmentConfig.id)) or AssessmentConfig()
     return assessment_for(
         event.timestamp,
         event.db_level,
@@ -975,7 +1007,7 @@ async def correct_event_classification(
     _apply_learned_classifications(db, event)
     db.commit()
     db.refresh(event)
-    await live_hub.broadcast(EventRead.model_validate(event).model_dump())
+    await live_hub.broadcast(db.info.get("tenant_id", 1), EventRead.model_validate(event).model_dump())
     return event
 
 

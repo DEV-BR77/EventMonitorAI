@@ -33,6 +33,7 @@
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
         <button class="nav" data-view="support">Unterstützen</button>
+        <button class="nav" data-view="account">Mein Bereich</button>
         <div id="admin-navigation" class="admin-navigation hidden" aria-label="Administration">
           <span>Administration</span>
           <button id="admin-nav" class="nav" data-view="administration">Benutzer &amp; Einstellungen</button>
@@ -294,7 +295,22 @@
         </article>
       </section>
 
+      <section id="account" class="view hidden">
+        <div class="metrics">
+          <article><span>Tarif</span><strong id="account-plan">–</strong><small id="account-subscription">–</small></article>
+          <article><span>Eigene Mikrofone</span><strong id="account-devices">–</strong><small id="account-device-limit">–</small></article>
+          <article><span>Eigene Ereignisse</span><strong id="account-events">–</strong><small>mandantengeschützt</small></article>
+          <article><span>Aufbewahrung</span><strong id="account-retention">–</strong><small>Tage</small></article>
+        </div>
+        <article class="panel"><div class="panel-head"><h2 id="account-tenant">Mein Kundenbereich</h2><span id="account-role"></span></div><p class="management-help">Alle Dashboard-KPIs, Ereignisse, Mikrofone, Kalibrierungen, Audioaufnahmen und Lärmprotokolle werden ausschließlich diesem Kundenbereich zugeordnet. Abonnementstatus und Benutzerrolle sind getrennte Einstellungen.</p></article>
+      </section>
+
       <section id="administration" class="view hidden">
+        <article id="tenant-management" class="panel hidden">
+          <div class="panel-head"><h2>Kundenbereiche und Abonnements</h2><span>Plattformverwaltung</span></div>
+          <form id="tenant-create-form" class="class-create"><label>Name<input id="tenant-name" required maxlength="120"></label><label>Kurzname<input id="tenant-slug" required pattern="[a-z0-9][a-z0-9-]{1,78}[a-z0-9]"></label><label>Administrator<input id="tenant-admin" required maxlength="80"></label><label>Startpasswort<input id="tenant-password" type="password" minlength="10" required></label><label>Tarif<input id="tenant-plan" value="pilot" required></label><label>Gerätelimit<input id="tenant-max-devices" type="number" min="1" max="100" value="2"></label><label>Aufbewahrung (Tage)<input id="tenant-retention" type="number" min="1" max="3650" value="30"></label><button type="submit">Kundenbereich anlegen</button></form>
+          <span id="tenant-status"></span><div id="tenant-list"></div>
+        </article>
         <form id="assessment-config-form" class="panel assessment-config">
           <div class="panel-head"><h2>Beurteilungszuschlag</h2><span>Empfindliche Tageszeiten</span></div>
           <p class="management-help">Der Zuschlag bleibt im Lärmprotokoll ausgewiesen. Hier wird festgelegt, ob er zusätzlich in die aktuelle Dashboard-Bewertung eingerechnet wird.</p>
@@ -339,6 +355,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.5.0-person-review"></script>
+  <script src="/app.js?v=0.6.0-tenants"></script>
 </body>
 </html>

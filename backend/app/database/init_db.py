@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database.base import Base
 from app.database.session import engine
 from app.models import Event
+from app.models.dashboard import Tenant, TenantMembership, TenantSubscription, User
 from app.services.clips import reconcile_clip_links
 from app.services.event_aggregation import consolidate_existing_events
 from app.services.label_translation import translate_label
@@ -159,6 +160,74 @@ def ensure_person_media_columns() -> None:
                 )
 
 
+def seed_default_tenant() -> None:
+    with Session(engine) as db:
+        tenant = db.get(Tenant, 1)
+        if tenant is None:
+            tenant = Tenant(id=1, name="EventMonitorAI", slug="eventmonitorai")
+            db.add(tenant)
+            db.flush()
+        if db.scalar(select(TenantSubscription).where(TenantSubscription.tenant_id == 1)) is None:
+            db.add(TenantSubscription(tenant_id=1, plan="self_hosted", status="active", max_devices=10))
+        existing_users = list(db.scalars(select(User)))
+        memberships = set(db.scalars(select(TenantMembership.user_id).where(TenantMembership.tenant_id == 1)))
+        db.add_all(TenantMembership(tenant_id=1, user_id=user.id, role=user.role) for user in existing_users if user.id not in memberships)
+        db.commit()
+
+
+def ensure_tenant_columns() -> None:
+    inspector = inspect(engine)
+    scoped_tables = {
+        "events", "devices", "device_telemetry", "device_level_samples",
+        "device_calibrations", "calibration_reference_runs",
+        "calibration_reference_results", "live_audio_access", "push_subscriptions",
+        "event_witness_responses", "ignored_detection_patterns",
+        "event_classification_revisions", "audio_clips", "review_runs",
+        "assessment_config", "person_profiles", "event_person_assignments",
+        "speaker_clusters", "event_speaker_clusters", "notification_rules",
+    }
+    with engine.begin() as connection:
+        for table in sorted(scoped_tables & set(inspector.get_table_names())):
+            columns = {column["name"] for column in inspector.get_columns(table)}
+            if "tenant_id" not in columns:
+                connection.execute(text(f"ALTER TABLE {table} ADD COLUMN tenant_id INTEGER NOT NULL DEFAULT 1"))
+
+
+def ensure_tenant_unique_constraints() -> None:
+    """Replace legacy global name uniqueness with per-customer uniqueness."""
+    if engine.dialect.name != "postgresql":
+        return
+    inspector = inspect(engine)
+    targets = {
+        "person_profiles": "name",
+        "speaker_clusters": "name",
+        "ignored_detection_patterns": "label_normalized",
+    }
+    quote = engine.dialect.identifier_preparer.quote
+    with engine.begin() as connection:
+        for table, column in targets.items():
+            if table not in inspector.get_table_names():
+                continue
+            constraints = inspector.get_unique_constraints(table)
+            for constraint in constraints:
+                if constraint.get("column_names") == [column] and constraint.get("name"):
+                    connection.execute(
+                        text(
+                            f"ALTER TABLE {quote(table)} DROP CONSTRAINT "
+                            f"{quote(constraint['name'])}"
+                        )
+                    )
+            index_name = f"uq_{table}_tenant_{column}"
+            indexes = {item["name"] for item in inspector.get_indexes(table)}
+            if index_name not in indexes:
+                connection.execute(
+                    text(
+                        f"CREATE UNIQUE INDEX {quote(index_name)} ON {quote(table)} "
+                        f"(tenant_id, {quote(column)})"
+                    )
+                )
+
+
 def backfill_events() -> None:
     with Session(engine) as db:
         events = list(db.scalars(select(Event)).all())
@@ -199,6 +268,9 @@ def backfill_events() -> None:
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    seed_default_tenant()
+    ensure_tenant_columns()
+    ensure_tenant_unique_constraints()
     ensure_telemetry_counter_capacity()
     ensure_device_position_columns()
     ensure_calibration_columns()

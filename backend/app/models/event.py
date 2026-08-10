@@ -2,9 +2,10 @@ from sqlalchemy import Boolean, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
+from app.database.tenancy import TenantScopedMixin
 
 
-class Event(Base):
+class Event(TenantScopedMixin, Base):
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

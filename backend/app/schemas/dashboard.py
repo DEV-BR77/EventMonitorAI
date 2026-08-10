@@ -13,6 +13,8 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     role: str
     username: str
+    tenant_id: int = 1
+    tenant_name: str = "EventMonitorAI"
 
 
 class UserCreate(LoginRequest):
@@ -32,6 +34,18 @@ class UserRead(BaseModel):
     role: str
     active: bool
     created_at: str
+    tenant_id: int = 1
+    tenant_name: str = "EventMonitorAI"
+
+
+class TenantCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    slug: str = Field(pattern="^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$")
+    admin_username: str = Field(min_length=3, max_length=80)
+    admin_password: str = Field(min_length=10, max_length=256)
+    plan: str = Field(default="pilot", max_length=40)
+    max_devices: int = Field(default=2, ge=1, le=100)
+    retention_days: int = Field(default=30, ge=1, le=3650)
 
 
 class LiveAudioPermissionUpdate(BaseModel):

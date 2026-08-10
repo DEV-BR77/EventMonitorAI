@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.database.session import get_db
-from app.models.dashboard import User
+from app.models.dashboard import Tenant, TenantMembership, User
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -35,10 +35,11 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
 
 
-def create_token(user: User) -> str:
+def create_token(user: User, tenant_id: int = 1, tenant_role: str | None = None) -> str:
     payload = {
         "sub": user.username,
-        "role": user.role,
+        "role": tenant_role or user.role,
+        "tenant_id": tenant_id,
         "iat": int(time.time()),
         "jti": secrets.token_urlsafe(16),
         "exp": int(time.time()) + settings.access_token_minutes * 60,
@@ -78,6 +79,21 @@ def get_current_user(
     user = db.scalar(select(User).where(User.username == payload["sub"]))
     if user is None or not user.active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User disabled")
+    tenant_id = int(payload.get("tenant_id", 1))
+    membership = db.scalar(
+        select(TenantMembership)
+        .join(Tenant, Tenant.id == TenantMembership.tenant_id)
+        .where(
+            TenantMembership.user_id == user.id,
+            TenantMembership.tenant_id == tenant_id,
+            TenantMembership.active.is_(True),
+            Tenant.active.is_(True),
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Mandantenzugriff verweigert")
+    db.info["tenant_id"] = tenant_id
+    db.info["tenant_role"] = membership.role
     return user
 
 
@@ -86,7 +102,10 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 def require_roles(*roles: str):
     def dependency(user: CurrentUser) -> User:
-        if user.role not in roles:
+        state = user.__dict__.get("_sa_instance_state")
+        session = getattr(state, "session", None)
+        role = session.info.get("tenant_role", user.role) if session is not None else user.role
+        if role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
         return user
 

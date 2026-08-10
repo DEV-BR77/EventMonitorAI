@@ -225,3 +225,14 @@ Unterbrechung und Fortsetzung von den Überarbeitungen
     100,10 ms p95. Sicherheitsheader, Zugriffsschutz, Login-Drosselung,
     Datenschutzreview und verbindliche v1.0-Freigabekriterien sind
     dokumentiert und automatisiert geprüft.
+
+## Phase 10 - Kundenbetrieb und Vermarktungsgrundlage
+
+- [x] technisch getrennte Kundenbereiche für Ereignisse, Audio, Geräte, KI-Daten und Auswertungen
+- [x] Rollen je Kundenbereich getrennt von Tarif und Abonnementstatus
+- [x] eigener Kundenbereich mit persönlichen KPIs, Geräten, Einstellungen und Lärmprotokollen
+- [x] Geräteobergrenzen und Aufbewahrungszeit je Abonnement
+- [x] widerrufbare, gerätebezogene Zugangsdaten für verschlüsselten Internet-Ingest
+- [x] Plattformverwaltung zum Anlegen von Kundenbereichen und Erstadministratoren
+- [ ] produktiver Zahlungsanbieter mit Webhooks, Rechnungsstatus und Kündigungsablauf
+- [ ] juristisch geprüfte Vertrags-, Datenschutz- und Auftragsverarbeitungsunterlagen

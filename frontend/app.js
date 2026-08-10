@@ -97,6 +97,7 @@ async function start() {
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     $("#admin-navigation").classList.toggle("hidden", me.role !== "admin");
+    $("#tenant-management").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
     $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
     $("#map-stage").classList.toggle("positioning", me.role === "admin");
     const today = new Date().toLocaleDateString("sv-SE");
@@ -107,7 +108,7 @@ async function start() {
     if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
       document.querySelector('.nav[data-view="overview"]').click();
     }
-    await Promise.all([loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
+    await Promise.all([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants()] : [])] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -167,6 +168,7 @@ function renderDeviceManagement() {
       <label>Position Y (%)<input name="position_y" type="number" min="0" max="100" step="0.1" value="${d.position_y ?? ""}"></label>
       <label class="active-toggle"><input name="enabled" type="checkbox" ${d.enabled ? "checked" : ""}> Aktiv</label>
       <button type="submit">Speichern</button>
+      ${state.role === "admin" ? `<button type="button" data-device-credential="${escapeHtml(d.device_id)}">Internetzugang neu ausstellen</button>` : ""}
     </form>`).join("") : "<p>Noch keine Mikrofone registriert.</p>";
 }
 
@@ -456,6 +458,23 @@ async function refresh() {
   renderCategories(stats.categories, stats.total);
   renderHeatmap(heatmap);
   renderCalendar(calendar);
+}
+
+async function loadAccount() {
+  const account = await api("/api/account");
+  $("#account-tenant").textContent = account.tenant_name;
+  $("#account-role").textContent = account.role;
+  $("#account-plan").textContent = account.plan;
+  $("#account-subscription").textContent = account.subscription_status;
+  $("#account-devices").textContent = account.device_count;
+  $("#account-device-limit").textContent = `von ${account.max_devices}`;
+  $("#account-events").textContent = account.event_count.toLocaleString("de-DE");
+  $("#account-retention").textContent = account.retention_days;
+}
+
+async function loadTenants() {
+  const tenants = await api("/api/platform/tenants");
+  $("#tenant-list").innerHTML = tenants.map((tenant) => `<div class="rule"><div><strong>${escapeHtml(tenant.name)}</strong><p>${escapeHtml(tenant.slug)} · ${escapeHtml(tenant.subscription?.plan || "kein Tarif")} · ${escapeHtml(tenant.subscription?.status || "inaktiv")} · ${tenant.subscription?.max_devices || 0} Mikrofone · ${tenant.subscription?.retention_days || 0} Tage</p></div></div>`).join("") || "<p>Noch keine Kundenbereiche.</p>";
 }
 
 function mediaMime(file, kind) {
@@ -1245,6 +1264,15 @@ $("#audio-permission-list").addEventListener("submit", async (e) => {
     await loadAudioPermissions();
   } catch (error) { $("#audio-permission-status").textContent = error.message; }
 });
+$("#tenant-create-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    const tenant = await api("/api/platform/tenants", { method: "POST", body: JSON.stringify({ name: $("#tenant-name").value, slug: $("#tenant-slug").value, admin_username: $("#tenant-admin").value, admin_password: $("#tenant-password").value, plan: $("#tenant-plan").value, max_devices: Number($("#tenant-max-devices").value), retention_days: Number($("#tenant-retention").value) }) });
+    e.target.reset();
+    $("#tenant-status").textContent = `Kundenbereich ${tenant.name} mit Administrator ${tenant.admin_username} angelegt.`;
+    await loadTenants();
+  } catch (error) { $("#tenant-status").textContent = error.message; }
+});
 $("#user-create-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
@@ -1388,6 +1416,14 @@ $("#device-management-list").addEventListener("submit", async (e) => {
     $("#device-management-status").textContent = `${form.elements.name.value} gespeichert.`;
     await loadDevices();
     await loadSoundMap();
+  } catch (error) { $("#device-management-status").textContent = error.message; }
+});
+$("#device-management-list").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-device-credential]");
+  if (!button) return;
+  try {
+    const result = await api(`/api/devices/${encodeURIComponent(button.dataset.deviceCredential)}/credential`, { method: "POST" });
+    $("#device-management-status").innerHTML = `Neuer Gerätezugang erstellt. Das Geheimnis wird nur einmal angezeigt:<br><code>${escapeHtml(result.secret)}</code><br>Geräte-ID: <code>${escapeHtml(result.device_id)}</code>`;
   } catch (error) { $("#device-management-status").textContent = error.message; }
 });
 function formatTime(value) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("de-DE"); }

@@ -12,7 +12,7 @@ from app.core.security import (
     verify_password,
 )
 from app.database.session import get_db
-from app.models.dashboard import User
+from app.models.dashboard import Tenant, TenantMembership, TenantSubscription, User
 from app.schemas.dashboard import LoginRequest, TokenResponse, UserCreate, UserRead, UserUpdate
 from app.services.login_guard import clear_failures, record_failure, retry_after
 
@@ -27,10 +27,15 @@ def bootstrap(data: LoginRequest, db: DatabaseSession) -> TokenResponse:
     if len(data.password) < 10:
         raise HTTPException(status_code=422, detail="Password must contain at least 10 characters")
     user = User(username=data.username, password_hash=hash_password(data.password), role="admin")
-    db.add(user)
+    tenant = db.get(Tenant, 1) or Tenant(id=1, name="EventMonitorAI", slug="eventmonitorai")
+    db.add_all([tenant, user])
+    db.flush()
+    db.add(TenantMembership(tenant_id=tenant.id, user_id=user.id, role="admin"))
+    if db.scalar(select(TenantSubscription).where(TenantSubscription.tenant_id == tenant.id)) is None:
+        db.add(TenantSubscription(tenant_id=tenant.id, plan="self_hosted", status="active", max_devices=10))
     db.commit()
     db.refresh(user)
-    return TokenResponse(access_token=create_token(user), role=user.role, username=user.username)
+    return TokenResponse(access_token=create_token(user, tenant.id, "admin"), role="admin", username=user.username, tenant_id=tenant.id, tenant_name=tenant.name)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -51,12 +56,27 @@ def login(data: LoginRequest, db: DatabaseSession) -> TokenResponse:
             detail="Benutzername oder Passwort ist ungültig",
         )
     clear_failures(data.username)
-    return TokenResponse(access_token=create_token(user), role=user.role, username=user.username)
+    membership = db.scalar(select(TenantMembership).where(TenantMembership.user_id == user.id, TenantMembership.active.is_(True)).order_by(TenantMembership.id))
+    if membership is None:
+        tenant = db.get(Tenant, 1) or Tenant(id=1, name="EventMonitorAI", slug="eventmonitorai")
+        db.add(tenant)
+        db.flush()
+        membership = TenantMembership(tenant_id=tenant.id, user_id=user.id, role=user.role)
+        db.add(membership)
+        if db.scalar(select(TenantSubscription).where(TenantSubscription.tenant_id == tenant.id)) is None:
+            db.add(TenantSubscription(tenant_id=tenant.id, plan="self_hosted", status="active", max_devices=10))
+        db.commit()
+    tenant = db.get(Tenant, membership.tenant_id)
+    if tenant is None or not tenant.active:
+        raise HTTPException(status_code=403, detail="Kundenbereich ist deaktiviert")
+    return TokenResponse(access_token=create_token(user, tenant.id, membership.role), role=membership.role, username=user.username, tenant_id=tenant.id, tenant_name=tenant.name)
 
 
-@router.get("/me", response_model=UserRead)
-def me(user: CurrentUser) -> User:
-    return user
+@router.get("/me")
+def me(user: CurrentUser, db: DatabaseSession) -> dict[str, object]:
+    tenant_id = db.info["tenant_id"]
+    tenant = db.get(Tenant, tenant_id)
+    return {"id": user.id, "username": user.username, "role": db.info["tenant_role"], "active": user.active, "created_at": user.created_at, "tenant_id": tenant_id, "tenant_name": tenant.name}
 
 
 @router.get("/users", response_model=list[UserRead])
@@ -64,7 +84,7 @@ def users(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_roles("admin"))],
 ) -> list[User]:
-    return list(db.scalars(select(User).order_by(User.username)).all())
+    return list(db.scalars(select(User).join(TenantMembership, TenantMembership.user_id == User.id).where(TenantMembership.tenant_id == db.info["tenant_id"], TenantMembership.active.is_(True)).order_by(User.username)).all())
 
 
 @router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -80,6 +100,8 @@ def create_user(
         raise HTTPException(status_code=422, detail="Password must contain at least 10 characters")
     user = User(username=username, password_hash=hash_password(data.password), role=data.role)
     db.add(user)
+    db.flush()
+    db.add(TenantMembership(tenant_id=db.info["tenant_id"], user_id=user.id, role=data.role))
     db.commit()
     db.refresh(user)
     return user
@@ -105,6 +127,13 @@ def update_user(
     if data.password:
         user.password_hash = hash_password(data.password)
         clear_failures(user.username)
+    tenant_id = db.info.get("tenant_id")
+    if tenant_id is not None:
+        membership = db.scalar(select(TenantMembership).where(TenantMembership.tenant_id == tenant_id, TenantMembership.user_id == user.id))
+        if membership is None:
+            raise HTTPException(status_code=404, detail="Benutzer gehört nicht zu diesem Kundenbereich")
+        membership.role = data.role
+        membership.active = data.active
     db.commit()
     db.refresh(user)
     return user

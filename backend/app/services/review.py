@@ -7,16 +7,20 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.database.session import SessionLocal
-from app.models.dashboard import EventClassificationRevision, ReviewRun
+from app.models.dashboard import EventClassificationRevision, ReviewRun, Tenant
 from app.models.event import Event
 from app.services.taxonomy import base_class_for_detection
 
 
 def process_review_run(run_id: int, batch_size: int = 100) -> None:
     with SessionLocal() as db:
+        db.info["include_all_tenants"] = True
         run = db.get(ReviewRun, run_id)
         if run is None or run.status not in {"pending", "paused"}:
             return
+        tenant_id = run.tenant_id
+        db.info.pop("include_all_tenants", None)
+        db.info["tenant_id"] = tenant_id
         run.status = "running"
         run.started_at = run.started_at or datetime.now(UTC).isoformat()
         run.total = db.scalar(select(func.count()).select_from(Event)) or 0
@@ -24,9 +28,13 @@ def process_review_run(run_id: int, batch_size: int = 100) -> None:
 
     while True:
         with SessionLocal() as db:
+            db.info["include_all_tenants"] = True
             run = db.get(ReviewRun, run_id)
             if run is None or run.status != "running":
                 return
+            tenant_id = run.tenant_id
+            db.info.pop("include_all_tenants", None)
+            db.info["tenant_id"] = tenant_id
             events = list(
                 db.scalars(
                     select(Event)
@@ -79,22 +87,26 @@ async def nightly_review_scheduler() -> None:
         if now.hour == settings.nightly_review_hour:
             today = now.date().isoformat()
             with SessionLocal() as db:
-                existing = db.scalar(
-                    select(ReviewRun).where(
-                        ReviewRun.kind == "nightly",
-                        ReviewRun.created_at >= today,
+                tenant_ids = list(db.scalars(select(Tenant.id).where(Tenant.active.is_(True))))
+            for tenant_id in tenant_ids:
+                with SessionLocal() as db:
+                    db.info["tenant_id"] = tenant_id
+                    existing = db.scalar(
+                        select(ReviewRun).where(
+                            ReviewRun.kind == "nightly",
+                            ReviewRun.created_at >= today,
+                        )
                     )
-                )
-                active = db.scalar(
-                    select(ReviewRun).where(ReviewRun.status.in_(("pending", "running")))
-                )
-                if existing is None and active is None:
-                    run = ReviewRun(kind="nightly", status="pending", requested_by="scheduler")
-                    db.add(run)
-                    db.commit()
-                    run_id = run.id
-                else:
-                    run_id = None
-            if run_id is not None:
-                await asyncio.to_thread(process_review_run, run_id)
+                    active = db.scalar(
+                        select(ReviewRun).where(ReviewRun.status.in_(("pending", "running")))
+                    )
+                    if existing is None and active is None:
+                        run = ReviewRun(kind="nightly", status="pending", requested_by="scheduler")
+                        db.add(run)
+                        db.commit()
+                        run_id = run.id
+                    else:
+                        run_id = None
+                if run_id is not None:
+                    await asyncio.to_thread(process_review_run, run_id)
         await asyncio.sleep(60)

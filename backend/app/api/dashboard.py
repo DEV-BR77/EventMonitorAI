@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import secrets
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -6,11 +8,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import CurrentUser, require_roles
+from app.core.security import CurrentUser, hash_password, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
     AssessmentConfig,
@@ -19,6 +21,7 @@ from app.models.dashboard import (
     CalibrationReferenceRun,
     Device,
     DeviceCalibration,
+    DeviceCredential,
     DeviceLevelSample,
     DeviceTelemetry,
     EventClass,
@@ -28,6 +31,9 @@ from app.models.dashboard import (
     NotificationRule,
     PersonProfile,
     SpeakerCluster,
+    Tenant,
+    TenantMembership,
+    TenantSubscription,
     User,
 )
 from app.models.event import Event
@@ -59,6 +65,7 @@ from app.schemas.dashboard import (
     SoundMapPoint,
     SpeakerSampleReview,
     SpeakerClusterUpdate,
+    TenantCreate,
 )
 from app.services.calibration import (
     calculate_recommended_offset,
@@ -78,6 +85,70 @@ router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
 
 
+@router.get("/account")
+def account_summary(db: DatabaseSession, user: CurrentUser) -> dict[str, object]:
+    tenant_id = db.info["tenant_id"]
+    tenant = db.get(Tenant, tenant_id)
+    subscription = db.scalar(select(TenantSubscription).where(TenantSubscription.tenant_id == tenant_id))
+    membership = db.scalar(select(TenantMembership).where(TenantMembership.tenant_id == tenant_id, TenantMembership.user_id == user.id))
+    return {
+        "tenant_id": tenant_id,
+        "tenant_name": tenant.name,
+        "role": membership.role,
+        "plan": subscription.plan if subscription else "none",
+        "subscription_status": subscription.status if subscription else "inactive",
+        "max_devices": subscription.max_devices if subscription else 0,
+        "retention_days": subscription.retention_days if subscription else 0,
+        "device_count": db.scalar(select(func.count(Device.id))) or 0,
+        "event_count": db.scalar(select(func.count(Event.id))) or 0,
+    }
+
+
+def _require_platform_admin(db: Session, user: User) -> None:
+    if user.role != "admin" or db.info.get("tenant_id") != 1:
+        raise HTTPException(status_code=403, detail="Nur die Plattformverwaltung darf Kundenbereiche verwalten")
+
+
+@router.get("/platform/tenants")
+def list_tenants(db: DatabaseSession, user: CurrentUser) -> list[dict[str, object]]:
+    _require_platform_admin(db, user)
+    tenants = list(db.scalars(select(Tenant).order_by(Tenant.id)))
+    result = []
+    for tenant in tenants:
+        item = db.scalar(select(TenantSubscription).where(TenantSubscription.tenant_id == tenant.id))
+        result.append({
+            "id": tenant.id,
+            "name": tenant.name,
+            "slug": tenant.slug,
+            "active": tenant.active,
+            "subscription": {"plan": item.plan, "status": item.status, "max_devices": item.max_devices, "retention_days": item.retention_days} if item else None,
+        })
+    return result
+
+
+@router.post("/platform/tenants", status_code=201)
+def create_tenant(
+    data: TenantCreate,
+    db: DatabaseSession,
+    user: CurrentUser,
+) -> dict[str, object]:
+    _require_platform_admin(db, user)
+    if db.scalar(select(Tenant).where(Tenant.slug == data.slug)):
+        raise HTTPException(status_code=409, detail="Kurzname des Kundenbereichs ist bereits vergeben")
+    if db.scalar(select(User).where(func.lower(User.username) == data.admin_username.casefold())):
+        raise HTTPException(status_code=409, detail="Benutzername ist bereits vergeben")
+    tenant = Tenant(name=" ".join(data.name.split()), slug=data.slug)
+    customer = User(username=data.admin_username.strip(), password_hash=hash_password(data.admin_password), role="admin")
+    db.add_all([tenant, customer])
+    db.flush()
+    db.add_all([
+        TenantMembership(tenant_id=tenant.id, user_id=customer.id, role="admin"),
+        TenantSubscription(tenant_id=tenant.id, plan=data.plan, status="trialing", max_devices=data.max_devices, retention_days=data.retention_days),
+    ])
+    db.commit()
+    return {"id": tenant.id, "name": tenant.name, "slug": tenant.slug, "admin_username": customer.username}
+
+
 @router.get("/support-config")
 def support_config(_: CurrentUser) -> dict[str, str | bool | float]:
     url = settings.support_url.strip()
@@ -94,9 +165,9 @@ def support_config(_: CurrentUser) -> dict[str, str | bool | float]:
 
 
 def _assessment_config(db: Session) -> AssessmentConfig:
-    config = db.get(AssessmentConfig, 1)
+    config = db.scalar(select(AssessmentConfig).order_by(AssessmentConfig.id))
     if config is None:
-        config = AssessmentConfig(id=1)
+        config = AssessmentConfig()
         db.add(config)
         db.commit()
         db.refresh(config)
@@ -984,6 +1055,12 @@ def create_device(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_roles("admin", "operator"))],
 ) -> Device:
+    subscription = db.scalar(select(TenantSubscription).where(TenantSubscription.tenant_id == db.info["tenant_id"]))
+    device_count = db.scalar(select(func.count(Device.id))) or 0
+    if subscription is None or subscription.status not in {"active", "trialing"}:
+        raise HTTPException(status_code=402, detail="Für neue Mikrofone ist ein aktives Abonnement erforderlich")
+    if device_count >= subscription.max_devices:
+        raise HTTPException(status_code=409, detail="Gerätelimit des Tarifs erreicht")
     if db.scalar(select(Device).where(Device.device_id == data.device_id)):
         raise HTTPException(status_code=409, detail="Device already exists")
     device = Device(**data.model_dump())
@@ -1008,6 +1085,30 @@ def update_device(
     db.commit()
     db.refresh(device)
     return device
+
+
+@router.post("/devices/{device_id}/credential")
+def rotate_device_credential(
+    device_id: str,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> dict[str, str]:
+    device = db.scalar(select(Device).where(Device.device_id == device_id))
+    if device is None:
+        raise HTTPException(status_code=404, detail="Mikrofon nicht gefunden")
+    secret = secrets.token_urlsafe(32)
+    digest = hashlib.sha256(secret.encode()).hexdigest()
+    credential = db.scalar(select(DeviceCredential).where(DeviceCredential.device_id == device_id))
+    if credential is None:
+        credential = DeviceCredential(tenant_id=db.info["tenant_id"], device_id=device_id, secret_hash=digest)
+        db.add(credential)
+    else:
+        if credential.tenant_id != db.info["tenant_id"]:
+            raise HTTPException(status_code=403, detail="Mikrofon gehört zu einem anderen Kundenbereich")
+        credential.secret_hash = digest
+        credential.active = True
+    db.commit()
+    return {"device_id": device_id, "secret": secret, "note": "Dieses Gerätegeheimnis wird nur einmal angezeigt"}
 
 
 def _audio_permission(db: Session, user: User) -> LiveAudioPermissionRead:

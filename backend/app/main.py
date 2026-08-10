@@ -17,7 +17,7 @@ from app.core.config import settings
 from app.core.security import decode_token
 from app.database.init_db import init_db
 from app.database.session import engine
-from app.models.dashboard import Device, LiveAudioAccess, User
+from app.models.dashboard import Device, LiveAudioAccess, TenantMembership, User
 from app.services.audio import live_audio_hub
 from app.services.live import live_hub
 from app.services.review import nightly_review_scheduler
@@ -77,18 +77,20 @@ async def event_stream(websocket: WebSocket, token: str) -> None:
         payload = decode_token(token)
         with Session(engine) as db:
             user = db.scalar(select(User).where(User.username == payload["sub"]))
-            if user is None or not user.active:
+            tenant_id = int(payload.get("tenant_id", 1))
+            membership = db.scalar(select(TenantMembership).where(TenantMembership.user_id == user.id, TenantMembership.tenant_id == tenant_id, TenantMembership.active.is_(True))) if user else None
+            if user is None or not user.active or membership is None:
                 await websocket.close(code=4401)
                 return
     except Exception:
         await websocket.close(code=4401)
         return
-    await live_hub.connect(websocket)
+    await live_hub.connect(tenant_id, websocket)
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        live_hub.disconnect(websocket)
+        live_hub.disconnect(tenant_id, websocket)
 
 
 @app.websocket("/ws/audio/{device_id}")
@@ -97,14 +99,17 @@ async def audio_stream(websocket: WebSocket, device_id: str, token: str) -> None
         payload = decode_token(token)
         with Session(engine) as db:
             user = db.scalar(select(User).where(User.username == payload["sub"]))
-            device = db.scalar(select(Device).where(Device.device_id == device_id))
+            tenant_id = int(payload.get("tenant_id", 1))
+            membership = db.scalar(select(TenantMembership).where(TenantMembership.user_id == user.id, TenantMembership.tenant_id == tenant_id, TenantMembership.active.is_(True))) if user else None
+            device = db.scalar(select(Device).where(Device.device_id == device_id, Device.tenant_id == tenant_id))
             allowed = bool(
                 user
                 and user.active
+                and membership
                 and device
                 and device.enabled
                 and (
-                    user.role == "admin"
+                    membership.role == "admin"
                     or db.scalar(
                         select(LiveAudioAccess.id).where(
                             LiveAudioAccess.user_id == user.id,

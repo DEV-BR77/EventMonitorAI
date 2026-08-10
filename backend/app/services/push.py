@@ -47,6 +47,7 @@ def send_event_pushes(event_id: int) -> None:
         event = db.get(Event, event_id)
         if event is None:
             return
+        db.info["tenant_id"] = event.tenant_id
         subscriptions = list(db.scalars(select(PushSubscription)).all())
         stale: list[int] = []
         for subscription in subscriptions:
