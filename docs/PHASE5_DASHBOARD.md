@@ -44,6 +44,12 @@ ein ruhigeres und sauberes Wohnumfeld. Sie trennt dokumentierte Mindestkosten vo
 offenen Hardware- und Betriebskosten und nennt finanzielle Hilfe, Mitarbeit, Wissen,
 Beobachtungen und Sachmittel gleichwertig. Der optionale externe Unterstützungslink
 wird ausschließlich über `SUPPORT_URL` konfiguriert.
+Die belegten Anschaffungspreise für zwei ESP32-S3, den Fünferpack INMP441-Mikrofone,
+den Raspberry Pi 4B und die 250-GB-SSD werden einzeln ausgewiesen. Beim selbst
+3D-gedruckten Raspberry-Pi-Gehäuse sind rund 3 Euro ausdrücklich als geschätzte
+Filamentkosten gekennzeichnet. Zusammen mit den bisher angesetzten KI-Kosten ergibt
+sich eine nachweisbare beziehungsweise transparent geschätzte Mindestsumme von
+349,73 Euro; Domain, Strom und Arbeitszeit bleiben darin unberücksichtigt.
 Das nächste Investitionsziel wird über `SUPPORT_TARGET_EUR` und der bereits gemeinsam
 finanzierte Betrag über `SUPPORT_COLLECTED_EUR` gepflegt. Die Referenzstation ist als
 Klasse-2-Vergleichsmessung ausgewiesen; eine gerichtliche oder behördliche Anerkennung
