@@ -96,8 +96,7 @@ async function start() {
     $("#calibration-form").classList.toggle("hidden", me.role === "viewer");
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
-    $("#admin-nav").classList.toggle("hidden", me.role !== "admin");
-    $("#review-nav").classList.toggle("hidden", me.role === "viewer");
+    $("#admin-navigation").classList.toggle("hidden", me.role !== "admin");
     $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
     $("#map-stage").classList.toggle("positioning", me.role === "admin");
     const today = new Date().toLocaleDateString("sv-SE");
@@ -105,7 +104,10 @@ async function start() {
     if (!$("#date-to-filter").value) $("#date-to-filter").value = today;
     await loadDevices();
     await loadEventClasses();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
+    if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
+      document.querySelector('.nav[data-view="overview"]').click();
+    }
+    await Promise.all([loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -915,6 +917,7 @@ $("#show-resolved-events").addEventListener("change", renderEvents);
 for (const picker of [$("#date-from-filter"), $("#date-to-filter")]) picker.addEventListener("click", () => picker.showPicker?.());
 $("#level-minutes").addEventListener("change", loadLiveLevels);
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {
+  if (button.closest("#admin-navigation") && state.role !== "admin") return;
   document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("active", n === button));
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   $(`#${button.dataset.view}`).classList.remove("hidden");

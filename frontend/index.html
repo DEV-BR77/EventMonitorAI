@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.3.0-calibration">
+  <link rel="stylesheet" href="/styles.css?v=0.4.1-admin-navigation">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -29,13 +29,16 @@
         <button class="nav active" data-view="overview">Übersicht</button>
         <button class="nav" data-view="kpis">KPIs</button>
         <button class="nav" data-view="sound-map">Messbereich</button>
-        <button class="nav" data-view="devices">Mikrofone</button>
         <button id="audio-nav" class="nav hidden" data-view="audio">Live-Sound</button>
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
-        <button id="review-nav" class="nav hidden" data-view="review">Audio-Lab</button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
         <button class="nav" data-view="support">Unterstützen</button>
-        <button id="admin-nav" class="nav hidden" data-view="administration">Administration</button>
+        <div id="admin-navigation" class="admin-navigation hidden" aria-label="Administration">
+          <span>Administration</span>
+          <button id="admin-nav" class="nav" data-view="administration">Benutzer &amp; Einstellungen</button>
+          <button id="devices-nav" class="nav" data-view="devices">Mikrofone</button>
+          <button id="review-nav" class="nav" data-view="review">Audio-Lab</button>
+        </div>
       </nav>
       <div class="account"><span id="identity"></span><button id="push-enable" class="ghost hidden">Push aktivieren</button><button id="logout" class="ghost">Abmelden</button></div>
     </aside>
@@ -325,6 +328,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.4.0-kpis-speakers"></script>
+  <script src="/app.js?v=0.4.1-admin-navigation"></script>
 </body>
 </html>

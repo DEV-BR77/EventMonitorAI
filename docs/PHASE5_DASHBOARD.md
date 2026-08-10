@@ -50,6 +50,9 @@ den Raspberry Pi 4B und die 250-GB-SSD werden einzeln ausgewiesen. Beim selbst
 Filamentkosten gekennzeichnet. Zusammen mit den bisher angesetzten KI-Kosten ergibt
 sich eine nachweisbare beziehungsweise transparent geschätzte Mindestsumme von
 349,73 Euro; Domain, Strom und Arbeitszeit bleiben darin unberücksichtigt.
+Die Ansichten **Mikrofone** und **Audio-Lab** sind im Navigationsbereich
+**Administration** zusammengefasst und ausschließlich für Administratoren sichtbar.
+Nichtadministrative Sitzungen laden die zugehörigen Verwaltungs- und Prüfdaten nicht.
 Das nächste Investitionsziel wird über `SUPPORT_TARGET_EUR` und der bereits gemeinsam
 finanzierte Betrag über `SUPPORT_COLLECTED_EUR` gepflegt. Die Referenzstation ist als
 Klasse-2-Vergleichsmessung ausgewiesen; eine gerichtliche oder behördliche Anerkennung
