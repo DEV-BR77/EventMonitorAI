@@ -28,6 +28,10 @@ und automatisch gelernte Ereignisse standardmäßig aus. Sie können über
 Noch nicht gespeicherte Kategorie- und Feinzuordnungen im Live-Ereignisstrom bleiben
 bei einer Aktualisierung der Liste erhalten, damit mehrere Ereignisse nacheinander
 vorbereitet und schnell bestätigt werden können.
+Erfolgreich gestartete Audioclips färben die zugehörige offene Zeile dauerhaft im Browser
+blau. Neue Ereignisse bleiben neutral, bestätigte Ereignisse sind beim optionalen
+Einblenden grün. Die Farbe übersteht Listenaktualisierungen und erleichtert das
+anschließende stapelweise Bestätigen.
 
 Im KI-Klassenkatalog bilden Basisklassen die Hauptkategorien und Feinzuordnungen deren
 Unterarten. `Aktiv` steuert die Verfügbarkeit in Auswahlfeldern, `Trainierbar` die
