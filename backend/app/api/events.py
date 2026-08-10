@@ -7,6 +7,7 @@ import math
 import struct
 import wave
 import zipfile
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
@@ -55,7 +56,12 @@ from app.schemas.event import (
 )
 from app.services.audio import live_audio_hub
 from app.services.calibration import calibrated_db
-from app.services.clips import associate_nearest_clip, associate_nearest_event, store_training_clip
+from app.services.clips import (
+    associate_nearest_clip,
+    associate_nearest_event,
+    normalized_utc,
+    store_training_clip,
+)
 from app.services.event_aggregation import merge_candidate
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
@@ -94,14 +100,81 @@ def _learned_class_for_detection(db: Session, label: str) -> tuple[str, str | No
             )
         ).all()
     )
-    if len(rows) < 3:
+    if len(rows) < 2:
         return None
     counts: dict[tuple[str, str | None], int] = {}
     for primary, subclass in rows:
         key = (primary, subclass)
         counts[key] = counts.get(key, 0) + 1
     learned, count = max(counts.items(), key=lambda item: item[1])
-    return learned if count / len(rows) >= 0.8 else None
+    required_ratio = 1.0 if len(rows) == 2 else 0.8
+    return learned if count / len(rows) >= required_ratio else None
+
+
+def _is_voice_candidate(label: str, category: str) -> bool:
+    normalized = _normalized_detection_label(label)
+    return category in {"VOICE", "VOCALIZATION", "HUMAN_SOUND"} or any(
+        token in normalized
+        for token in ("speech", "voice", "shout", "scream", "crying", "cat", "animal")
+    )
+
+
+def _contextual_class_for_detection(
+    db: Session, timestamp: str, label: str, category: str
+) -> tuple[str, str | None] | None:
+    if not _is_voice_candidate(label, category):
+        return None
+    try:
+        current = normalized_utc(timestamp)
+    except ValueError:
+        return None
+    matches: list[tuple[str, str | None]] = []
+    for event in db.scalars(select(Event).order_by(desc(Event.id)).limit(80)):
+        if event.classification_status not in {"manual", "learned"}:
+            continue
+        if event.primary_class_code != "VOICE_LOUD" or event.subclass_code is None:
+            continue
+        try:
+            distance = abs((normalized_utc(event.timestamp) - current).total_seconds())
+        except ValueError:
+            continue
+        if distance <= 12:
+            matches.append((event.primary_class_code, event.subclass_code))
+    return Counter(matches).most_common(1)[0][0] if matches else None
+
+
+def _apply_learned_classifications(db: Session, source: Event) -> int:
+    changed = 0
+    learned = _learned_class_for_detection(db, source.label)
+    if learned is not None:
+        for event in db.scalars(
+            select(Event).where(
+                Event.label == source.label,
+                Event.classification_status == "automatic",
+            )
+        ):
+            event.primary_class_code, event.subclass_code = learned
+            event.classification_status = "learned"
+            event.corrected_by = "Lernregel"
+            event.corrected_at = datetime.now(UTC).isoformat()
+            changed += 1
+    if source.primary_class_code == "VOICE_LOUD" and source.subclass_code:
+        source_time = normalized_utc(source.timestamp)
+        for event in db.scalars(select(Event).where(Event.classification_status == "automatic")):
+            if not _is_voice_candidate(event.label, event.category):
+                continue
+            try:
+                distance = abs((normalized_utc(event.timestamp) - source_time).total_seconds())
+            except ValueError:
+                continue
+            if distance <= 12:
+                event.primary_class_code = source.primary_class_code
+                event.subclass_code = source.subclass_code
+                event.classification_status = "learned"
+                event.corrected_by = "Zeit-/Stimmkontext"
+                event.corrected_at = datetime.now(UTC).isoformat()
+                changed += 1
+    return changed
 
 
 @router.post("/audio/{device_id}", status_code=status.HTTP_202_ACCEPTED)
@@ -211,6 +284,10 @@ async def create_event(
         event_values["avg_db_level"] = event_values["db_level"]
 
     learned_class = _learned_class_for_detection(db, event_data.label)
+    if learned_class is None:
+        learned_class = _contextual_class_for_detection(
+            db, event_data.timestamp, event_data.label, category
+        )
     primary_code = (
         learned_class[0]
         if learned_class is not None
@@ -236,7 +313,9 @@ async def create_event(
         category=category,
         primary_class_code=primary_code,
         subclass_code=subclass_code,
-        classification_status="ignored" if ignored else "automatic",
+        classification_status=(
+            "ignored" if ignored else ("learned" if learned_class else "automatic")
+        ),
         display_suppressed=suppressed or ignored is not None,
     )
 
@@ -615,7 +694,7 @@ def review_summary(
     }
     by_class: dict[str, dict[str, int]] = {}
     for event in events:
-        completed = event.classification_status == "manual"
+        completed = event.classification_status in {"manual", "learned"}
         recognized = event.primary_class_code is not None
         summary[
             f"{'completed' if completed else 'open'}_{'recognized' if recognized else 'unknown'}"
@@ -638,9 +717,9 @@ def review_queue(
 ) -> list[Event]:
     statement = select(Event)
     if status_filter == "open":
-        statement = statement.where(Event.classification_status != "manual")
+        statement = statement.where(Event.classification_status.not_in(("manual", "learned")))
     elif status_filter == "completed":
-        statement = statement.where(Event.classification_status == "manual")
+        statement = statement.where(Event.classification_status.in_(("manual", "learned")))
     if class_code == "UNKNOWN":
         statement = statement.where(Event.primary_class_code.is_(None))
     elif class_code:
@@ -694,6 +773,9 @@ def bulk_classification(
                 created_at=event.corrected_at,
             )
         )
+    db.flush()
+    for event in events:
+        _apply_learned_classifications(db, event)
     db.commit()
     return events
 
@@ -878,6 +960,8 @@ async def correct_event_classification(
             created_at=event.corrected_at,
         )
     )
+    db.flush()
+    _apply_learned_classifications(db, event)
     db.commit()
     db.refresh(event)
     await live_hub.broadcast(EventRead.model_validate(event).model_dump())

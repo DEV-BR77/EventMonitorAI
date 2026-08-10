@@ -21,9 +21,13 @@ fortgesetzt werden. Automatische Läufe wenden den aktuellen Klassenkatalog erne
 unveränderte ursprüngliche Modellerkennung an. Manuell bestätigte Zuordnungen werden niemals
 überschrieben.
 
-Ab drei manuellen, für dasselbe ursprüngliche Modelllabel übereinstimmenden
-Zuordnungen wird die Klasse bei mindestens 80 Prozent Eindeutigkeit für neue
-Ereignisse automatisch verwendet. Wind, Umgebung und technische Störungen
+Ab zwei manuellen, für dasselbe ursprüngliche Modelllabel vollständig übereinstimmenden
+Zuordnungen wird die Klasse automatisch verwendet; ab drei Bestätigungen sind
+mindestens 80 Prozent Eindeutigkeit erforderlich. Die Lernregel gilt für neue und
+noch offene gleichartige Ereignisse. Bei Stimmereignissen überbrückt zusätzlich ein
+enger Zeitkontext von zwölf Sekunden unterschiedliche Modelllabels beider Mikrofone,
+etwa „Sprache“ und eine fälschliche „Katze“-Erkennung. Automatisch gelernte Treffer
+gelten als erledigt, bleiben aber korrigierbar. Wind, Umgebung und technische Störungen
 sind lernfähig, aber standardmäßig aus Lagebild, Statistik und Live-Strom
 ausgeblendet. Sie bleiben in der Audio-Lab-Prüfung sichtbar.
 

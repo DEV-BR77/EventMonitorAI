@@ -566,8 +566,10 @@ async function loadRecentEvents() {
     const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
     const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
     const play = state.role === "viewer" ? `<button type="button" class="ghost" disabled>Keine Audioberechtigung</button>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<button type="button" class="ghost" disabled>▶ Kein Clip</button>`;
-    const correction = state.role === "viewer" ? play : `<form class="classification-editor ${entry.classification_status === "manual" ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${entry.classification_status === "manual" ? "Korrigieren" : "Übernehmen"}</button></form>`;
-    return `<div class="recent-event ${entry.classification_status === "manual" ? "confirmed" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : "automatisch")}</span><div>${witnesses}${correction}</div></div>`;
+    const resolved = ["manual", "learned"].includes(entry.classification_status);
+    const correction = state.role === "viewer" ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
+    const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : "automatisch";
+    return `<div class="recent-event ${resolved ? "confirmed" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(statusText)}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
   document.querySelectorAll(".classification-editor").forEach((form) => populateSubclassOptions(form));
 }
@@ -655,7 +657,8 @@ function renderEvents() {
 function addEvent(event) {
   $("#events").querySelector(`[data-event-id="${event.id}"]`)?.remove();
   const row = document.createElement("div");
-  row.className = `event-row ${event.classification_status === "manual" ? "confirmed" : ""}`;
+  const resolved = ["manual", "learned"].includes(event.classification_status);
+  row.className = `event-row ${resolved ? "confirmed" : ""}`;
   row.dataset.eventId = event.id;
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
   const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${event.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
@@ -663,7 +666,7 @@ function addEvent(event) {
     ${event.audio_available ? `<button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>` : `<button type="button" class="ghost clip-unavailable" disabled>▶ Kein Clip</button>`}
     <select name="primary_class_code">${primaryOptions}</select>
     <select name="subclass_code" data-current="${escapeHtml(event.subclass_code || "")}"></select>
-    <button type="submit">${event.classification_status === "manual" ? "Korrigieren" : "Übernehmen"}</button>
+    <button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button>
   </form>`;
   row.innerHTML = `<span>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)}<br>${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>${actions}`;
   const classification = row.querySelector(".live-actions");
