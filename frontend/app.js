@@ -1,5 +1,5 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], speakerClusters: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], speakerClusters: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map() };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const localDate = (value) => value.toLocaleDateString("sv-SE");
@@ -676,12 +676,15 @@ function addEvent(event) {
   const row = document.createElement("div");
   row.className = `event-row ${resolved ? "confirmed" : ""}`;
   row.dataset.eventId = event.id;
+  const draft = state.classificationDrafts.get(String(event.id));
+  const selectedPrimary = draft?.primary_class_code || event.primary_class_code;
+  const selectedSubclass = draft?.subclass_code ?? event.subclass_code;
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
-  const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${event.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
+  const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${selectedPrimary === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
   const actions = state.role === "viewer" ? "" : `<form class="live-actions" data-event-id="${event.id}">
     ${event.audio_available ? `<button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>` : `<button type="button" class="ghost clip-unavailable" disabled>▶ Kein Clip</button>`}
     <select name="primary_class_code">${primaryOptions}</select>
-    <select name="subclass_code" data-current="${escapeHtml(event.subclass_code || "")}"></select>
+    <select name="subclass_code" data-current="${escapeHtml(selectedSubclass || "")}"></select>
     <button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button>
   </form>`;
   row.innerHTML = `<span>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)}<br>${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>${actions}`;
@@ -833,6 +836,7 @@ async function saveClassification(form, reason) {
   }
   try {
     await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: primary, subclass_code: subclass, reason }) });
+    state.classificationDrafts.delete(String(form.dataset.eventId));
     form.classList.add("confirmed");
     form.closest(".event-row,.recent-event")?.classList.add("confirmed");
     button.textContent = "Korrigieren";
@@ -907,8 +911,10 @@ $("#events").addEventListener("change", (e) => {
   if (form && e.target.name === "primary_class_code") {
     form.elements.subclass_code.dataset.current = "";
     populateSubclassOptions(form);
+    state.classificationDrafts.set(String(form.dataset.eventId), { primary_class_code: form.elements.primary_class_code.value, subclass_code: form.elements.subclass_code.value || null });
     if (form.elements.subclass_code.options.length === 2) saveClassification(form, "Im Live-Ereignisstrom automatisch übernommen");
   } else if (form && e.target.name === "subclass_code" && e.target.value) {
+    state.classificationDrafts.set(String(form.dataset.eventId), { primary_class_code: form.elements.primary_class_code.value, subclass_code: form.elements.subclass_code.value });
     saveClassification(form, "Im Live-Ereignisstrom automatisch übernommen");
   }
 });

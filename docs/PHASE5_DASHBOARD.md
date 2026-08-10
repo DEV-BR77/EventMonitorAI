@@ -25,6 +25,9 @@ Einzelne Tage sowie Von-bis-Zeiträume werden über Kalenderfelder gewählt; im 
 erscheint jeder Tag des ausgewählten Zeitraums. Der Live-Ereignisstrom blendet bearbeitete
 und automatisch gelernte Ereignisse standardmäßig aus. Sie können über
 **Bearbeitete anzeigen** zur Kontrolle und Korrektur wieder eingeblendet werden.
+Noch nicht gespeicherte Kategorie- und Feinzuordnungen im Live-Ereignisstrom bleiben
+bei einer Aktualisierung der Liste erhalten, damit mehrere Ereignisse nacheinander
+vorbereitet und schnell bestätigt werden können.
 
 Im KI-Klassenkatalog bilden Basisklassen die Hauptkategorien und Feinzuordnungen deren
 Unterarten. `Aktiv` steuert die Verfügbarkeit in Auswahlfeldern, `Trainierbar` die
