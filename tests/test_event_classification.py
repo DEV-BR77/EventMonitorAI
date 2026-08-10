@@ -108,7 +108,7 @@ def test_consistent_confirmations_are_learned_and_backfilled() -> None:
             event.label = "Cat"
             event.classification_status = "manual"
             event.primary_class_code = "VOICE_LOUD"
-            event.subclass_code = "VOICE_SUSTAINED"
+            event.subclass_code = "LOUD_CALLING"
         pending.label = "Cat"
         pending.classification_status = "automatic"
         db.add_all([first, second, pending])
@@ -116,18 +116,18 @@ def test_consistent_confirmations_are_learned_and_backfilled() -> None:
 
         assert _learned_class_for_detection(db, "Cat") == (
             "VOICE_LOUD",
-            "VOICE_SUSTAINED",
+            "LOUD_CALLING",
         )
         assert _apply_learned_classifications(db, second) == 1
-        assert pending.classification_status == "learned"
-        assert pending.subclass_code == "VOICE_SUSTAINED"
+        assert pending.classification_status == "suggested"
+        assert pending.subclass_code == "LOUD_CALLING"
 
 
 def test_conflicting_confirmations_do_not_create_a_rule() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     with Session(engine) as db:
-        for subclass in ("VOICE_SUSTAINED", "VOICE_SUSTAINED", "OTHER_NOISE"):
+        for subclass in ("LOUD_CALLING", "LOUD_CALLING", "OTHER_NOISE"):
             event = _event()
             event.label = "Animal"
             event.classification_status = "manual"
@@ -143,7 +143,7 @@ def test_primary_class_is_learned_when_subclasses_are_still_ambiguous() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     with Session(engine) as db:
-        for subclass in ("VOICE_SUSTAINED",) * 5 + ("LOUD_SCREAM",) * 4:
+        for subclass in ("LOUD_CALLING",) * 5 + ("ARGUMENT",) * 4:
             event = _event()
             event.label = "Animal"
             event.classification_status = "manual"
@@ -164,10 +164,10 @@ def test_voice_context_bridges_different_detector_labels() -> None:
         reference.label = "Speech"
         reference.classification_status = "manual"
         reference.primary_class_code = "VOICE_LOUD"
-        reference.subclass_code = "VOICE_SUSTAINED"
+        reference.subclass_code = "LOUD_CALLING"
         db.add(reference)
         db.flush()
 
         assert _contextual_class_for_detection(
             db, "2026-08-10T20:00:08+00:00", "Cat", "ANIMAL"
-        ) == ("VOICE_LOUD", "VOICE_SUSTAINED")
+        ) == ("VOICE_LOUD", "LOUD_CALLING")

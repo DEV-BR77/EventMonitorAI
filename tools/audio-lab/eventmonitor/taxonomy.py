@@ -18,7 +18,7 @@ DEFAULT_CLASSES = (
     ("BALL_CONCRETE", "Fußball gegen Beton", "fine", "IMPACT"),
     ("BALL_METAL", "Fußball gegen Metall", "fine", "IMPACT"),
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT"),
-    ("VOICE_SUSTAINED", "Anhaltendes Rufen", "fine", "VOICE_LOUD"),
+    ("LOUD_CALLING", "Lautes Rufen/Geschrei", "fine", "VOICE_LOUD"),
     ("VEHICLE_HORN", "Fahrzeughupen", "fine", "HORN"),
     ("OTHER_NOISE", "Sonstiger Lärm", "fine", None),
 )

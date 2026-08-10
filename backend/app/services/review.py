@@ -44,7 +44,7 @@ def process_review_run(run_id: int, batch_size: int = 100) -> None:
             for event in events:
                 run.cursor_event_id = event.id
                 run.processed += 1
-                if event.classification_status in {"manual", "learned"}:
+                if event.classification_status in {"manual", "learned", "suggested"}:
                     continue
                 mapped = base_class_for_detection(event.label, event.category)
                 if mapped and mapped != event.primary_class_code:

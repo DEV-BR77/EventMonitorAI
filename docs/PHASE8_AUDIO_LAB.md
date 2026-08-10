@@ -32,6 +32,14 @@ gelten als erledigt, bleiben aber korrigierbar. Wind, Umgebung und technische St
 sind lernfähig, aber standardmäßig aus Lagebild, Statistik und Live-Strom
 ausgeblendet. Sie bleiben in der Audio-Lab-Prüfung sichtbar.
 
+Die früher getrennten Feinzuordnungen „Anhaltendes Rufen“ und „Lautes Schreien“ sind
+als **Lautes Rufen/Geschrei** zusammengeführt. Die akustische Abgrenzung war im realen
+Einsatz nicht stabil genug. Vorhandene Ereignisse werden auf die gemeinsame Klasse
+überführt; „Streit / mehrere Personen“ bleibt separat.
+Gelernte Zuordnungen werden im Live-Strom als vorausgefüllter Vorschlag angezeigt und
+bleiben offen, bis ein Benutzer sie mit **Übernehmen** bestätigt. Dadurch entfallen die
+Auswahlklicks, ohne dass ein Lernvorschlag ungeprüft als erledigt gilt.
+
 Die Klasse **Kein Lärm / verwerfen** entfernt Ereignis und Audioclip. Nur ein
 normalisiertes Modelllabel und die Zahl der Bestätigungen bleiben als
 anonymes Lernmuster erhalten. Nach drei Bestätigungen werden gleichartige

@@ -6,6 +6,7 @@ import pytest
 from app.api.dashboard import create_event_class
 from app.database.base import Base
 from app.models.dashboard import EventClass
+from app.models.event import Event
 from app.schemas.dashboard import EventClassWrite
 from app.services.taxonomy import DEFAULT_EVENT_CLASSES, seed_event_classes
 from fastapi import HTTPException
@@ -34,10 +35,31 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
         )
         assert next(item for item in classes if item.code == "FIRECRACKER").parent_code == "IMPACT"
         assert (
-            next(item for item in classes if item.code == "LOUD_SCREAM").parent_code == "VOICE_LOUD"
+            next(item for item in classes if item.code == "LOUD_CALLING").parent_code
+            == "VOICE_LOUD"
         )
+        assert not next(item for item in classes if item.code == "LOUD_SCREAM").active
+        assert not next(item for item in classes if item.code == "VOICE_SUSTAINED").active
         assert next(item for item in classes if item.code == "ARGUMENT").parent_code == "VOICE_LOUD"
         assert next(item for item in classes if item.code == "TRAIN_HORN").parent_code == "HORN"
+
+        legacy_event = Event(
+            timestamp="2026-08-10T20:00:00+00:00",
+            event_type="AUDIO",
+            label="Speech",
+            label_de="Sprache",
+            category="VOICE",
+            confidence=0.9,
+            db_level=60,
+            device="mic",
+            primary_class_code="VOICE_LOUD",
+            subclass_code="VOICE_SUSTAINED",
+            classification_status="manual",
+        )
+        db.add(legacy_event)
+        db.commit()
+        seed_event_classes(db)
+        assert legacy_event.subclass_code == "LOUD_CALLING"
 
 
 def test_dashboard_rejects_fine_class_with_unknown_parent() -> None:

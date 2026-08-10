@@ -1,7 +1,8 @@
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models.dashboard import EventClass
+from app.models.event import Event
 
 DEFAULT_EVENT_CLASSES = (
     ("NO_NOISE", "Kein Lärm / verwerfen", "base", None, True, False),
@@ -22,8 +23,9 @@ DEFAULT_EVENT_CLASSES = (
     ("BALL_METAL", "Fußball gegen Metall", "fine", "IMPACT", False, True),
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT", False, True),
     ("FIRECRACKER", "Knallkörper", "fine", "IMPACT", False, True),
-    ("VOICE_SUSTAINED", "Anhaltendes Rufen", "fine", "VOICE_LOUD", False, True),
-    ("LOUD_SCREAM", "Lautes Schreien", "fine", "VOICE_LOUD", False, True),
+    ("LOUD_CALLING", "Lautes Rufen/Geschrei", "fine", "VOICE_LOUD", False, True),
+    ("VOICE_SUSTAINED", "Anhaltendes Rufen (ersetzt)", "fine", "VOICE_LOUD", False, False),
+    ("LOUD_SCREAM", "Lautes Schreien (ersetzt)", "fine", "VOICE_LOUD", False, False),
     ("ARGUMENT", "Streit / mehrere Personen", "fine", "VOICE_LOUD", False, True),
     ("VEHICLE_HORN", "Fahrzeughupen", "fine", "HORN", False, True),
     ("TRAIN_HORN", "Zughupen", "fine", "HORN", False, True),
@@ -67,6 +69,16 @@ def seed_event_classes(db: Session) -> None:
             event_class = db.scalar(select(EventClass).where(EventClass.code == code))
             if event_class is not None:
                 event_class.name = name
+    for legacy_code in ("VOICE_SUSTAINED", "LOUD_SCREAM"):
+        event_class = db.scalar(select(EventClass).where(EventClass.code == legacy_code))
+        if event_class is not None:
+            event_class.active = False
+            event_class.trainable = False
+    db.execute(
+        update(Event)
+        .where(Event.subclass_code.in_(("VOICE_SUSTAINED", "LOUD_SCREAM")))
+        .values(subclass_code="LOUD_CALLING")
+    )
     db.commit()
 
 

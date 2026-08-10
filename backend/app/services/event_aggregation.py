@@ -55,6 +55,15 @@ def merge_into(previous: Event, current: Event) -> Event:
         2,
     )
     previous.confidence = max(previous.confidence, current.confidence)
+    if (
+        current.classification_status == "suggested"
+        and previous.classification_status == "automatic"
+    ):
+        previous.primary_class_code = current.primary_class_code
+        previous.subclass_code = current.subclass_code
+        previous.classification_status = "suggested"
+        previous.corrected_by = current.corrected_by
+        previous.corrected_at = current.corrected_at
     return previous
 
 

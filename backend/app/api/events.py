@@ -160,10 +160,8 @@ def _apply_learned_classifications(db: Session, source: Event) -> int:
             )
         ):
             event.primary_class_code, event.subclass_code = learned
-            event.classification_status = "learned" if learned[1] is not None else "automatic"
-            event.corrected_by = (
-                "Lernregel" if learned[1] is not None else "Lernregel (Basisklasse)"
-            )
+            event.classification_status = "suggested"
+            event.corrected_by = "Lernvorschlag"
             event.corrected_at = datetime.now(UTC).isoformat()
             changed += 1
     if source.primary_class_code == "VOICE_LOUD" and source.subclass_code:
@@ -178,8 +176,8 @@ def _apply_learned_classifications(db: Session, source: Event) -> int:
             if distance <= 12:
                 event.primary_class_code = source.primary_class_code
                 event.subclass_code = source.subclass_code
-                event.classification_status = "learned"
-                event.corrected_by = "Zeit-/Stimmkontext"
+                event.classification_status = "suggested"
+                event.corrected_by = "Lernvorschlag (Zeit-/Stimmkontext)"
                 event.corrected_at = datetime.now(UTC).isoformat()
                 changed += 1
     return changed
@@ -324,9 +322,7 @@ async def create_event(
         primary_class_code=primary_code,
         subclass_code=subclass_code,
         classification_status=(
-            "ignored"
-            if ignored
-            else ("learned" if learned_class and learned_class[1] is not None else "automatic")
+            "ignored" if ignored else ("suggested" if learned_class else "automatic")
         ),
         display_suppressed=suppressed or ignored is not None,
     )
