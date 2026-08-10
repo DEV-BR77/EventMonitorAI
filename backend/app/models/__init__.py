@@ -6,11 +6,13 @@ from app.models.dashboard import (
     DeviceTelemetry,
     EventClass,
     EventClassificationRevision,
+    EventSpeakerCluster,
     EventWitnessResponse,
     LiveAudioAccess,
     NotificationRule,
     PushSubscription,
     ReviewRun,
+    SpeakerCluster,
     User,
 )
 from app.models.event import Event
@@ -25,9 +27,11 @@ __all__ = [
     "EventClass",
     "EventClassificationRevision",
     "EventWitnessResponse",
+    "EventSpeakerCluster",
     "LiveAudioAccess",
     "NotificationRule",
     "PushSubscription",
     "ReviewRun",
+    "SpeakerCluster",
     "User",
 ]

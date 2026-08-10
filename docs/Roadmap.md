@@ -42,6 +42,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Active Learning für unsichere oder informative Beispiele
 - [x] Audio-Embeddings und Ähnlichkeitssuche
 - [x] Personen durch Lärm wie schreien, rufen identifizieren und klassifizieren - neue Personen anlegen die editierbar sind mit frei gewählten Namen - gesonderte Statistik je Personen, Beurteilungszeit, Lärmkategorie und Häufigkeit
+- [x] anonyme automatische Stimmgruppierung vorhandener Aufnahmen als Person 1, Person 2 usw. mit späterer Umbenennung und Verknüpfung zu bestätigten Personenprofilen
 - [x] lokale Modellverwaltung und Rollback
 
 ## Phase 4 – Ereignisse und Cases
@@ -59,6 +60,8 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 ## Phase 5 – Dashboard und Integration
 
 - [x] Kalender, Timeline, Heatmaps und Statistiken
+- [x] globaler Filter für einzelne Kalendertage und frei wählbare Von-bis-Zeiträume
+- [x] gesonderte KPI-Seite mit Überschreitungsquote, P95-Pegel, Lärmdauer, Tageszeiten, Arten- und Gerätevergleich
 - [x] Live-Ereignisansicht
 - [x] Home-Assistant-Integration
 - [x] Benachrichtigungsregeln
@@ -72,6 +75,7 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
   - [x] Karte Bild für Positionierung der Mikrofone und Darstellung von Messergebnissen ![Messbereich](image-1.png) Die Mikrofone sollen auf dem Bild positioniert werden und Messergebnisse und Anzahl Überschreitungen darstellen, zusäzlich Erstellung einer Heatmap der Schallpegelausbreitung
 - [x] Bereitstellung einer Progressive Web App mit Pushnachrichten bei Lärmereignissen mit Bestätigung oder Ablehnungsbutton als Antwort - Antwort mit Angabe User, Ereignis ID speichern und als Zeuge in Lärmprotokoll einbinden
 - [x] Darstellung der letzten 5 Ereignisse
+- [x] fortlaufende identische Detektionen je Mikrofon zu einem Ereignis mit Start, Ende und Dauer zusammenführen
 - [x] Rollen, Authentifizierung und Zugriffsschutz
 
 ## Phase 7 - KI
@@ -124,6 +128,8 @@ Wir bauen zum Start zwei Ebenen:
     Schlagen gegen Laterne
     Knallkörper
     anhaltendes Rufen
+    lautes Schreien
+    Streit / mehrere Personen
     Fahrzeughupen
     sonstiger Lärm
 So bekommst du früh ein brauchbares Lärmprotokoll, ohne dass wir dir falsche Präzision vortäuschen.

@@ -23,6 +23,8 @@ DEFAULT_EVENT_CLASSES = (
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT", False, True),
     ("FIRECRACKER", "Knallkörper", "fine", "IMPACT", False, True),
     ("VOICE_SUSTAINED", "Anhaltendes Rufen", "fine", "VOICE_LOUD", False, True),
+    ("LOUD_SCREAM", "Lautes Schreien", "fine", "VOICE_LOUD", False, True),
+    ("ARGUMENT", "Streit / mehrere Personen", "fine", "VOICE_LOUD", False, True),
     ("VEHICLE_HORN", "Fahrzeughupen", "fine", "HORN", False, True),
     ("WIND_NOISE", "Windgeräusch", "fine", "WIND", True, True),
     ("RURAL_NATURE", "Ländliche/natürliche Umgebung", "fine", "AMBIENT", True, True),

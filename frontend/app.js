@@ -1,8 +1,39 @@
 const $ = (s) => document.querySelector(s);
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], speakerClusters: [], calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [] };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
-const selectedDate = () => days() === "today" ? new Date().toLocaleDateString("sv-SE") : "";
+const localDate = (value) => value.toLocaleDateString("sv-SE");
+function selectedRange() {
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  let from = new Date(today), to = new Date(today);
+  if (["7", "30", "90"].includes(days())) from.setDate(from.getDate() - Number(days()) + 1);
+  if (days() === "single") {
+    const chosen = $("#date-from-filter").value || localDate(today);
+    return { from: chosen, to: chosen, days: 1 };
+  }
+  if (days() === "range") {
+    const start = $("#date-from-filter").value || localDate(today);
+    const end = $("#date-to-filter").value || start;
+    const ordered = start <= end ? [start, end] : [end, start];
+    return { from: ordered[0], to: ordered[1], days: Math.floor((new Date(`${ordered[1]}T12:00:00`) - new Date(`${ordered[0]}T12:00:00`)) / 86400000) + 1 };
+  }
+  return { from: localDate(from), to: localDate(to), days: Number(days()) || 1 };
+}
+function rangeQuery() {
+  const range = selectedRange();
+  const query = new URLSearchParams({ days: String(Math.min(366, range.days)), date_from: range.from, date_to: range.to });
+  if (device()) query.set("device", device());
+  return query;
+}
+function eventRangeQuery() {
+  const range = selectedRange();
+  const end = new Date(`${range.to}T12:00:00`); end.setDate(end.getDate() + 1);
+  return { start: `${range.from}T00:00:00`, end: `${localDate(end)}T00:00:00` };
+}
+function rangeLabel() {
+  const range = selectedRange();
+  return range.from === range.to ? new Date(`${range.from}T12:00:00`).toLocaleDateString("de-DE") : `${new Date(`${range.from}T12:00:00`).toLocaleDateString("de-DE")}–${new Date(`${range.to}T12:00:00`).toLocaleDateString("de-DE")}`;
+}
 const categoryNames = { DEVICE: "Geräuschquelle", VOCALIZATION: "Lautäußerung", VOICE: "Stimme", HUMAN_SOUND: "Menschliches Geräusch", HOUSEHOLD: "Haushalt", ANIMAL: "Tier", AMBIENT: "Umgebung", MUSIC: "Musik", VEHICLE: "Fahrzeug", IMPACT: "Schlag/Aufprall", OTHER: "Sonstiges" };
 
 async function api(path, options = {}) {
@@ -59,7 +90,7 @@ async function start() {
     if (!$("#calendar-date").value) $("#calendar-date").value = new Date().toLocaleDateString("sv-SE");
     await loadDevices();
     await loadEventClasses();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -129,8 +160,8 @@ async function loadLiveAudioDevices() {
 }
 
 async function loadSoundMap() {
-  const range = days() === "today" ? 1 : days();
-  state.soundMap = await api(`/api/sound-map?days=${range}&threshold_db=55`);
+  const query = rangeQuery(); query.set("threshold_db", "55");
+  state.soundMap = await api(`/api/sound-map?${query}`);
   renderSoundMap();
 }
 
@@ -175,7 +206,7 @@ function renderSoundMap() {
     </div>`).join("");
   const unpositioned = state.soundMap.filter((item) => item.position_x == null || item.position_y == null);
   $("#map-unpositioned").textContent = unpositioned.length ? `Noch ohne Kartenposition: ${unpositioned.map((item) => item.name).join(", ")}` : "";
-  $("#sound-map-period").textContent = `${days() === "today" ? "heute" : `letzte ${days()} Tage`} · Überschreitung ab 55 dB`;
+  $("#sound-map-period").textContent = `${rangeLabel()} · Überschreitung ab 55 dB`;
 }
 
 async function loadAudioPermissions() {
@@ -396,8 +427,7 @@ async function enablePush() {
 }
 
 async function refresh() {
-  const range = days() === "today" ? 1 : days();
-  const query = `days=${range}${selectedDate() ? `&date=${selectedDate()}` : ""}${device() ? `&device=${encodeURIComponent(device())}` : ""}`;
+  const query = rangeQuery();
   const [stats, heatmap, calendar] = await Promise.all([
     api(`/api/statistics?${query}`), api(`/api/heatmap?${query}`), api(`/api/calendar?${query}`),
   ]);
@@ -411,11 +441,35 @@ async function refresh() {
   renderCalendar(calendar);
 }
 
+function renderRanked(target, values, translate = false) {
+  const entries = Object.entries(values || {});
+  const maximum = Math.max(1, ...entries.map(([, count]) => count));
+  $(target).innerHTML = entries.length ? entries.map(([name, count]) => `<div class="category"><span>${escapeHtml(translate ? (categoryNames[name] || name) : name)}</span><b>${count}</b><div class="category-track"><div class="category-fill" style="width:${count / maximum * 100}%"></div></div></div>`).join("") : "<p>Keine Daten im Zeitraum.</p>";
+}
+
+async function loadKpis() {
+  const data = await api(`/api/kpis?${rangeQuery()}`);
+  $("#k-total").textContent = data.total.toLocaleString("de-DE");
+  $("#k-exceeded").textContent = data.exceeded.toLocaleString("de-DE");
+  $("#k-exceeded-rate").textContent = `${Math.round(data.exceeded_rate * 100)} % der Ereignisse`;
+  $("#k-p95").textContent = `${data.p95_db.toFixed(1)} dB`;
+  $("#k-duration").textContent = data.total_duration_seconds >= 3600 ? `${(data.total_duration_seconds / 3600).toFixed(1)} h` : `${Math.round(data.total_duration_seconds / 60)} min`;
+  renderRanked("#kpi-labels", data.labels);
+  renderRanked("#kpi-categories", data.categories, true);
+  renderRanked("#kpi-devices", data.devices);
+  $("#kpi-top-hour").textContent = data.top_hour == null ? "keine Daten" : `Spitze ${String(data.top_hour).padStart(2, "0")}:00 Uhr · ${data.top_hour_events} Ereignisse`;
+  const hourMax = Math.max(1, ...data.hours.map((item) => item.count));
+  $("#kpi-hours").innerHTML = data.hours.map((item) => `<div title="${String(item.hour).padStart(2, "0")}:00 Uhr: ${item.count}"><i style="height:${Math.max(2, item.count / hourMax * 100)}%"></i><small>${item.hour}</small></div>`).join("");
+  const dailyMax = Math.max(1, ...data.daily.map((item) => item.total));
+  $("#kpi-daily").innerHTML = data.daily.length ? `<div class="daily-bars">${data.daily.map((item) => `<div title="${new Date(`${item.date}T12:00:00`).toLocaleDateString("de-DE")}: ${item.total} Ereignisse, ${item.exceeded} Überschreitungen, Ø ${item.average_db} dB"><span style="height:${Math.max(2, item.total / dailyMax * 100)}%"><i style="height:${item.total ? item.exceeded / item.total * 100 : 0}%"></i></span><small>${item.date.slice(5)}</small></div>`).join("")}</div>` : "<p>Keine Daten im Zeitraum.</p>";
+}
+
 function renderTimeline(data) {
   const countByDate = new Map(data.map((item) => [item.date, item.total]));
   const entries = [];
-  const today = new Date();
-  const dayCount = days() === "today" ? 1 : Number(days());
+  const range = selectedRange();
+  const today = new Date(`${range.to}T12:00:00`);
+  const dayCount = range.days;
   for (let offset = dayCount - 1; offset >= 0; offset--) {
     const date = new Date(today);
     date.setHours(12, 0, 0, 0);
@@ -505,14 +559,15 @@ function renderCalendar(data) {
 }
 
 async function loadRecentEvents() {
-  const entries = await api("/push/noise-log?limit=5");
+  const range = eventRangeQuery();
+  const entries = await api(`/push/noise-log?limit=5&start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`);
   $("#recent-events").innerHTML = entries.length ? entries.map((entry) => {
     const witnesses = entry.witnesses.length ? entry.witnesses.map((item) => `<span class="witness ${item.response}">${escapeHtml(item.username)}: ${item.response === "confirmed" ? "bestätigt" : "abgelehnt"}</span>`).join("") : "<span class=\"witness pending\">Keine Zeugenreaktion</span>";
     const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
     const primaryOptions = bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
     const play = state.role === "viewer" ? `<button type="button" class="ghost" disabled>Keine Audioberechtigung</button>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<button type="button" class="ghost" disabled>▶ Kein Clip</button>`;
     const correction = state.role === "viewer" ? play : `<form class="classification-editor ${entry.classification_status === "manual" ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${entry.classification_status === "manual" ? "Korrigieren" : "Übernehmen"}</button></form>`;
-    return `<div class="recent-event ${entry.classification_status === "manual" ? "confirmed" : ""}"><time>${formatTime(entry.timestamp)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : "automatisch")}</span><div>${witnesses}${correction}</div></div>`;
+    return `<div class="recent-event ${entry.classification_status === "manual" ? "confirmed" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : "automatisch")}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
   document.querySelectorAll(".classification-editor").forEach((form) => populateSubclassOptions(form));
 }
@@ -533,7 +588,9 @@ function reviewSubclassOptions() {
 }
 
 async function loadReview() {
-  const [summary, runs] = await Promise.all([api("/events/review/summary"), api("/events/review/runs"), loadPeople()]);
+  const range = eventRangeQuery();
+  const [summary, runs] = await Promise.all([api(`/events/review/summary?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`), api("/events/review/runs"), loadPeople()]);
+  await loadSpeakerClusters();
   $("#r-open-unknown").textContent = summary.open_unknown;
   $("#r-open-recognized").textContent = summary.open_recognized;
   $("#r-done-unknown").textContent = summary.completed_unknown;
@@ -557,10 +614,11 @@ async function loadReview() {
 
 async function loadReviewQueue() {
   const query = new URLSearchParams({ status: $("#review-status").value, limit: "500" });
+  const range = eventRangeQuery(); query.set("start", range.start); query.set("end", range.end);
   if (state.reviewClass) query.set("class_code", state.reviewClass);
   state.reviewEvents = await api(`/events/review/queue?${query}`);
   const personOptions = `<option value="">Keine Person</option>${state.people.filter((person) => person.active).map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("")}`;
-  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}" ${event.audio_available ? "" : "disabled"}>${event.audio_available ? "▶ Anhören" : "Kein Clip"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select></span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
+  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}" ${event.audio_available ? "" : "disabled"}>${event.audio_available ? "▶ Anhören" : "Kein Clip"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select></span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
   updateReviewSelection();
 }
 
@@ -569,14 +627,22 @@ async function loadPeople() {
   $("#people-list").innerHTML = state.people.length ? state.people.map((person) => `<div class="person-row"><strong>${escapeHtml(person.name)}</strong><span>${person.frequency} bestätigte Ereignisse · ${person.total_duration_seconds.toFixed(1)} s</span><small>${Object.entries(person.categories).map(([category, count]) => `${categoryNames[category] || category}: ${count}`).join(" · ") || "Noch keine Zuordnung"}</small></div>`).join("") : "<p>Noch keine Personenprofile angelegt oder erkannt.</p>";
 }
 
+async function loadSpeakerClusters() {
+  state.speakerClusters = await api("/api/speaker-clusters");
+  const people = `<option value="">Noch keiner bekannten Person zugeordnet</option>${state.people.filter((item) => item.active).map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`;
+  $("#speaker-clusters").innerHTML = state.speakerClusters.length ? state.speakerClusters.map((cluster) => `<form class="speaker-cluster" data-cluster-id="${cluster.id}"><div><strong>${escapeHtml(cluster.name)}</strong><small>${cluster.sample_count} Aufnahmen · Ø ${Math.round(cluster.average_similarity * 100)} % Ähnlichkeit<br>${cluster.first_seen ? `${formatTime(cluster.first_seen)} bis ${formatTime(cluster.last_seen)}` : "Keine Aufnahme"}</small></div><label>Bezeichnung<input name="name" value="${escapeHtml(cluster.name)}" maxlength="100" required></label><label>Bekannte Person<select name="person_id">${people.replace(`value="${cluster.person_id || ""}"`, `value="${cluster.person_id || ""}" selected`)}</select></label><button type="submit">Speichern</button></form>`).join("") : "<p>Noch keine automatische Stimmgruppierung ausgeführt.</p>";
+}
+
 function updateReviewSelection() {
   const count = document.querySelectorAll("#review-events input:checked").length;
   $("#review-selection").textContent = `${count} ausgewählt`;
 }
 
 async function loadEvents() {
-  const query = `${device() ? `?device=${encodeURIComponent(device())}&` : "?"}limit=1000`;
-  const events = await api(`/events${query}`);
+  const range = eventRangeQuery();
+  const query = new URLSearchParams({ limit: "1000", start: range.start, end: range.end });
+  if (device()) query.set("device", device());
+  const events = await api(`/events?${query}`);
   state.liveEvents = events;
   renderEvents();
 }
@@ -587,6 +653,7 @@ function renderEvents() {
 }
 
 function addEvent(event) {
+  $("#events").querySelector(`[data-event-id="${event.id}"]`)?.remove();
   const row = document.createElement("div");
   row.className = `event-row ${event.classification_status === "manual" ? "confirmed" : ""}`;
   row.dataset.eventId = event.id;
@@ -598,7 +665,7 @@ function addEvent(event) {
     <select name="subclass_code" data-current="${escapeHtml(event.subclass_code || "")}"></select>
     <button type="submit">${event.classification_status === "manual" ? "Korrigieren" : "Übernehmen"}</button>
   </form>`;
-  row.innerHTML = `<span>${formatTime(event.timestamp)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>${actions}`;
+  row.innerHTML = `<span>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)}<br>${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>${actions}`;
   const classification = row.querySelector(".live-actions");
   if (classification) populateSubclassOptions(classification);
   $("#events").prepend(row);
@@ -789,8 +856,16 @@ async function loadRules() {
 $("#login-form").addEventListener("submit", (e) => { e.preventDefault(); authenticate("/auth/login"); });
 $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
-$("#days-filter").addEventListener("change", () => Promise.all([refresh(), loadSoundMap()]));
-$("#device-filter").addEventListener("change", () => Promise.all([refresh(), loadEvents(), loadLiveLevels()]));
+async function applyGlobalFilter() {
+  const custom = days() === "single" || days() === "range";
+  $("#date-from-filter").classList.toggle("hidden", !custom);
+  $("#date-to-filter").classList.toggle("hidden", days() !== "range");
+  await Promise.all([refresh(), loadKpis(), loadSoundMap(), loadEvents(), loadRecentEvents(), ...(state.role === "viewer" ? [] : [loadReview()])]);
+}
+$("#days-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
+$("#date-from-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
+$("#date-to-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
+$("#device-filter").addEventListener("change", () => Promise.all([applyGlobalFilter(), loadLiveLevels()]));
 $("#calendar-prev").addEventListener("click", () => shiftCalendar(-1));
 $("#calendar-next").addEventListener("click", () => shiftCalendar(1));
 $("#calendar-date").addEventListener("change", loadCalendarDate);
@@ -802,6 +877,7 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
   $(`#${button.dataset.view}`).classList.remove("hidden");
   $("#title").textContent = button.textContent.trim();
   if (button.dataset.view === "live") loadLiveLevels().catch(() => {});
+  if (button.dataset.view === "kpis") loadKpis().catch(() => {});
   if (button.dataset.view === "sound-map") requestAnimationFrame(renderSoundMap);
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
@@ -923,6 +999,26 @@ $("#person-create-form").addEventListener("submit", async (e) => {
     $("#people-status").textContent = "Personenprofil angelegt.";
     await loadReview();
   } catch (error) { $("#people-status").textContent = error.message; }
+});
+$("#speaker-analyze").addEventListener("click", async () => {
+  const button = $("#speaker-analyze");
+  button.disabled = true; button.textContent = "Stimmen werden gruppiert …";
+  try {
+    const result = await api("/api/speaker-clusters/analyze", { method: "POST" });
+    $("#speaker-status").textContent = `${result.analyzed} Aufnahmen analysiert · ${result.clusters} Stimmgruppen · ${result.skipped} nicht verwertbar.`;
+    await loadSpeakerClusters();
+  } catch (error) { $("#speaker-status").textContent = error.message; }
+  finally { button.disabled = false; button.textContent = "Vorhandene Aufnahmen gruppieren"; }
+});
+$("#speaker-clusters").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".speaker-cluster");
+  if (!form) return;
+  try {
+    await api(`/api/speaker-clusters/${form.dataset.clusterId}`, { method: "PATCH", body: JSON.stringify({ name: form.elements.name.value, person_id: form.elements.person_id.value ? Number(form.elements.person_id.value) : null }) });
+    $("#speaker-status").textContent = "Stimmgruppe gespeichert.";
+    await Promise.all([loadSpeakerClusters(), loadPeople()]);
+  } catch (error) { $("#speaker-status").textContent = error.message; }
 });
 $("#review-runs").addEventListener("click", async (e) => {
   const pause = e.target.dataset.runPause;
@@ -1088,7 +1184,11 @@ $("#device-management-list").addEventListener("submit", async (e) => {
   } catch (error) { $("#device-management-status").textContent = error.message; }
 });
 function formatTime(value) { const date = new Date(value); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("de-DE"); }
+function formatDuration(value) { const seconds = Math.max(0, Number(value) || 0); return seconds >= 60 ? `${Math.floor(seconds / 60)} min ${Math.round(seconds % 60)} s` : `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`; }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = String(value); return node.innerHTML; }
+const initialFilterDate = localDate(new Date());
+$("#date-from-filter").value = initialFilterDate;
+$("#date-to-filter").value = initialFilterDate;
 if (state.token) start();
 window.addEventListener("resize", () => requestAnimationFrame(renderSoundMap));
 setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);

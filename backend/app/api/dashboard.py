@@ -19,9 +19,11 @@ from app.models.dashboard import (
     DeviceTelemetry,
     EventClass,
     EventPersonAssignment,
+    EventSpeakerCluster,
     LiveAudioAccess,
     NotificationRule,
     PersonProfile,
+    SpeakerCluster,
     User,
 )
 from app.models.event import Event
@@ -49,6 +51,7 @@ from app.schemas.dashboard import (
     RuleCreate,
     RuleRead,
     SoundMapPoint,
+    SpeakerClusterUpdate,
 )
 from app.services.calibration import (
     calculate_recommended_offset,
@@ -56,6 +59,7 @@ from app.services.calibration import (
     parse_reference_csv,
 )
 from app.services.noise_assessment import assessment_for
+from app.services.speaker_clustering import cluster_existing_voice_clips, link_cluster_to_person
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -76,7 +80,26 @@ def _events_since(
     days: int,
     device: str | None = None,
     selected_date: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> list[Event]:
+    if date_from or date_to:
+        start = date_from or date_to
+        end = date_to or date_from
+        if start is None or end is None or start > end:
+            raise HTTPException(status_code=422, detail="Ungültiger Datumsbereich")
+        if (end - start).days > 366:
+            raise HTTPException(
+                status_code=422, detail="Der Zeitraum darf maximal 367 Tage umfassen"
+            )
+        statement = select(Event).where(
+            Event.timestamp >= start.isoformat(),
+            Event.timestamp < (end + timedelta(days=1)).isoformat(),
+            Event.display_suppressed.is_(False),
+        )
+        if device:
+            statement = statement.where(Event.device == device)
+        return list(db.scalars(statement.order_by(Event.timestamp)).all())
     if selected_date is not None:
         prefix = selected_date.isoformat()
         statement = (
@@ -108,8 +131,10 @@ def statistics(
     days: int = Query(default=30, ge=1, le=366),
     device: str | None = None,
     date: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> dict[str, object]:
-    events = _events_since(db, days, device, date)
+    events = _events_since(db, days, device, date, date_from, date_to)
     categories = Counter(event.category for event in events)
     devices = Counter(event.device for event in events)
     return {
@@ -131,9 +156,11 @@ def heatmap(
     days: int = Query(default=30, ge=1, le=366),
     device: str | None = None,
     date: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> list[dict[str, object]]:
     cells: dict[tuple[int, int], int] = defaultdict(int)
-    for event in _events_since(db, days, device, date):
+    for event in _events_since(db, days, device, date, date_from, date_to):
         try:
             value = datetime.fromisoformat(event.timestamp.replace("Z", "+00:00"))
         except ValueError:
@@ -152,10 +179,12 @@ def calendar(
     days: int = Query(default=30, ge=1, le=366),
     device: str | None = None,
     date: date | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> list[dict[str, object]]:
     daily: dict[str, Counter[str]] = defaultdict(Counter)
     config = _assessment_config(db)
-    for event in _events_since(db, days, device, date):
+    for event in _events_since(db, days, device, date, date_from, date_to):
         values = daily[event.timestamp[:10]]
         values[event.category] += 1
         if assessment_for(
@@ -174,6 +203,67 @@ def calendar(
         }
         for day, values in sorted(daily.items())
     ]
+
+
+@router.get("/kpis")
+def noise_kpis(
+    db: DatabaseSession,
+    _: CurrentUser,
+    days: int = Query(default=30, ge=1, le=366),
+    device: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> dict[str, object]:
+    events = _events_since(db, days, device, None, date_from, date_to)
+    config = _assessment_config(db)
+    exceeded = [
+        event
+        for event in events
+        if assessment_for(
+            event.timestamp,
+            event.db_level,
+            config.sensitive_surcharge_db,
+            config.apply_to_live,
+        )["exceeded"]
+    ]
+    levels = sorted(event.db_level for event in events)
+    percentile_index = (
+        max(0, min(len(levels) - 1, round((len(levels) - 1) * 0.95))) if levels else 0
+    )
+    daily: dict[str, list[Event]] = defaultdict(list)
+    hourly = Counter()
+    for event in events:
+        daily[event.timestamp[:10]].append(event)
+        try:
+            hourly[datetime.fromisoformat(event.timestamp.replace("Z", "+00:00")).hour] += 1
+        except ValueError:
+            pass
+    top_hour = hourly.most_common(1)[0] if hourly else (None, 0)
+    return {
+        "total": len(events),
+        "exceeded": len(exceeded),
+        "exceeded_rate": round(len(exceeded) / len(events), 4) if events else 0,
+        "average_db": round(sum(levels) / len(levels), 1) if levels else 0,
+        "maximum_db": round(max(levels), 1) if levels else 0,
+        "p95_db": round(levels[percentile_index], 1) if levels else 0,
+        "total_duration_seconds": round(sum(event.duration_seconds for event in events), 1),
+        "top_hour": top_hour[0],
+        "top_hour_events": top_hour[1],
+        "categories": dict(Counter(event.category for event in events).most_common(10)),
+        "labels": dict(Counter(event.label_de or event.label for event in events).most_common(10)),
+        "devices": dict(Counter(event.device for event in events)),
+        "hours": [{"hour": hour, "count": hourly[hour]} for hour in range(24)],
+        "daily": [
+            {
+                "date": day,
+                "total": len(values),
+                "exceeded": sum(value in exceeded for value in values),
+                "average_db": round(sum(value.db_level for value in values) / len(values), 1),
+                "maximum_db": round(max(value.db_level for value in values), 1),
+            }
+            for day, values in sorted(daily.items())
+        ],
+    }
 
 
 @router.get("/assessment-config", response_model=AssessmentConfigRead)
@@ -243,6 +333,81 @@ def create_person(
     return PersonRead.model_validate(person, from_attributes=True)
 
 
+@router.get("/speaker-clusters")
+def list_speaker_clusters(db: DatabaseSession, _: CurrentUser) -> list[dict[str, object]]:
+    people = {item.id: item.name for item in db.scalars(select(PersonProfile))}
+    clusters = list(db.scalars(select(SpeakerCluster).order_by(SpeakerCluster.id)))
+    result = []
+    for cluster in clusters:
+        assignments = list(
+            db.scalars(
+                select(EventSpeakerCluster).where(EventSpeakerCluster.cluster_id == cluster.id)
+            )
+        )
+        event_ids = [item.event_id for item in assignments]
+        events = list(db.scalars(select(Event).where(Event.id.in_(event_ids)))) if event_ids else []
+        result.append(
+            {
+                "id": cluster.id,
+                "name": cluster.name,
+                "person_id": cluster.linked_person_id,
+                "person_name": people.get(cluster.linked_person_id),
+                "sample_count": len(assignments),
+                "average_similarity": (
+                    round(sum(item.similarity for item in assignments) / len(assignments), 3)
+                    if assignments
+                    else 0
+                ),
+                "first_seen": min((item.timestamp for item in events), default=None),
+                "last_seen": max((item.timestamp for item in events), default=None),
+                "event_ids": event_ids[:20],
+                "algorithm": cluster.algorithm,
+            }
+        )
+    return result
+
+
+@router.post("/speaker-clusters/analyze")
+def analyze_speaker_clusters(
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> dict[str, int]:
+    return cluster_existing_voice_clips(db)
+
+
+@router.patch("/speaker-clusters/{cluster_id}")
+def update_speaker_cluster(
+    cluster_id: int,
+    data: SpeakerClusterUpdate,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> dict[str, object]:
+    cluster = db.get(SpeakerCluster, cluster_id)
+    if cluster is None:
+        raise HTTPException(status_code=404, detail="Stimmgruppe nicht gefunden")
+    if data.name is not None:
+        name = " ".join(data.name.split())
+        duplicate = db.scalar(
+            select(SpeakerCluster).where(
+                SpeakerCluster.name == name, SpeakerCluster.id != cluster.id
+            )
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Name der Stimmgruppe existiert bereits")
+        cluster.name = name
+    if "person_id" in data.model_fields_set:
+        person = None
+        if data.person_id is not None:
+            person = db.get(PersonProfile, data.person_id)
+            if person is None or not person.active:
+                raise HTTPException(status_code=422, detail="Person nicht gefunden oder inaktiv")
+        link_cluster_to_person(db, cluster, person)
+    else:
+        cluster.updated_at = datetime.now(UTC).isoformat()
+        db.commit()
+    return {"id": cluster.id, "name": cluster.name, "person_id": cluster.linked_person_id}
+
+
 @router.get("/devices", response_model=list[DeviceRead])
 def list_devices(db: DatabaseSession, _: CurrentUser) -> list[Device]:
     return list(db.scalars(select(Device).order_by(Device.name)).all())
@@ -296,9 +461,11 @@ def sound_map(
     _: CurrentUser,
     days: int = Query(default=30, ge=1, le=365),
     threshold_db: float = Query(default=55, ge=0, le=140),
+    date_from: date | None = None,
+    date_to: date | None = None,
 ) -> list[SoundMapPoint]:
     devices = list(db.scalars(select(Device).where(Device.enabled.is_(True)).order_by(Device.name)))
-    events = _events_since(db, days)
+    events = _events_since(db, days, None, None, date_from, date_to)
     telemetry = {item.device_id: item for item in db.scalars(select(DeviceTelemetry)).all()}
     points: list[SoundMapPoint] = []
     for device in devices:

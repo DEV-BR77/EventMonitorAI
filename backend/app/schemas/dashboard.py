@@ -130,6 +130,8 @@ class WitnessResponseRead(BaseModel):
 class NoiseLogEntry(BaseModel):
     event_id: int
     timestamp: str
+    end_timestamp: str | None = None
+    duration_seconds: float = 0
     device: str
     label: str
     primary_class_code: str | None
@@ -265,4 +267,9 @@ class PersonRead(PersonWrite):
 
 
 class PersonAssignmentWrite(BaseModel):
+    person_id: int | None = None
+
+
+class SpeakerClusterUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
     person_id: int | None = None

@@ -84,15 +84,15 @@ def noise_log(
     db: DatabaseSession,
     _: CurrentUser,
     limit: int = Query(default=100, ge=1, le=1000),
+    start: str | None = None,
+    end: str | None = None,
 ) -> list[NoiseLogEntry]:
-    events = list(
-        db.scalars(
-            select(Event)
-            .where(Event.display_suppressed.is_(False))
-            .order_by(desc(Event.id))
-            .limit(limit)
-        ).all()
-    )
+    statement = select(Event).where(Event.display_suppressed.is_(False))
+    if start:
+        statement = statement.where(Event.timestamp >= start)
+    if end:
+        statement = statement.where(Event.timestamp < end)
+    events = list(db.scalars(statement.order_by(desc(Event.id)).limit(limit)).all())
     if not events:
         return []
     event_ids = {event.id for event in events}
@@ -108,6 +108,8 @@ def noise_log(
         NoiseLogEntry(
             event_id=event.id,
             timestamp=event.timestamp,
+            end_timestamp=event.end_timestamp,
+            duration_seconds=event.duration_seconds,
             device=event.device,
             label=event.label_de or event.label,
             primary_class_code=event.primary_class_code,

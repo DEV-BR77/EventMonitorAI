@@ -5,6 +5,7 @@ from app.database.base import Base
 from app.database.session import engine
 from app.models import Event
 from app.services.clips import reconcile_clip_links
+from app.services.event_aggregation import consolidate_existing_events
 from app.services.label_translation import translate_label
 from app.services.taxonomy import base_class_for_detection, seed_event_classes
 
@@ -165,3 +166,5 @@ def init_db() -> None:
         seed_event_classes(db)
         reconcile_clip_links(db)
     backfill_events()
+    with Session(engine) as db:
+        consolidate_existing_events(db)

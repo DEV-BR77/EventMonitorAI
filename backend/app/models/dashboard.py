@@ -259,6 +259,34 @@ class EventPersonAssignment(Base):
     assigned_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
+class SpeakerCluster(Base):
+    __tablename__ = "speaker_clusters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    linked_person_id: Mapped[int | None] = mapped_column(
+        ForeignKey("person_profiles.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    centroid_json: Mapped[str] = mapped_column(Text)
+    sample_count: Mapped[int] = mapped_column(Integer, default=0)
+    algorithm: Mapped[str] = mapped_column(String(80), default="voiceprint-v1")
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    updated_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class EventSpeakerCluster(Base):
+    __tablename__ = "event_speaker_clusters"
+    __table_args__ = (UniqueConstraint("event_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    cluster_id: Mapped[int] = mapped_column(
+        ForeignKey("speaker_clusters.id", ondelete="CASCADE"), index=True
+    )
+    similarity: Mapped[float] = mapped_column(Float)
+    assigned_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
 class NotificationRule(Base):
     __tablename__ = "notification_rules"
 

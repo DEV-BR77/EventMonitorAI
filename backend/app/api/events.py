@@ -56,6 +56,7 @@ from app.schemas.event import (
 from app.services.audio import live_audio_hub
 from app.services.calibration import calibrated_db
 from app.services.clips import associate_nearest_clip, associate_nearest_event, store_training_clip
+from app.services.event_aggregation import merge_candidate
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
 from app.services.noise_assessment import assessment_for
@@ -243,6 +244,17 @@ async def create_event(
         event.id = 0
         event.audio_available = False
         return event
+
+    merged = merge_candidate(db, event)
+    if merged is not None:
+        db.commit()
+        db.refresh(merged)
+        merged.audio_available = (
+            db.scalars(select(AudioClip).where(AudioClip.event_id == merged.id)).first() is not None
+        )
+        if not merged.display_suppressed:
+            await live_hub.broadcast(EventRead.model_validate(merged).model_dump())
+        return merged
 
     db.add(event)
     db.commit()
@@ -583,8 +595,18 @@ def import_historical_data(
 
 
 @router.get("/review/summary", response_model=ReviewSummary)
-def review_summary(db: DatabaseSession, _: CurrentUser) -> ReviewSummary:
-    events = list(db.scalars(select(Event)))
+def review_summary(
+    db: DatabaseSession,
+    _: CurrentUser,
+    start: str | None = None,
+    end: str | None = None,
+) -> ReviewSummary:
+    statement = select(Event)
+    if start:
+        statement = statement.where(Event.timestamp >= start)
+    if end:
+        statement = statement.where(Event.timestamp < end)
+    events = list(db.scalars(statement))
     summary = {
         "open_unknown": 0,
         "open_recognized": 0,
@@ -611,6 +633,8 @@ def review_queue(
     class_code: str | None = None,
     status_filter: str = Query(default="open", alias="status", pattern="^(open|completed|all)$"),
     limit: int = Query(default=200, ge=1, le=1000),
+    start: str | None = None,
+    end: str | None = None,
 ) -> list[Event]:
     statement = select(Event)
     if status_filter == "open":
@@ -623,6 +647,10 @@ def review_queue(
         statement = statement.where(
             (Event.primary_class_code == class_code) | (Event.subclass_code == class_code)
         )
+    if start:
+        statement = statement.where(Event.timestamp >= start)
+    if end:
+        statement = statement.where(Event.timestamp < end)
     events = list(db.scalars(statement.order_by(desc(Event.id)).limit(limit)))
     event_ids = {event.id for event in events}
     audio_event_ids = (
