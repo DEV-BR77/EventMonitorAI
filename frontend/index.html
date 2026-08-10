@@ -34,6 +34,7 @@
         <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
         <button id="review-nav" class="nav hidden" data-view="review">Audio-Lab</button>
         <button class="nav" data-view="rules">Benachrichtigungen</button>
+        <button class="nav" data-view="support">Unterstützen</button>
         <button id="admin-nav" class="nav hidden" data-view="administration">Administration</button>
       </nav>
       <div class="account"><span id="identity"></span><button id="push-enable" class="ghost hidden">Push aktivieren</button><button id="logout" class="ghost">Abmelden</button></div>
@@ -243,6 +244,39 @@
           </form>
           <article class="panel"><div class="panel-head"><h2>Aktive Regeln</h2><span>Home Assistant</span></div><div id="rule-list"></div></article>
         </div>
+      </section>
+
+      <section id="support" class="view hidden support-page">
+        <article class="panel support-hero">
+          <div><p class="eyebrow">GEMEINSAM IN DER NACHBARSCHAFT</p><h2>Für ein ruhigeres und sauberes Wohnumfeld</h2><p>EventMonitorAI soll Belastungen nachvollziehbar machen und eine sachliche Grundlage für gemeinsame Verbesserungen schaffen. Wer Interesse hat, kann sich mit Zeit, Beobachtungen, Technik, Ideen oder freiwilliger finanzieller Unterstützung beteiligen.</p></div>
+          <div class="support-total"><span>Dokumentierte Ausgaben</span><strong>mindestens 110 €</strong><small>zuzüglich Raspberry Pi 4B, SSD, Domain, 24/7-Strom und Arbeitszeit</small></div>
+        </article>
+        <div class="support-costs">
+          <article class="support-cost"><span>Messhardware</span><strong>40 €+</strong><p>2 × ESP32-S3 · mindestens 20 € je Gerät</p></article>
+          <article class="support-cost"><span>Mikrofone</span><strong>10 €</strong><p>2 × Mikrofon · 5 € je Stück</p></article>
+          <article class="support-cost"><span>KI-Werkzeuge</span><strong>60 €+</strong><p>3 Monate · mindestens 20 € je Monat</p></article>
+          <article class="support-cost estimate"><span>Analyse-Rechner</span><strong>Wert offen</strong><p>Raspberry Pi 4B für die lokale KI-Analyse</p></article>
+          <article class="support-cost estimate"><span>Datenspeicher</span><strong>Wert offen</strong><p>256-GB-SSD für Ereignisse, Modelle und Audioclips</p></article>
+          <article class="support-cost recurring"><span>24/7-Betrieb</span><strong>laufend</strong><p>Strom für Sensoren, Raspberry Pi, Server und Netzwerk</p></article>
+          <article class="support-cost recurring"><span>Öffentliche Bereitstellung</span><strong>laufend</strong><p>IONOS-Domain eventmonitor.eu und sichere Erreichbarkeit für die Nachbarschaft</p></article>
+        </div>
+        <div class="support-columns">
+          <article class="panel"><div class="panel-head"><h2>Was bereits eingebracht wurde</h2><span>seit über 3 Monaten</span></div><ul class="support-list"><li>Planung der Messstellen und Systemarchitektur</li><li>Firmware und 24/7-Betrieb von zwei ESP32-Sensoren</li><li>Raspberry-Pi-, Netzwerk-, Docker- und Dashboard-Einrichtung</li><li>IONOS-Domain, Subdomain und sichere öffentliche Bereitstellung</li><li>Kalibrierung, Audioprüfung und manuelle Ereignisklassifizierung</li><li>KI-Auswertung, Fehleranalyse, Tests und laufende Verbesserung</li></ul><p class="support-note">Die genaue Stundenzahl wurde bislang nicht erfasst. Daher wird keine künstliche Arbeitskosten-Summe ausgewiesen.</p></article>
+          <article class="panel"><div class="panel-head"><h2>So kann man mitmachen</h2><span>jeder Beitrag hilft</span></div><div class="support-examples"><span><b>Beobachtungen</b> Ereignisse sachlich melden oder bestätigen</span><span><b>Zeit und Wissen</b> Aufnahmen prüfen, Ideen testen oder Technik unterstützen</span><span><b>Ausstattung</b> Sensoren, Gehäuse, Kabel oder Speicher beitragen</span><span><b>Freiwilliger Beitrag</b> Betrieb und Weiterentwicklung mitfinanzieren</span></div><a id="support-link" class="support-button disabled" aria-disabled="true">Unterstützungslink wird eingerichtet</a><p class="support-note">Unterstützung ist freiwillig und hat keinen Einfluss auf Benutzerrechte, Bewertungen oder Auswertungen.</p></article>
+        </div>
+        <article class="panel investment-goal">
+          <div class="panel-head"><h2>Nächste geplante Investition: normgerechte Referenzmessstation</h2><span>Planungsstand 10.08.2026</span></div>
+          <p class="investment-intro">Eine unabhängige Referenzmessung soll die aktuellen ESP32-Werte dauerhaft vergleichen und kalibrieren. Geplant ist eine vollständige Klasse-2-Messkette mit eigenem Raspberry-Pi-Gateway – nicht nur ein einzelnes Mikrofon.</p>
+          <div class="investment-layout"><div class="investment-items">
+            <div><span>Integrierender Schallpegelmesser CA 1310 · IEC 61672-1 Klasse 2 · Leq, Logger, Micro-USB</span><b>712,81 €</b></div>
+            <div><span>Akustischer Klasse-2-Kalibrator zur dokumentierten Prüfung vor und nach Messungen</span><b>451,01 €</b></div>
+            <div><span>Zusätzliches Raspberry-Pi-Gateway inklusive Netzteil und Basisspeicher · Planwert</span><b>120,00 €</b></div>
+            <div><span>Wetterfestes Gehäuse, Windschutz, Schnittstellen, Kabel und Montage · Reserve</span><b>150,00 €</b></div>
+            <div class="investment-sum"><span>Rechnerischer Bedarf 1.433,82 € · aufgerundetes Finanzierungsziel</span><b>1.450,00 €</b></div>
+          </div><div class="funding-status"><span>Gemeinsam finanziert</span><strong id="support-collected">0,00 €</strong><div class="funding-progress"><i id="support-progress"></i></div><b id="support-open">Noch offen: 1.450,00 €</b><small>Beiträge werden nach Eingang transparent aktualisiert.</small></div></div>
+          <p class="legal-measurement-note"><strong>Wichtige Einordnung:</strong> Die Klasse-2-Station verbessert Vergleichbarkeit und Dokumentation erheblich, garantiert aber keine gerichtliche Anerkennung. Für förmliche Messungen nach TA Lärm können ein geeichter Klasse-1-Schallpegelmesser, fachkundige Durchführung und ein vollständiges Messprotokoll erforderlich sein. Vor dem Kauf wird außerdem geprüft, ob die USB-Schnittstelle zuverlässig mit dem Raspberry Pi automatisierbar ist.</p>
+        </article>
+        <article class="panel support-transparency"><h2>Transparenz statt Spendenaufruf</h2><p>Die Aufstellung zeigt, was für das gemeinsame Projekt bereits eingesetzt wurde. Die genannten 110 € sind eine dokumentierte Mindestgröße. Noch nicht eingerechnet sind Raspberry Pi, SSD, IONOS-Domain, Strom für den durchgängigen Betrieb, Netzwerk- und Serverbetrieb sowie persönliche Arbeitszeit. Weitere Beträge werden nur ergänzt, wenn sie belastbar vorliegen.</p></article>
       </section>
 
       <section id="administration" class="view hidden">

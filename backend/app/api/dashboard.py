@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.security import CurrentUser, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
@@ -63,6 +64,21 @@ from app.services.speaker_clustering import cluster_existing_voice_clips, link_c
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/support-config")
+def support_config(_: CurrentUser) -> dict[str, str | bool | float]:
+    url = settings.support_url.strip()
+    target = max(0, settings.support_target_eur)
+    collected = min(target, max(0, settings.support_collected_eur))
+    return {
+        "enabled": url.startswith("https://"),
+        "url": url if url.startswith("https://") else "",
+        "target_eur": target,
+        "collected_eur": collected,
+        "open_eur": target - collected,
+        "progress": collected / target if target else 0,
+    }
 
 
 def _assessment_config(db: Session) -> AssessmentConfig:

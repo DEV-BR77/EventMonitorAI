@@ -39,6 +39,17 @@ Verwendung bestätigter Beispiele für das Modelltraining und `Ausblenden` die
 standardmäßige Sichtbarkeit automatisch erkannter Treffer. Zughupen werden als
 trainierbare Feinzuordnung `TRAIN_HORN` unter der Basisklasse `HORN` geführt.
 
+Die Seite **Unterstützen** beschreibt das Projekt als gemeinschaftlichen Beitrag für
+ein ruhigeres und sauberes Wohnumfeld. Sie trennt dokumentierte Mindestkosten von noch
+offenen Hardware- und Betriebskosten und nennt finanzielle Hilfe, Mitarbeit, Wissen,
+Beobachtungen und Sachmittel gleichwertig. Der optionale externe Unterstützungslink
+wird ausschließlich über `SUPPORT_URL` konfiguriert.
+Das nächste Investitionsziel wird über `SUPPORT_TARGET_EUR` und der bereits gemeinsam
+finanzierte Betrag über `SUPPORT_COLLECTED_EUR` gepflegt. Die Referenzstation ist als
+Klasse-2-Vergleichsmessung ausgewiesen; eine gerichtliche oder behördliche Anerkennung
+wird nicht versprochen und kann eine geeichte Klasse-1-Messkette sowie fachkundige
+Durchführung erfordern.
+
 ## Home Assistant
 
 In Home Assistant kann eine Webhook-Automation angelegt werden. Deren URL wird als

@@ -32,6 +32,9 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@eventmonitor.eu}
+      SUPPORT_URL: ${SUPPORT_URL:-}
+      SUPPORT_TARGET_EUR: ${SUPPORT_TARGET_EUR:-1450}
+      SUPPORT_COLLECTED_EUR: ${SUPPORT_COLLECTED_EUR:-0}
       CLIP_DIRECTORY: /data/clips
     volumes:
       - eventmonitor_clips_data:/data/clips

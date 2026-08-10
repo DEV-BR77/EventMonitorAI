@@ -105,7 +105,7 @@ async function start() {
     if (!$("#date-to-filter").value) $("#date-to-filter").value = today;
     await loadDevices();
     await loadEventClasses();
-    await Promise.all([loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -890,6 +890,22 @@ async function applyGlobalFilter() {
   $("#date-to-filter").classList.toggle("hidden", days() !== "range");
   await Promise.all([refresh(), loadKpis(), loadSoundMap(), loadEvents(), loadRecentEvents(), ...(state.role === "viewer" ? [] : [loadReview()])]);
 }
+
+async function loadSupport() {
+  const config = await api("/api/support-config");
+  const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+  $("#support-collected").textContent = euro.format(config.collected_eur);
+  $("#support-open").textContent = `Noch offen: ${euro.format(config.open_eur)}`;
+  $("#support-progress").style.width = `${Math.round(config.progress * 100)}%`;
+  const link = $("#support-link");
+  if (!config.enabled) return;
+  link.href = config.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.classList.remove("disabled");
+  link.removeAttribute("aria-disabled");
+  link.textContent = "Projekt freiwillig unterstützen";
+}
 $("#days-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
 $("#date-from-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
 $("#date-to-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
@@ -903,6 +919,7 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   $(`#${button.dataset.view}`).classList.remove("hidden");
   $("#title").textContent = button.textContent.trim();
+  $(".filters").classList.toggle("hidden", button.dataset.view === "support");
   if (button.dataset.view === "live") loadLiveLevels().catch(() => {});
   if (button.dataset.view === "kpis") loadKpis().catch(() => {});
   if (button.dataset.view === "sound-map") requestAnimationFrame(renderSoundMap);

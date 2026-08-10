@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     vapid_subject: str = "mailto:admin@eventmonitor.eu"
     clip_directory: str = "/data/clips"
     nightly_review_hour: int = 3
+    support_url: str = ""
+    support_target_eur: float = 1450
+    support_collected_eur: float = 0
 
     udp_port: int = 12345
     audio_sample_rate: int = 16000
