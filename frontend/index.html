@@ -43,9 +43,9 @@
         <div><p class="eyebrow">AKUSTISCHE LAGE</p><h1 id="title">Übersicht</h1></div>
         <div class="filters">
           <select id="device-filter"><option value="">Alle Geräte</option></select>
-          <select id="days-filter"><option value="today" selected>Heute</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option><option value="single">Kalendertag</option><option value="range">Zeitraum von–bis</option></select>
-          <input id="date-from-filter" class="hidden" type="date" aria-label="Datum von">
-          <input id="date-to-filter" class="hidden" type="date" aria-label="Datum bis">
+          <select id="days-filter"><option value="today" selected>Heute</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option><option value="single">Tag im Kalender wählen</option><option value="range">Zeitraum im Kalender wählen</option></select>
+          <input id="date-from-filter" class="hidden" type="date" aria-label="Startdatum im Kalender" title="Startdatum im Kalender wählen">
+          <input id="date-to-filter" class="hidden" type="date" aria-label="Enddatum im Kalender" title="Enddatum im Kalender wählen">
         </div>
       </header>
 
@@ -60,7 +60,7 @@
           <article class="panel span2"><div class="panel-head"><h2>Timeline</h2><span>tägliche Ereignisse</span></div><div id="timeline" class="timeline"></div></article>
           <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="categories"></div></article>
           <article class="panel span3"><div class="panel-head"><h2>Aktivitäts-Heatmap</h2><span>Wochentag × Stunde</span></div><div id="heatmap" class="heatmap"></div></article>
-          <article class="panel span3"><div class="panel-head"><h2>Kalender</h2><div class="calendar-nav"><button id="calendar-prev" class="ghost" type="button" aria-label="Vorheriger Tag">←</button><input id="calendar-date" type="date"><button id="calendar-next" class="ghost" type="button" aria-label="Nächster Tag">→</button></div></div><div id="calendar" class="calendar"></div></article>
+          <article class="panel span3"><div class="panel-head"><h2>Kalender</h2><span>gewählter Zeitraum</span></div><div id="calendar" class="calendar"></div></article>
           <article class="panel span3"><div class="panel-head"><h2>Letzte 5 Ereignisse</h2><span>inklusive Zeugenreaktionen</span></div><div id="recent-events" class="recent-events"></div></article>
         </div>
       </section>
@@ -104,7 +104,7 @@
           <div id="level-chart" class="level-chart"></div>
           <div class="level-chart-footer"><div id="level-legend" class="level-legend"></div><span id="level-chart-status">5-Sekunden-Werte · Aktualisierung alle 5 Sekunden</span></div>
         </article>
-        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle Ereignisse</option><option value="clips">Nur mit Aufnahme</option></select></label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
+        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle offenen Ereignisse</option><option value="clips">Offene mit Aufnahme</option></select></label><label class="noise-toggle"><input id="show-resolved-events" type="checkbox"> Bearbeitete anzeigen</label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
           <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span><span>Wiedergabe und Zuordnung</span></div>
           <div id="events" class="events"></div>
         </article>

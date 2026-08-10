@@ -87,7 +87,9 @@ async function start() {
     $("#review-nav").classList.toggle("hidden", me.role === "viewer");
     $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
     $("#map-stage").classList.toggle("positioning", me.role === "admin");
-    if (!$("#calendar-date").value) $("#calendar-date").value = new Date().toLocaleDateString("sv-SE");
+    const today = new Date().toLocaleDateString("sv-SE");
+    if (!$("#date-from-filter").value) $("#date-from-filter").value = today;
+    if (!$("#date-to-filter").value) $("#date-to-filter").value = today;
     await loadDevices();
     await loadEventClasses();
     await Promise.all([loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), ...(me.role === "viewer" ? [] : [loadReview()]), ...(me.role === "admin" ? [loadAudioPermissions(), loadUsers(), loadAssessmentConfig()] : [])]);
@@ -553,9 +555,18 @@ function renderHeatmap(data) {
 }
 
 function renderCalendar(data) {
-  const chosen = $("#calendar-date").value;
-  const entry = data.find((item) => item.date === chosen) || data.at(-1);
-  $("#calendar").innerHTML = entry ? `<div class="day calendar-summary"><strong>${new Date(`${entry.date}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</strong><span><b>${entry.total}</b> Lärmaktivitäten gemessen</span><span class="calendar-exceeded"><b>${entry.exceeded || 0}</b> oberhalb des zulässigen Beurteilungspegels</span></div>` : `<div class="day calendar-summary"><strong>${new Date(`${chosen}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</strong><span>Keine Lärmaktivitäten gemessen</span><span class="calendar-exceeded">0 Überschreitungen</span></div>`;
+  const entries = new Map(data.map((item) => [item.date, item]));
+  const range = selectedRange();
+  const cards = [];
+  const cursor = new Date(`${range.from}T12:00:00`);
+  const end = new Date(`${range.to}T12:00:00`);
+  while (cursor <= end) {
+    const key = localDate(cursor);
+    const entry = entries.get(key) || { total: 0, exceeded: 0 };
+    cards.push(`<div class="day calendar-summary"><strong>${cursor.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</strong><span><b>${entry.total}</b> Lärmaktivitäten gemessen</span><span class="calendar-exceeded"><b>${entry.exceeded || 0}</b> oberhalb des zulässigen Beurteilungspegels</span></div>`);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  $("#calendar").innerHTML = cards.join("");
 }
 
 async function loadRecentEvents() {
@@ -651,13 +662,18 @@ async function loadEvents() {
 
 function renderEvents() {
   $("#events").innerHTML = "";
-  state.liveEvents.filter((event) => $("#clip-filter").value !== "clips" || event.audio_available).slice().reverse().forEach(addEvent);
+  const showResolved = $("#show-resolved-events").checked;
+  state.liveEvents.filter((event) => {
+    const resolved = ["manual", "learned"].includes(event.classification_status);
+    return (showResolved || !resolved) && ($("#clip-filter").value !== "clips" || event.audio_available);
+  }).slice().reverse().forEach(addEvent);
 }
 
 function addEvent(event) {
+  const resolved = ["manual", "learned"].includes(event.classification_status);
+  if ((!$("#show-resolved-events").checked && resolved) || ($("#clip-filter").value === "clips" && !event.audio_available)) return;
   $("#events").querySelector(`[data-event-id="${event.id}"]`)?.remove();
   const row = document.createElement("div");
-  const resolved = ["manual", "learned"].includes(event.classification_status);
   row.className = `event-row ${resolved ? "confirmed" : ""}`;
   row.dataset.eventId = event.id;
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
@@ -820,20 +836,8 @@ async function saveClassification(form, reason) {
     form.classList.add("confirmed");
     form.closest(".event-row,.recent-event")?.classList.add("confirmed");
     button.textContent = "Korrigieren";
-    await Promise.all([loadRecentEvents(), loadReview()]);
+    await Promise.all([loadRecentEvents(), loadEvents(), loadReview()]);
   } catch (error) { button.textContent = error.message; }
-}
-
-async function shiftCalendar(daysToMove) {
-  const date = new Date(`${$("#calendar-date").value}T12:00:00`);
-  date.setDate(date.getDate() + daysToMove);
-  $("#calendar-date").value = date.toLocaleDateString("sv-SE");
-  await loadCalendarDate();
-}
-
-async function loadCalendarDate() {
-  const query = `days=1&date=${$("#calendar-date").value}${device() ? `&device=${encodeURIComponent(device())}` : ""}`;
-  renderCalendar(await api(`/api/calendar?${query}`));
 }
 
 function connectLive() {
@@ -861,6 +865,9 @@ $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 async function applyGlobalFilter() {
   const custom = days() === "single" || days() === "range";
+  const today = localDate(new Date());
+  if (custom && !$("#date-from-filter").value) $("#date-from-filter").value = today;
+  if (days() === "range" && !$("#date-to-filter").value) $("#date-to-filter").value = $("#date-from-filter").value;
   $("#date-from-filter").classList.toggle("hidden", !custom);
   $("#date-to-filter").classList.toggle("hidden", days() !== "range");
   await Promise.all([refresh(), loadKpis(), loadSoundMap(), loadEvents(), loadRecentEvents(), ...(state.role === "viewer" ? [] : [loadReview()])]);
@@ -869,10 +876,9 @@ $("#days-filter").addEventListener("change", () => applyGlobalFilter().catch(() 
 $("#date-from-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
 $("#date-to-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
 $("#device-filter").addEventListener("change", () => Promise.all([applyGlobalFilter(), loadLiveLevels()]));
-$("#calendar-prev").addEventListener("click", () => shiftCalendar(-1));
-$("#calendar-next").addEventListener("click", () => shiftCalendar(1));
-$("#calendar-date").addEventListener("change", loadCalendarDate);
 $("#clip-filter").addEventListener("change", renderEvents);
+$("#show-resolved-events").addEventListener("change", renderEvents);
+for (const picker of [$("#date-from-filter"), $("#date-to-filter")]) picker.addEventListener("click", () => picker.showPicker?.());
 $("#level-minutes").addEventListener("change", loadLiveLevels);
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("active", n === button));

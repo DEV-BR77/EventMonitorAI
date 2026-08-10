@@ -20,6 +20,12 @@ TLS wird für Zugriffe über ein Netzwerk vorausgesetzt.
 Timeline, Kategorien, Kennzahlen und die Wochentag/Stunden-Heatmap können nach Zeitraum
 und Gerät gefiltert werden. Die REST-Routen liegen unter `/api`.
 
+Die zentrale Zeitraumwahl gilt einheitlich für Timeline, Heatmap, Kalender und Kennzahlen.
+Einzelne Tage sowie Von-bis-Zeiträume werden über Kalenderfelder gewählt; im Kalender
+erscheint jeder Tag des ausgewählten Zeitraums. Der Live-Ereignisstrom blendet bearbeitete
+und automatisch gelernte Ereignisse standardmäßig aus. Sie können über
+**Bearbeitete anzeigen** zur Kontrolle und Korrektur wieder eingeblendet werden.
+
 ## Home Assistant
 
 In Home Assistant kann eine Webhook-Automation angelegt werden. Deren URL wird als
