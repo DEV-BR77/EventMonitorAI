@@ -259,10 +259,10 @@ async function loadEventClasses() {
       <strong>${escapeHtml(item.code)}</strong>
       <label>Name<input name="name" value="${escapeHtml(item.name)}" maxlength="120" required></label>
       <label>Ebene<select name="level"><option value="base" ${item.level === "base" ? "selected" : ""}>Basis</option><option value="fine" ${item.level === "fine" ? "selected" : ""}>Fein</option></select></label>
-      <label>Basisklasse<select name="parent_code">${parentOptions.replace(`value="${item.parent_code || ""}"`, `value="${item.parent_code || ""}" selected`)}</select></label>
-      <label class="active-toggle"><input name="active" type="checkbox" ${item.active ? "checked" : ""}> Aktiv</label>
-      <label class="active-toggle"><input name="trainable" type="checkbox" ${item.trainable ? "checked" : ""}> Trainierbar</label>
-      <label class="active-toggle"><input name="hidden_by_default" type="checkbox" ${item.hidden_by_default ? "checked" : ""}> Ausblenden</label>
+      <label>Zugeordnet zu<select name="parent_code" title="Nur bei Feinzuordnungen: zugehörige Basisklasse">${parentOptions.replace(`value="${item.parent_code || ""}"`, `value="${item.parent_code || ""}" selected`)}</select></label>
+      <label class="active-toggle" title="In Zuordnungs-Auswahlfeldern verfügbar"><input name="active" type="checkbox" ${item.active ? "checked" : ""}> Aktiv</label>
+      <label class="active-toggle" title="Bestätigte Beispiele dürfen zum KI-Training verwendet werden"><input name="trainable" type="checkbox" ${item.trainable ? "checked" : ""}> Trainierbar</label>
+      <label class="active-toggle" title="Treffer standardmäßig aus Lagebild und Live-Strom ausblenden"><input name="hidden_by_default" type="checkbox" ${item.hidden_by_default ? "checked" : ""}> Ausblenden</label>
       <button type="submit">Speichern</button>
     </form>`).join("");
 }

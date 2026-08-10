@@ -26,6 +26,12 @@ erscheint jeder Tag des ausgewählten Zeitraums. Der Live-Ereignisstrom blendet 
 und automatisch gelernte Ereignisse standardmäßig aus. Sie können über
 **Bearbeitete anzeigen** zur Kontrolle und Korrektur wieder eingeblendet werden.
 
+Im KI-Klassenkatalog bilden Basisklassen die Hauptkategorien und Feinzuordnungen deren
+Unterarten. `Aktiv` steuert die Verfügbarkeit in Auswahlfeldern, `Trainierbar` die
+Verwendung bestätigter Beispiele für das Modelltraining und `Ausblenden` die
+standardmäßige Sichtbarkeit automatisch erkannter Treffer. Zughupen werden als
+trainierbare Feinzuordnung `TRAIN_HORN` unter der Basisklasse `HORN` geführt.
+
 ## Home Assistant
 
 In Home Assistant kann eine Webhook-Automation angelegt werden. Deren URL wird als

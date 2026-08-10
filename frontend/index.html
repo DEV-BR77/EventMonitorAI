@@ -272,11 +272,15 @@
         </div>
         <article class="panel class-management">
           <div class="panel-head"><h2>KI-Klassenkatalog</h2><span>Gemeinsam für Live-Analyse und AudioLab</span></div>
+          <div class="class-help">
+            <p><strong>Basisklasse</strong> ist die Hauptgruppe, zum Beispiel Hupen. <strong>Feinzuordnung</strong> ist die konkrete Unterart und wird über „Zugeordnet zu“ mit ihrer Basisklasse verbunden.</p>
+            <p><strong>Aktiv</strong> zeigt die Klasse in Auswahlfeldern. <strong>Trainierbar</strong> erlaubt bestätigte Beispiele fürs KI-Training. <strong>Ausblenden</strong> verbirgt Treffer standardmäßig in Lagebild und Live-Strom, bewahrt sie aber für Prüfung und Training.</p>
+          </div>
           <form id="class-create-form" class="class-create">
             <label>Code<input id="class-code" pattern="[A-Z0-9_]{2,80}" placeholder="BALL_WOOD" required></label>
             <label>Name<input id="class-name" maxlength="120" required></label>
             <label>Ebene<select id="class-level"><option value="base">Basisklasse</option><option value="fine">Feinzuordnung</option></select></label>
-            <label>Basisklasse<select id="class-parent"><option value="">Keine</option></select></label>
+            <label>Zugeordnet zu<select id="class-parent"><option value="">Keine</option></select></label>
             <label class="active-toggle"><input id="class-hidden" type="checkbox"> Standardmäßig ausblenden</label>
             <button type="submit">Klasse anlegen</button>
           </form>

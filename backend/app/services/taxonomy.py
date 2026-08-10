@@ -26,6 +26,7 @@ DEFAULT_EVENT_CLASSES = (
     ("LOUD_SCREAM", "Lautes Schreien", "fine", "VOICE_LOUD", False, True),
     ("ARGUMENT", "Streit / mehrere Personen", "fine", "VOICE_LOUD", False, True),
     ("VEHICLE_HORN", "Fahrzeughupen", "fine", "HORN", False, True),
+    ("TRAIN_HORN", "Zughupen", "fine", "HORN", False, True),
     ("WIND_NOISE", "Windgeräusch", "fine", "WIND", True, True),
     ("RURAL_NATURE", "Ländliche/natürliche Umgebung", "fine", "AMBIENT", True, True),
     ("MAINS_HUM", "Netzbrummen", "fine", "TECHNICAL", True, True),

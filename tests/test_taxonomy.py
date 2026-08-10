@@ -37,6 +37,7 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
             next(item for item in classes if item.code == "LOUD_SCREAM").parent_code == "VOICE_LOUD"
         )
         assert next(item for item in classes if item.code == "ARGUMENT").parent_code == "VOICE_LOUD"
+        assert next(item for item in classes if item.code == "TRAIN_HORN").parent_code == "HORN"
 
 
 def test_dashboard_rejects_fine_class_with_unknown_parent() -> None:
