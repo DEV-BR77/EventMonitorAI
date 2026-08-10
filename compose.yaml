@@ -1,6 +1,13 @@
 name: eventmonitorai
 
 services:
+  website:
+    build:
+      context: ./website
+    ports:
+      - "127.0.0.1:${WEBSITE_PORT:-8016}:80"
+    restart: unless-stopped
+
   postgres:
     image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
     environment:
