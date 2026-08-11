@@ -24,7 +24,11 @@ def send_verification_email(recipient: str, verification_url: str) -> None:
     request = Request(
         "https://api.resend.com/emails",
         data=payload,
-        headers={"Authorization": f"Bearer {settings.resend_api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {settings.resend_api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "EventMonitorAI/1.0",
+        },
         method="POST",
     )
     with urlopen(request, timeout=15) as response:
