@@ -6,11 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends libsndfile1 && rm -rf /var/lib/apt/lists/* \
-    && groupadd --system eventmonitor && useradd --system --gid eventmonitor --home /app eventmonitor
+    && groupadd --system --gid 101 eventmonitor \
+    && useradd --system --uid 100 --gid 101 --home /app eventmonitor
 COPY backend/requirements.txt backend/requirements-speaker.txt ./
 RUN pip install -r requirements.txt -r requirements-speaker.txt
 COPY backend/app ./app
 COPY VERSION ./VERSION
-RUN mkdir -p /models && chown -R eventmonitor:eventmonitor /app /models
+RUN mkdir -p /models && chown -R 100:101 /app /models
 USER eventmonitor
 CMD ["python", "-m", "app.workers.speaker"]
