@@ -20,4 +20,8 @@ def test_public_site_links_to_android_preview_instead_of_embedding_apk() -> None
     index = INDEX_PAGE.read_text(encoding="utf-8")
 
     assert 'href="/android-download.html"' in index
+    smartphone_card = index.split("02 · SMARTPHONE", 1)[1].split("</article>", 1)[0]
+    assert "Eigenes Handy verwenden" in smartphone_card
+    assert "Android Beta-Version herunterladen" in smartphone_card
+    assert 'href="/android-download.html"' in smartphone_card
     assert not list((ROOT / "website").rglob("*.apk"))
