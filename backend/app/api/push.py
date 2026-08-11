@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import CurrentUser
 from app.database.session import get_db
-from app.models.dashboard import AudioClip, EventWitnessResponse, PushSubscription, User
+from app.models.dashboard import (
+    AudioClip,
+    EventPersonAssignment,
+    EventWitnessResponse,
+    PersonProfile,
+    PushSubscription,
+    User,
+)
 from app.models.event import Event
 from app.schemas.dashboard import (
     NoiseLogEntry,
@@ -99,6 +106,18 @@ def noise_log(
     audio_event_ids = set(
         db.scalars(select(AudioClip.event_id).where(AudioClip.event_id.in_(event_ids))).all()
     )
+    assignments = {
+        assignment.event_id: assignment.person_id
+        for assignment in db.scalars(
+            select(EventPersonAssignment).where(EventPersonAssignment.event_id.in_(event_ids))
+        )
+    }
+    people = {
+        person.id: person.name
+        for person in db.scalars(
+            select(PersonProfile).where(PersonProfile.id.in_(set(assignments.values())))
+        )
+    } if assignments else {}
     witnesses: dict[int, list[WitnessResponseRead]] = {event.id: [] for event in events}
     for item in db.scalars(
         select(EventWitnessResponse).where(EventWitnessResponse.event_id.in_(witnesses.keys()))
@@ -118,6 +137,9 @@ def noise_log(
             corrected_by=event.corrected_by,
             db_level=event.db_level,
             audio_available=event.id in audio_event_ids,
+            person_id=assignments.get(event.id),
+            person_name=people.get(assignments.get(event.id)),
+            person_monitoring_excluded=event.person_monitoring_excluded,
             witnesses=witnesses[event.id],
         )
         for event in events

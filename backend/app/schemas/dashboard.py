@@ -154,6 +154,9 @@ class NoiseLogEntry(BaseModel):
     corrected_by: str | None
     db_level: float
     audio_available: bool = False
+    person_id: int | None = None
+    person_name: str | None = None
+    person_monitoring_excluded: bool = False
     witnesses: list[WitnessResponseRead]
 
 

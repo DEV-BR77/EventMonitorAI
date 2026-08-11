@@ -40,6 +40,12 @@ function rangeLabel() {
 }
 const categoryNames = { DEVICE: "Geräuschquelle", VOCALIZATION: "Lautäußerung", VOICE: "Stimme", HUMAN_SOUND: "Menschliches Geräusch", HOUSEHOLD: "Haushalt", ANIMAL: "Tier", AMBIENT: "Umgebung", MUSIC: "Musik", VEHICLE: "Fahrzeug", IMPACT: "Schlag/Aufprall", OTHER: "Sonstiges" };
 
+function livePersonControl(eventId, selectedId, monitoringExcluded) {
+  const options = state.people.filter((person) => person.active).map((person) => `<option value="${person.id}" ${Number(selectedId) === person.id ? "selected" : ""}>${escapeHtml(person.name)}${person.monitoring_enabled ? "" : " · nicht in Lärmmessung"}</option>`).join("");
+  const status = selectedId ? monitoringExcluded ? "Person zugeordnet · aus Lärmmessung ausgeschlossen" : "Person zugeordnet · in Lärmmessung enthalten" : "Manuelle Zuordnung nach dem Anhören";
+  return `<label class="live-person-assignment">Person<select data-live-person-event="${eventId}"><option value="">Keine Person</option>${options}</select></label><span class="person-monitoring-status ${monitoringExcluded ? "excluded" : ""}">${status}</span>`;
+}
+
 function markEventListened(eventId, button) {
   const key = String(eventId);
   state.listenedEvents.delete(key);
@@ -106,6 +112,7 @@ async function start() {
     if (!$("#date-to-filter").value) $("#date-to-filter").value = today;
     await loadDevices();
     await loadEventClasses();
+    if (me.role !== "viewer") await loadPeople();
     if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
       document.querySelector('.nav[data-view="overview"]').click();
     }
@@ -626,7 +633,8 @@ async function loadRecentEvents() {
     const primaryOptions = `<option value="" ${entry.primary_class_code ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
     const play = state.role === "viewer" ? `<span class="clip-unavailable">Keine Audioberechtigung</span>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>`;
     const resolved = ["manual", "learned", "context_only"].includes(entry.classification_status);
-    const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
+    const personControl = state.role === "viewer" || !entry.audio_available ? "" : livePersonControl(entry.event_id, entry.person_id, entry.person_monitoring_excluded);
+    const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}${personControl}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
     const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : entry.classification_status === "context_only" ? "nur Metadaten-/Kontextwertung · kein akustischer Nachweis" : "automatisch";
     return `<div class="recent-event ${resolved ? "confirmed" : ""} ${state.listenedEvents.has(String(entry.event_id)) ? "listened" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(statusText)}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
@@ -775,6 +783,7 @@ function addEvent(event) {
   const primaryOptions = `<option value="" ${selectedPrimary ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${selectedPrimary === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
   const actions = state.role === "viewer" ? "" : !event.audio_available ? `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>` : `<form class="live-actions" data-event-id="${event.id}">
     <button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>
+    ${livePersonControl(event.id, event.person_id, event.person_monitoring_excluded)}
     <select name="primary_class_code">${primaryOptions}</select>
     <select name="subclass_code" data-current="${escapeHtml(selectedSubclass || "")}"></select>
     <button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button>
@@ -1079,6 +1088,18 @@ $("#review-events").addEventListener("change", async (e) => {
     $("#people-status").textContent = "Personenzuordnung gespeichert.";
     await loadPeople();
   } catch (error) { $("#people-status").textContent = error.message; }
+});
+document.addEventListener("change", async (e) => {
+  const select = e.target.closest("[data-live-person-event]");
+  if (!select) return;
+  select.disabled = true;
+  try {
+    await api(`/events/${select.dataset.livePersonEvent}/person`, { method: "PUT", body: JSON.stringify({ person_id: select.value ? Number(select.value) : null }) });
+    await Promise.all([loadPeople(), loadRecentEvents(), loadEvents(), refresh(), loadKpis(), loadSoundMap()]);
+  } catch (error) {
+    alert(error.message);
+    await Promise.all([loadRecentEvents(), loadEvents()]);
+  }
 });
 $("#review-select-all").addEventListener("click", () => {
   document.querySelectorAll("#review-events input").forEach((item) => { item.checked = true; });

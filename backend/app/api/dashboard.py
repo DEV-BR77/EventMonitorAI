@@ -412,7 +412,7 @@ def update_assessment_config(
 @router.get("/people", response_model=list[PersonRead])
 def list_people(
     db: DatabaseSession,
-    _: Annotated[User, Depends(require_roles("admin"))],
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
 ) -> list[PersonRead]:
     people = list(db.scalars(select(PersonProfile).order_by(PersonProfile.name)))
     assignments = list(db.scalars(select(EventPersonAssignment)))
