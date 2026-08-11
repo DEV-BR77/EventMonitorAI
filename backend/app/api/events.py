@@ -759,7 +759,12 @@ def review_queue(
     start: str | None = None,
     end: str | None = None,
 ) -> list[Event]:
-    statement = select(Event).where(Event.classification_status != "context_only")
+    statement = (
+        select(Event)
+        .join(AudioClip, AudioClip.event_id == Event.id)
+        .where(Event.classification_status != "context_only")
+        .distinct()
+    )
     if status_filter == "open":
         statement = statement.where(Event.classification_status.not_in(("manual", "learned")))
     elif status_filter == "completed":

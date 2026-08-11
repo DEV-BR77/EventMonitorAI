@@ -36,6 +36,22 @@ def test_bulk_review_summary_and_class_filter() -> None:
         context_only = event("Imported metadata", "AMBIENT")
         context_only.classification_status = "context_only"
         db.add_all([user, unknown, impact, context_only])
+        db.flush()
+        db.add_all(
+            [
+                AudioClip(
+                    device_id="mic",
+                    trigger_id=f"trigger-{item.id}",
+                    received_at=item.timestamp,
+                    sha256=str(item.id).zfill(64),
+                    path=f"audio/{item.id}.wav",
+                    frame_count=16000,
+                    sample_rate=16000,
+                    event_id=item.id,
+                )
+                for item in (unknown, impact)
+            ]
+        )
         db.commit()
 
         before = review_summary(db, user)
