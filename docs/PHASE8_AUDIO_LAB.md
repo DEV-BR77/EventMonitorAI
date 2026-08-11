@@ -87,6 +87,11 @@ sofern für den Tag noch kein Nachtlauf existiert und kein anderer Lauf aktiv is
 mit `NIGHTLY_REVIEW_HOUR` geändert werden. Neustarts sind sicher, weil Laufstatus, Fortschritt und
 Zähler in PostgreSQL bzw. SQLite persistiert sind.
 
+Der Live-Audio-Eingang begrenzt jeden Gerätestrom auf die konfigurierte 16-kHz-Mono-Echtzeitrate
+mit einem fünfsekündigen Puffer für Verbindungsabbrüche. Schneller eintreffende PCM-Pakete werden
+mit `202 Accepted` quittiert, aber nicht erneut verarbeitet. Dadurch erzeugen Geräte keine
+Retry-Warteschlange und Audio-Ingest kann Dashboard, Healthcheck und WebSocket nicht verdrängen.
+
 ## Beurteilungszeiten
 
 Die zentrale Bewertungsfunktion verwendet die in der Roadmap gesetzten Werte:
