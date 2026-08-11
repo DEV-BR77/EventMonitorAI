@@ -18,6 +18,11 @@ geeichte oder normgerechte Schallpegelmessung. Ein lokaler Offset dokumentiert
 die erkannte Geräteabweichung; eine produktive Freigabe verlangt eine
 Vergleichsmessung je unterstütztem Gerätemodell.
 
+Auf Android fordert die Pipeline die unverarbeitete Mikrofonquelle an und
+deaktiviert das automatische Bluetooth-Routing des Aufnahme-Plugins. Dadurch
+bleiben automatische Verstärkung, Echokompensation, Rauschunterdrückung und
+eine nachträgliche Audio-Routenumschaltung aus dem Messpfad heraus.
+
 Digitale Stille (PCM ohne verwertbare Amplitude) wird ausdrücklich nicht als
 20-dB-Messwert ausgegeben. Die laufende Sitzung zeigt stattdessen einen Hinweis
 auf den fehlenden Geräte- beziehungsweise Emulator-Audioeingang. Ein Eintrag

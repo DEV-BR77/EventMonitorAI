@@ -67,6 +67,10 @@ class MeasurementService {
         autoGain: false,
         echoCancel: false,
         noiseSuppress: false,
+        androidConfig: AndroidRecordConfig(
+          manageBluetooth: false,
+          audioSource: AndroidAudioSource.unprocessed,
+        ),
       ),
     );
     _audioSubscription = audio.listen(
