@@ -1,12 +1,16 @@
 import base64
 from pathlib import Path
 
+from types import SimpleNamespace
+
 from app.api.dashboard import update_person
+from app.api.events import assign_event_person, list_events
+from app.api.push import noise_log
 from app.core.config import settings
 from app.database.base import Base
 from app.models.dashboard import EventPersonAssignment, PersonProfile, User
 from app.models.event import Event
-from app.schemas.dashboard import PersonUpdate
+from app.schemas.dashboard import PersonAssignmentWrite, PersonUpdate
 from app.services.person_media import store_photo
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -43,3 +47,28 @@ def test_person_can_be_excluded_from_noise_monitoring() -> None:
         update_person(person.id, PersonUpdate(name="Nachbar", active=True, monitoring_enabled=True), db, User(username="admin", password_hash="hash", role="admin"))
         db.refresh(event)
         assert event.person_monitoring_excluded is False
+
+
+def test_live_event_person_assignment_is_returned_with_noise_exclusion() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        person = PersonProfile(name="Nachbar", monitoring_enabled=False)
+        event = Event(timestamp="2026-08-11T10:00:00", event_type="sound", label="Speech", label_de="Sprache", category="VOICE", confidence=0.8, db_level=55, device="mic")
+        db.add_all([person, event])
+        db.commit()
+
+        assign_event_person(
+            event.id,
+            PersonAssignmentWrite(person_id=person.id),
+            db,
+            User(username="operator", password_hash="hash", role="operator"),
+        )
+
+        listed = list_events(db, SimpleNamespace(), limit=10)
+        logged = noise_log(db, SimpleNamespace(), limit=10)
+        assert listed[0].person_id == person.id
+        assert listed[0].person_monitoring_excluded is True
+        assert logged[0].person_id == person.id
+        assert logged[0].person_name == "Nachbar"
+        assert logged[0].person_monitoring_excluded is True

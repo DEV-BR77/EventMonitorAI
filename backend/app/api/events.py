@@ -1103,4 +1103,12 @@ def list_events(
     )
     for event in events:
         event.audio_available = event.id in audio_event_ids
+    assignments = {
+        item.event_id: item.person_id
+        for item in db.scalars(
+            select(EventPersonAssignment).where(EventPersonAssignment.event_id.in_(event_ids))
+        )
+    } if event_ids else {}
+    for event in events:
+        event.person_id = assignments.get(event.id)
     return events

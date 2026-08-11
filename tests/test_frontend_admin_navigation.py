@@ -21,3 +21,11 @@ def test_admin_navigation_and_data_are_role_guarded() -> None:
     assert '$("#admin-navigation").classList.toggle("hidden", me.role !== "admin")' in javascript
     assert 'button.closest("#admin-navigation") && state.role !== "admin"' in javascript
     assert '...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview()' in javascript
+
+
+def test_live_events_offer_direct_person_assignment_with_noise_status() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+
+    assert 'data-live-person-event="${eventId}"' in javascript
+    assert "Person zugeordnet · aus Lärmmessung ausgeschlossen" in javascript
+    assert "if (me.role !== \"viewer\") await loadPeople();" in javascript

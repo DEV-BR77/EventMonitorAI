@@ -80,7 +80,10 @@ Mit **In Lärmüberwachung einbeziehen** lässt sich je Profil festlegen, ob bes
 Ereignisse in Dashboard-Kennzahlen und Belastungsbewertung einfließen. Beim Ausschluss
 bleiben Ereignisse und Zuordnungen für die persönliche Ansicht erhalten. Die Einstellung
 ist reversibel und verwendet eine eigene Ereignismarkierung, unabhängig von anderen
-Ausblendungsgründen.
+Ausblendungsgründen. Administratoren und Operatoren können ein abspielbares Ereignis direkt
+im Live-Ereignisstrom oder im aktuellen Lärmprotokoll einer aktiven Person zuordnen. Der
+Hinweis **aus Lärmmessung ausgeschlossen** wird unmittelbar an der Zeile angezeigt; Ereignisse
+ohne Aufnahme bieten diese akustisch begründete Direktzuordnung nicht an.
 
 Der integrierte Scheduler startet täglich um 03:00 Uhr in `Europe/Berlin` einen nächtlichen Lauf,
 sofern für den Tag noch kein Nachtlauf existiert und kein anderer Lauf aktiv ist. Die Stunde kann
