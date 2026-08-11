@@ -5,6 +5,7 @@ import io
 import logging
 import math
 import struct
+import time
 import wave
 import zipfile
 from collections import Counter
@@ -78,6 +79,27 @@ router = APIRouter(
     prefix="/events",
     tags=["Events"],
 )
+
+_PCM_BYTES_PER_SECOND = 16_000 * 2
+_AUDIO_BURST_BYTES = _PCM_BYTES_PER_SECOND * 5
+_audio_ingest_buckets: dict[str, tuple[float, float]] = {}
+
+
+def _accept_realtime_audio(device_id: str, byte_count: int) -> bool:
+    """Allow one real-time PCM stream plus a short reconnect burst per device."""
+    now = time.monotonic()
+    tokens, updated_at = _audio_ingest_buckets.get(
+        device_id, (float(_AUDIO_BURST_BYTES), now)
+    )
+    tokens = min(
+        float(_AUDIO_BURST_BYTES),
+        tokens + max(0.0, now - updated_at) * _PCM_BYTES_PER_SECOND,
+    )
+    accepted = tokens >= byte_count
+    if accepted:
+        tokens -= byte_count
+    _audio_ingest_buckets[device_id] = (tokens, now)
+    return accepted
 
 DatabaseSession = Annotated[Session, Depends(get_db)]
 
@@ -218,9 +240,14 @@ async def ingest_live_audio(
     db: DatabaseSession,
     _: Annotated[None, Depends(verify_ingest_key)],
 ) -> dict[str, int]:
-    _ensure_ingest_device(db, device_id)
     if not pcm or len(pcm) > 64_000 or len(pcm) % 2:
         raise HTTPException(status_code=422, detail="Invalid 16-bit PCM chunk")
+    if not _accept_realtime_audio(device_id, len(pcm)):
+        # Mit 202 bestätigen, damit ein zu schnell sendendes Gerät keine noch
+        # größere Wiederholungswarteschlange aufbaut. Überschüssige PCM-Daten
+        # dürfen weder Ringpuffer noch Live-Ausgabe verdrängen.
+        return {"bytes": len(pcm), "listeners": 0}
+    _ensure_ingest_device(db, device_id)
     device = db.scalar(select(Device).where(Device.device_id == device_id))
     if device is None:
         raise HTTPException(status_code=404, detail="Unknown device")

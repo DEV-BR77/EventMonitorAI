@@ -4,6 +4,7 @@ import wave
 from types import SimpleNamespace
 
 from app.api.dashboard import live_audio_devices, update_live_audio_permission
+import app.api.events as events_api
 from app.api.events import create_event, ingest_live_audio, update_device_telemetry
 from app.core.config import settings
 from app.database.base import Base
@@ -67,6 +68,7 @@ def test_admin_replaces_user_live_audio_permissions() -> None:
 
 
 def test_audio_ingest_broadcasts_pcm_only_for_active_device() -> None:
+    events_api._audio_ingest_buckets.clear()
     _, db = _database()
     with db:
         db.add(Device(device_id="mic", name="Mic"))
@@ -74,6 +76,27 @@ def test_audio_ingest_broadcasts_pcm_only_for_active_device() -> None:
         result = asyncio.run(ingest_live_audio("mic", b"\x01\x00" * 100, db, None))
 
         assert result == {"bytes": 200, "listeners": 0}
+
+
+def test_audio_ingest_drops_faster_than_realtime_burst_without_broadcast(monkeypatch) -> None:
+    events_api._audio_ingest_buckets.clear()
+    monkeypatch.setattr(events_api.time, "monotonic", lambda: 100.0)
+    broadcasts: list[bytes] = []
+
+    async def record_broadcast(_device_id: str, payload: bytes) -> int:
+        broadcasts.append(payload)
+        return 0
+
+    monkeypatch.setattr(live_audio_hub, "broadcast", record_broadcast)
+    _, db = _database()
+    with db:
+        db.add(Device(device_id="flooding-mic", name="Flooding mic"))
+        db.commit()
+        payload = b"\x01\x00" * 32_000
+        for _ in range(3):
+            asyncio.run(ingest_live_audio("flooding-mic", payload, db, None))
+
+        assert broadcasts == [payload, payload]
 
 
 def test_applied_calibration_offset_changes_new_telemetry_values() -> None:
