@@ -628,7 +628,7 @@ async function loadRecentEvents() {
     const primaryOptions = `<option value="" ${entry.primary_class_code ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
     const play = state.role === "viewer" ? `<span class="clip-unavailable">Keine Audioberechtigung</span>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>`;
     const resolved = ["manual", "learned", "context_only"].includes(entry.classification_status);
-    const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
+    const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select>${secondaryClassEditor(entry)}<button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
     const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : entry.classification_status === "context_only" ? "nur Metadaten-/Kontextwertung · kein akustischer Nachweis" : "automatisch";
     return `<div class="recent-event ${resolved ? "confirmed" : ""} ${state.listenedEvents.has(String(entry.event_id)) ? "listened" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(statusText)}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
@@ -641,6 +641,13 @@ function populateSubclassOptions(form) {
   const fine = state.eventClasses.filter((item) => item.active && item.level === "fine" && (item.parent_code == null || item.parent_code === primaryCode));
   form.elements.subclass_code.innerHTML = `<option value="">Keine Feinzuordnung</option>${fine.map((item) => `<option value="${escapeHtml(item.code)}" ${current === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
   if (!current && fine.length === 1) form.elements.subclass_code.value = fine[0].code;
+}
+
+function secondaryClassEditor(event) {
+  const selected = new Set(event.secondary_class_codes || []);
+  const approved = new Set(event.secondary_learning_approved_codes || []);
+  const fine = state.eventClasses.filter((item) => item.active && item.level === "fine");
+  return `<details class="secondary-editor"><summary>Nebenquellen${selected.size ? ` (${selected.size})` : ""}</summary><div class="secondary-options">${fine.map((item) => `<label><input type="checkbox" name="secondary_class_codes" value="${escapeHtml(item.code)}" ${selected.has(item.code) ? "checked" : ""}> ${escapeHtml(item.name)} <span><input type="checkbox" name="secondary_learning_approved_codes" value="${escapeHtml(item.code)}" ${approved.has(item.code) ? "checked" : ""} ${selected.has(item.code) ? "" : "disabled"}> lernen</span></label>`).join("")}</div><label><input type="checkbox" name="primary_learning_approved" ${event.primary_learning_approved !== false ? "checked" : ""}> Hauptklasse lernen</label><small>Gemischte Clips werden nur für ausdrücklich freigegebene Klassen gelernt.</small></details>`;
 }
 
 function reviewSubclassOptions() {
@@ -665,6 +672,7 @@ async function loadReview() {
   }).join("");
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
   $("#review-primary").innerHTML = bases.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
+  $("#review-secondary").innerHTML = state.eventClasses.filter((item) => item.active && item.level === "fine").map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
   reviewSubclassOptions();
   $("#review-runs").innerHTML = runs.length ? runs.map((run) => {
     const progress = run.total ? Math.round(run.processed / run.total * 100) : 0;
@@ -681,7 +689,7 @@ async function loadReviewQueue() {
   if (state.reviewClass) query.set("class_code", state.reviewClass);
   state.reviewEvents = await api(`/events/review/queue?${query}`);
   const personOptions = `<option value="">Keine Person</option>${state.people.filter((person) => person.active).map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("")}`;
-  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}">${"▶ Anhören"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select>${event.assessment_excluded ? '<small class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</small>' : ""}</span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
+  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}">${"▶ Anhören"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %${event.secondary_class_codes?.length ? `<small>Nebenquellen: ${event.secondary_class_codes.map((code) => escapeHtml(state.eventClasses.find((item) => item.code === code)?.name || code)).join(", ")}</small>` : ""}<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select>${event.assessment_excluded ? '<small class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</small>' : ""}</span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
   updateReviewSelection();
 }
 
@@ -804,6 +812,7 @@ function addEvent(event) {
     <button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>
     <select name="primary_class_code">${primaryOptions}</select>
     <select name="subclass_code" data-current="${escapeHtml(selectedSubclass || "")}"></select>
+    ${secondaryClassEditor(event)}
     <button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button>
   </form>`;
   row.innerHTML = `<span>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)}<br>${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.device)}</span><span class="badge">${escapeHtml(event.label_de || event.label)}</span><span>${event.db_level.toFixed(1)} dB</span><span>${Math.round(event.confidence * 100)} %</span>${actions}`;
@@ -941,6 +950,9 @@ async function saveClassification(form, reason) {
   const button = form.querySelector("button[type=submit]");
   const primary = form.elements.primary_class_code.value;
   const subclass = form.elements.subclass_code.value || null;
+  const secondary = Array.from(form.querySelectorAll('input[name="secondary_class_codes"]:checked'), (item) => item.value);
+  const approvedSecondary = Array.from(form.querySelectorAll('input[name="secondary_learning_approved_codes"]:checked:not(:disabled)'), (item) => item.value);
+  const primaryLearning = form.querySelector('input[name="primary_learning_approved"]')?.checked ?? !secondary.length;
   if (!primary) return;
   if (primary === "NO_NOISE") {
     try {
@@ -955,7 +967,7 @@ async function saveClassification(form, reason) {
     return;
   }
   try {
-    await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: primary, subclass_code: subclass, reason }) });
+    await api(`/events/${form.dataset.eventId}/classification`, { method: "PATCH", body: JSON.stringify({ primary_class_code: primary, subclass_code: subclass, secondary_class_codes: secondary, secondary_learning_approved_codes: approvedSecondary, primary_learning_approved: primaryLearning, reason }) });
     state.classificationDrafts.delete(String(form.dataset.eventId));
     form.classList.add("confirmed");
     form.closest(".event-row,.recent-event")?.classList.add("confirmed");
@@ -1074,6 +1086,11 @@ $("#events").addEventListener("change", (e) => {
   } else if (form && e.target.name === "subclass_code" && e.target.value) {
     state.classificationDrafts.set(String(form.dataset.eventId), { primary_class_code: form.elements.primary_class_code.value, subclass_code: form.elements.subclass_code.value });
     saveClassification(form, "Im Live-Ereignisstrom automatisch übernommen");
+  } else if (form && e.target.name === "secondary_class_codes") {
+    const learning = form.querySelector(`input[name="secondary_learning_approved_codes"][value="${CSS.escape(e.target.value)}"]`);
+    learning.disabled = !e.target.checked;
+    if (!e.target.checked) learning.checked = false;
+    if (e.target.checked) form.querySelector('input[name="primary_learning_approved"]').checked = false;
   }
 });
 $("#events").addEventListener("click", async (e) => {
@@ -1117,6 +1134,11 @@ $("#review-classes").addEventListener("click", async (e) => {
 });
 $("#review-status").addEventListener("change", loadReviewQueue);
 $("#review-primary").addEventListener("change", reviewSubclassOptions);
+$("#review-secondary").addEventListener("change", () => {
+  const selected = Array.from($("#review-secondary").selectedOptions, (item) => item.value);
+  $("#review-primary-learning").checked = selected.length === 0;
+  $("#review-secondary-learning").innerHTML = selected.map((code) => `<label><input type="checkbox" value="${escapeHtml(code)}"> ${escapeHtml(state.eventClasses.find((item) => item.code === code)?.name || code)} als Lernbeispiel freigeben</label>`).join("");
+});
 $("#review-events").addEventListener("change", updateReviewSelection);
 $("#review-events").addEventListener("change", async (e) => {
   const select = e.target.closest("[data-person-event]");
@@ -1141,7 +1163,9 @@ $("#review-bulk-form").addEventListener("submit", async (e) => {
       $("#review-status-text").textContent = `${eventIds.length} Ereignisse als kein Lärm verworfen.`;
     } else {
       const assessmentExcluded = $("#review-assessment-excluded").checked;
-      await api("/events/review/bulk-classification", { method: "POST", body: JSON.stringify({ event_ids: eventIds, primary_class_code: $("#review-primary").value, subclass_code: $("#review-subclass").value || null, reason: $("#review-reason").value, assessment_excluded: assessmentExcluded, assessment_exclusion_reason: assessmentExcluded ? $("#review-assessment-reason").value : null }) });
+      const secondary = Array.from($("#review-secondary").selectedOptions, (item) => item.value);
+      const approvedSecondary = Array.from(document.querySelectorAll("#review-secondary-learning input:checked"), (item) => item.value);
+      await api("/events/review/bulk-classification", { method: "POST", body: JSON.stringify({ event_ids: eventIds, primary_class_code: $("#review-primary").value, subclass_code: $("#review-subclass").value || null, secondary_class_codes: secondary, secondary_learning_approved_codes: approvedSecondary, primary_learning_approved: $("#review-primary-learning").checked, reason: $("#review-reason").value, assessment_excluded: assessmentExcluded, assessment_exclusion_reason: assessmentExcluded ? $("#review-assessment-reason").value : null }) });
       $("#review-status-text").textContent = `${eventIds.length} Ereignisse bestätigt.`;
     }
     await Promise.all([loadReview(), loadRecentEvents(), loadEvents()]);
@@ -1385,6 +1409,11 @@ $("#recent-events").addEventListener("change", (e) => {
     if (form.elements.subclass_code.options.length === 2) saveClassification(form, "In der Übersicht automatisch übernommen");
   } else if (form && e.target.name === "subclass_code" && e.target.value) {
     saveClassification(form, "In der Übersicht automatisch übernommen");
+  } else if (form && e.target.name === "secondary_class_codes") {
+    const learning = form.querySelector(`input[name="secondary_learning_approved_codes"][value="${CSS.escape(e.target.value)}"]`);
+    learning.disabled = !e.target.checked;
+    if (!e.target.checked) learning.checked = false;
+    if (e.target.checked) form.querySelector('input[name="primary_learning_approved"]').checked = false;
   }
 });
 $("#recent-events").addEventListener("click", async (e) => {

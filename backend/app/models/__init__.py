@@ -15,7 +15,7 @@ from app.models.dashboard import (
     SpeakerCluster,
     User,
 )
-from app.models.event import Event
+from app.models.event import Event, EventSecondaryClassification
 
 __all__ = [
     "AudioClip",
@@ -24,6 +24,7 @@ __all__ = [
     "DeviceLevelSample",
     "DeviceTelemetry",
     "Event",
+    "EventSecondaryClassification",
     "EventClass",
     "EventClassificationRevision",
     "EventWitnessResponse",

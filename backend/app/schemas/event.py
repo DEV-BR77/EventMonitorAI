@@ -24,6 +24,9 @@ class EventRead(EventCreate):
     category: str
     primary_class_code: str | None
     subclass_code: str | None
+    secondary_class_codes: list[str] = Field(default_factory=list)
+    secondary_learning_approved_codes: list[str] = Field(default_factory=list)
+    primary_learning_approved: bool = True
     classification_status: str
     corrected_by: str | None
     corrected_at: str | None
@@ -38,6 +41,9 @@ class EventRead(EventCreate):
 class EventClassificationUpdate(BaseModel):
     primary_class_code: str = Field(pattern=r"^[A-Z0-9_]{2,80}$")
     subclass_code: str | None = Field(default=None, pattern=r"^[A-Z0-9_]{2,80}$")
+    secondary_class_codes: list[str] = Field(default_factory=list, max_length=12)
+    secondary_learning_approved_codes: list[str] = Field(default_factory=list, max_length=12)
+    primary_learning_approved: bool | None = None
     reason: str = Field(min_length=3, max_length=500)
 
 
@@ -47,6 +53,8 @@ class EventClassificationRevisionRead(BaseModel):
     event_id: int
     primary_class_code: str
     subclass_code: str | None
+    secondary_class_codes: list[str] = Field(default_factory=list)
+    learning_approved_codes: list[str] = Field(default_factory=list)
     status: str
     actor: str
     reason: str
@@ -59,6 +67,7 @@ class TrainingExampleRead(BaseModel):
     timestamp: str
     primary_class_code: str
     subclass_code: str
+    assignment_role: str = "primary"
     label: str
     confidence: float
     clip_sha256: str
@@ -76,6 +85,9 @@ class ReviewQueueItem(BaseModel):
     device: str
     primary_class_code: str | None
     subclass_code: str | None
+    secondary_class_codes: list[str] = Field(default_factory=list)
+    secondary_learning_approved_codes: list[str] = Field(default_factory=list)
+    primary_learning_approved: bool = True
     classification_status: str
     audio_available: bool = False
     person_id: int | None = None

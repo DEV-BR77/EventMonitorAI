@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.6.3-context-exclusion">
+  <link rel="stylesheet" href="/styles.css?v=0.9.0-multisource">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -179,6 +179,9 @@
           <form id="review-bulk-form" class="review-bulk">
             <label>Basisklasse<select id="review-primary" required></select></label>
             <label>Feinzuordnung<select id="review-subclass"></select></label>
+            <label>Nebenquellen<select id="review-secondary" multiple size="5"></select></label>
+            <div id="review-secondary-learning" class="secondary-learning"></div>
+            <label class="active-toggle"><input id="review-primary-learning" type="checkbox" checked> Hauptklasse als Lernbeispiel freigeben</label>
             <label class="active-toggle"><input id="review-assessment-excluded" type="checkbox"> Aus Lärmbewertung ausschließen</label>
             <label>Ausschlussgrund<select id="review-assessment-reason"><option value="near_field_conversation">Normales Gespräch/Nahbereich</option><option value="own_activity">Eigene Tätigkeit/Nahbereich</option><option value="technical_interference">Technisches Störgeräusch</option><option value="own_presence">Eigene Anwesenheit</option><option value="other_context">Sonstiger dokumentierter Kontext</option></select></label>
             <label>Begründung<input id="review-reason" minlength="3" value="Sammelprüfung im Audio-Lab" required></label>
@@ -376,6 +379,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.8.0-registration"></script>
+  <script src="/app.js?v=0.9.0-multisource"></script>
 </body>
 </html>
