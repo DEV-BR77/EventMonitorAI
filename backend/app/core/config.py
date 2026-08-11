@@ -26,12 +26,8 @@ class Settings(BaseSettings):
     support_target_eur: float = 1450
     support_collected_eur: float = 0
     public_base_url: str = "http://localhost:8000"
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_username: str = ""
-    smtp_password: str = ""
-    smtp_from: str = ""
-    smtp_starttls: bool = True
+    resend_api_key: str = ""
+    resend_from: str = "EventMonitorAI <noreply@send.eventmonitor.eu>"
 
     udp_port: int = 12345
     audio_sample_rate: int = 16000
