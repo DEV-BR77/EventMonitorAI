@@ -625,9 +625,9 @@ async function loadRecentEvents() {
     const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
     const primaryOptions = `<option value="" ${entry.primary_class_code ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
     const play = state.role === "viewer" ? `<button type="button" class="ghost" disabled>Keine Audioberechtigung</button>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<button type="button" class="ghost" disabled>▶ Kein Clip</button>`;
-    const resolved = ["manual", "learned"].includes(entry.classification_status);
+    const resolved = ["manual", "learned", "context_only"].includes(entry.classification_status);
     const correction = state.role === "viewer" ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
-    const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : "automatisch";
+    const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : entry.classification_status === "context_only" ? "nur Metadaten-/Kontextwertung · kein akustischer Nachweis" : "automatisch";
     return `<div class="recent-event ${resolved ? "confirmed" : ""} ${state.listenedEvents.has(String(entry.event_id)) ? "listened" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(statusText)}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
   document.querySelectorAll(".classification-editor").forEach((form) => populateSubclassOptions(form));
@@ -656,6 +656,7 @@ async function loadReview() {
   $("#r-open-recognized").textContent = summary.open_recognized;
   $("#r-done-unknown").textContent = summary.completed_unknown;
   $("#r-done-recognized").textContent = summary.completed_recognized;
+  $("#r-context-only").textContent = summary.excluded_context_only;
   const classes = [{ code: "UNKNOWN", name: "Unbekannt" }, ...state.eventClasses.filter((item) => item.active)];
   $("#review-classes").innerHTML = classes.map((item) => {
     const counts = summary.by_class[item.code] || { open: 0, completed: 0 };
@@ -755,13 +756,13 @@ function renderEvents() {
   $("#events").innerHTML = "";
   const showResolved = $("#show-resolved-events").checked;
   state.liveEvents.filter((event) => {
-    const resolved = ["manual", "learned"].includes(event.classification_status);
+    const resolved = ["manual", "learned", "context_only"].includes(event.classification_status);
     return (showResolved || !resolved) && ($("#clip-filter").value !== "clips" || event.audio_available);
   }).slice().reverse().forEach(addEvent);
 }
 
 function addEvent(event) {
-  const resolved = ["manual", "learned"].includes(event.classification_status);
+  const resolved = ["manual", "learned", "context_only"].includes(event.classification_status);
   if ((!$("#show-resolved-events").checked && resolved) || ($("#clip-filter").value === "clips" && !event.audio_available)) return;
   $("#events").querySelector(`[data-event-id="${event.id}"]`)?.remove();
   const row = document.createElement("div");

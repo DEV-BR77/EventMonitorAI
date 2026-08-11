@@ -12,6 +12,12 @@ keine zweite Datenhaltung.
   Feinzuordnung bestätigt werden. Jede Sammeländerung erzeugt pro Ereignis einen Audit-Eintrag.
 - Offene unbekannte, offene erkannte, erledigte unbekannte und erledigte erkannte Ereignisse
   werden getrennt gezählt.
+- Ereignisse ohne gespeicherten Audioclip bleiben mit Zeit, Pegel und vorhandener Kategorie
+  für Historie und Statistik erhalten. Sie tragen den Status `context_only` und sind damit
+  ausdrücklich nur eine Metadaten-/Kontextwertung, kein akustischer Nachweis. Diese Einträge
+  erscheinen nicht in der akustischen Prüfauswahl, werden von automatischen Prüfläufen
+  übersprungen und niemals als KI-Trainingsbeispiel verwendet. Das Audio-Lab zeigt ihre Anzahl
+  separat als **Ohne Clip · Kontext** an.
 
 ## Automatische und nächtliche Prüfläufe
 

@@ -163,6 +163,7 @@
           <article><span>Offen · KI erkannt</span><strong id="r-open-recognized">–</strong></article>
           <article><span>Erledigt · unbekannt</span><strong id="r-done-unknown">–</strong></article>
           <article><span>Erledigt · erkannt</span><strong id="r-done-recognized">–</strong></article>
+          <article><span>Ohne Clip · Kontext</span><strong id="r-context-only">–</strong></article>
         </div>
         <article class="panel">
           <div class="panel-head"><h2>Klassenprüfung</h2><span>Klasse wählen und identische Ereignisse gesammelt bestätigen</span></div>
@@ -173,7 +174,7 @@
             <label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label>
             <span id="review-selection">0 ausgewählt</span>
           </div>
-          <p class="management-help">Die Rauschunterdrückung wirkt nur auf die Wiedergabe. Originalaufnahme, Messwert und Trainingsdatei bleiben unverändert.</p>
+          <p class="management-help">Die Rauschunterdrückung wirkt nur auf die Wiedergabe. Originalaufnahme, Messwert und Trainingsdatei bleiben unverändert. Ereignisse ohne gespeicherten Clip werden als Metadaten-/Kontextwertung aufbewahrt, aber aus der akustischen Prüfung und dem KI-Training ausgeschlossen.</p>
           <div id="review-events" class="review-events"></div>
           <form id="review-bulk-form" class="review-bulk">
             <label>Basisklasse<select id="review-primary" required></select></label>
