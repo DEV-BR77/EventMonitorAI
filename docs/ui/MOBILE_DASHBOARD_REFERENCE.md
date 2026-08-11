@@ -8,6 +8,12 @@ Bereich: EventMonitorAI / ELM-Protokoll
 
 Das mobile Dashboard stellt die aktuelle Schallmessung als zentrale Arbeitsansicht dar. Die beigefügte Referenzaufnahme einer Schallpegel-App dient ausschließlich als Orientierung für Informationshierarchie, Bedienbarkeit und dunkles Erscheinungsbild. EventMonitorAI erhält ein eigenständiges Design und übernimmt keine geschützten Markenelemente oder eine pixelgenaue Kopie.
 
+## Visuelle Referenz
+
+> Externe Layout-Referenz. Ausschließlich als Orientierung für Informationshierarchie und Bedienkonzept verwenden.
+
+<img src="assets/mobile-dashboard-layout-reference.jpeg" alt="Mobile Schallpegel-App als Layout-Referenz für das EventMonitorAI-Dashboard" width="360">
+
 ## Aufbau der Hauptansicht
 
 1. **Kopfbereich**
