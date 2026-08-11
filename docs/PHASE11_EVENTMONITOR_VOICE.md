@@ -18,6 +18,12 @@ geeichte oder normgerechte Schallpegelmessung. Ein lokaler Offset dokumentiert
 die erkannte Geräteabweichung; eine produktive Freigabe verlangt eine
 Vergleichsmessung je unterstütztem Gerätemodell.
 
+Digitale Stille (PCM ohne verwertbare Amplitude) wird ausdrücklich nicht als
+20-dB-Messwert ausgegeben. Die laufende Sitzung zeigt stattdessen einen Hinweis
+auf den fehlenden Geräte- beziehungsweise Emulator-Audioeingang. Ein Eintrag
+aus der Server-Ereignisliste wird im Live-Bildschirm als letztes
+Server-Ereignis bezeichnet und nicht als gegenwärtige lokale KI-Erkennung.
+
 ## Datenschutz und Plattformgrenzen
 
 - Mikrofonzugriff erfolgt erst nach Einwilligungsinformation und Systemfreigabe.
@@ -37,7 +43,9 @@ Vergleichsmessung je unterstütztem Gerätemodell.
 `flutter analyze` und `flutter test` laufen auf Windows mit Flutter 3.44.9.
 Die automatisierten Tests prüfen insbesondere, dass der Bereitschaftszustand
 keine scheinbar gültigen Nullwerte darstellt und dass die Anmeldung den sicheren
-Zugriff transparent beschreibt.
+Zugriff transparent beschreibt. Zusätzlich wird geprüft, dass ein digital
+stummer PCM-Puffer als RMS 0 erkannt wird und nicht in einen scheinbaren
+Schallpegel umgewandelt werden kann.
 
 Noch offen und deshalb in der Roadmap nicht abgehakt sind Registrierung und
 Tarifentscheidung, produktiver Smartphone-Ingest, Push, Export, Löschworkflow,

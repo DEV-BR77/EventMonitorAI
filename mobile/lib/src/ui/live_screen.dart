@@ -114,6 +114,14 @@ class _LiveScreenState extends State<LiveScreen> with WidgetsBindingObserver {
                     ),
                   ),
                   const SizedBox(height: 18),
+                  if (snapshot.notice != null) ...[
+                    Text(
+                      snapshot.notice!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Color(0xffffc857)),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
@@ -347,7 +355,7 @@ class _AiCard extends StatelessWidget {
       subtitle: Text(
         event == null
             ? 'Erkannte Ereignisse erscheinen hier.'
-            : 'KI-Vorschlag · ${(event!.confidence * 100).round()} % · ${event!.status}',
+            : 'Letztes Server-Ereignis · KI ${(event!.confidence * 100).round()} % · ${event!.status}',
       ),
       trailing: event == null ? null : const Icon(Icons.chevron_right),
     ),

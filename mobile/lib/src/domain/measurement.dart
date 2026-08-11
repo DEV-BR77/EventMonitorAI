@@ -10,6 +10,7 @@ class MeasurementSnapshot {
     this.averageDb,
     this.spectrum = const [],
     this.error,
+    this.notice,
   });
 
   const MeasurementSnapshot.ready()
@@ -23,6 +24,7 @@ class MeasurementSnapshot {
   final double? averageDb;
   final List<double> spectrum;
   final String? error;
+  final String? notice;
 
   bool get isRunning => status == SessionStatus.running;
 }

@@ -13,6 +13,7 @@ class MeasurementService {
   static const sampleRate = 16000;
   static const _referenceAmplitude = 32768.0;
   static const _floorDb = 20.0;
+  static const _digitalSilenceRms = 1.5;
   static const frequencies = <double>[
     31.5,
     63,
@@ -84,16 +85,20 @@ class MeasurementService {
   }
 
   void _process(Uint8List bytes) {
-    final samples = <double>[];
-    final view = ByteData.sublistView(bytes);
-    for (var offset = 0; offset + 1 < bytes.length; offset += 2) {
-      samples.add(view.getInt16(offset, Endian.little).toDouble());
-    }
+    final samples = pcm16Samples(bytes);
     if (samples.isEmpty) return;
-    final squareMean =
-        samples.fold<double>(0, (sum, value) => sum + value * value) /
-        samples.length;
-    final rms = math.sqrt(squareMean);
+    final rms = rmsOf(samples);
+    if (rms < _digitalSilenceRms) {
+      _emit(
+        MeasurementSnapshot(
+          status: SessionStatus.running,
+          elapsed: _elapsed,
+          notice:
+              'Kein Audiosignal vom Mikrofon. Prüfen Sie den Mikrofoneingang des Geräts beziehungsweise Emulators.',
+        ),
+      );
+      return;
+    }
     final unweighted =
         20 * math.log(math.max(1, rms) / _referenceAmplitude) / math.ln10 + 94;
     final level = math.max(_floorDb, unweighted + _calibrationOffset);
@@ -112,6 +117,23 @@ class MeasurementService {
         spectrum: _bandLevels(samples),
       ),
     );
+  }
+
+  static List<double> pcm16Samples(Uint8List bytes) {
+    final samples = <double>[];
+    final view = ByteData.sublistView(bytes);
+    for (var offset = 0; offset + 1 < bytes.length; offset += 2) {
+      samples.add(view.getInt16(offset, Endian.little).toDouble());
+    }
+    return samples;
+  }
+
+  static double rmsOf(List<double> samples) {
+    if (samples.isEmpty) return 0;
+    final squareMean =
+        samples.fold<double>(0, (sum, value) => sum + value * value) /
+        samples.length;
+    return math.sqrt(squareMean);
   }
 
   List<double> _bandLevels(List<double> samples) {
