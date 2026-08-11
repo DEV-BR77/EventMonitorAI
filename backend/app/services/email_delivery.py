@@ -1,28 +1,32 @@
-import smtplib
-from email.message import EmailMessage
+import json
+from urllib.request import Request, urlopen
 
 from app.core.config import settings
 
 
 def email_configured() -> bool:
-    return bool(settings.smtp_host and settings.smtp_from)
+    return bool(settings.resend_api_key and settings.resend_from)
 
 
 def send_verification_email(recipient: str, verification_url: str) -> None:
     if not email_configured():
         raise RuntimeError("E-Mail-Versand ist noch nicht konfiguriert")
-    message = EmailMessage()
-    message["Subject"] = "EventMonitorAI – E-Mail-Adresse bestätigen"
-    message["From"] = settings.smtp_from
-    message["To"] = recipient
-    message.set_content(
-        "Willkommen bei EventMonitorAI. Bestätigen Sie Ihre E-Mail-Adresse innerhalb von "
-        f"24 Stunden über diesen Link:\n\n{verification_url}\n\n"
-        "Falls Sie sich nicht registriert haben, ignorieren Sie diese Nachricht."
+    payload = json.dumps({
+        "from": settings.resend_from,
+        "to": [recipient],
+        "subject": "EventMonitorAI – E-Mail-Adresse bestätigen",
+        "text": (
+            "Willkommen bei EventMonitorAI. Bestätigen Sie Ihre E-Mail-Adresse innerhalb von "
+            f"24 Stunden über diesen Link:\n\n{verification_url}\n\n"
+            "Falls Sie sich nicht registriert haben, ignorieren Sie diese Nachricht."
+        ),
+    }).encode()
+    request = Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        headers={"Authorization": f"Bearer {settings.resend_api_key}", "Content-Type": "application/json"},
+        method="POST",
     )
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
-        if settings.smtp_starttls:
-            smtp.starttls()
-        if settings.smtp_username:
-            smtp.login(settings.smtp_username, settings.smtp_password)
-        smtp.send_message(message)
+    with urlopen(request, timeout=15) as response:
+        if response.status not in (200, 201):
+            raise RuntimeError(f"Resend antwortete mit HTTP {response.status}")

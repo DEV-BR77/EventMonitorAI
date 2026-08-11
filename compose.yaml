@@ -43,12 +43,8 @@ services:
       SUPPORT_TARGET_EUR: ${SUPPORT_TARGET_EUR:-1450}
       SUPPORT_COLLECTED_EUR: ${SUPPORT_COLLECTED_EUR:-0}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://dashboard.eventmonitor.eu}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-}
-      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-EventMonitorAI <noreply@send.eventmonitor.eu>}
       CLIP_DIRECTORY: /data/clips
     volumes:
       - eventmonitor_clips_data:/data/clips
