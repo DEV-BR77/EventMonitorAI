@@ -21,6 +21,7 @@ def test_speaker_image_contains_application_version() -> None:
     dockerfile = (Path(__file__).parents[1] / "Dockerfile.speaker").read_text(encoding="utf-8")
 
     assert "COPY VERSION ./VERSION" in dockerfile
+    assert "useradd --system --uid 100 --gid 101" in dockerfile
 
 
 def test_speaker_service_receives_required_auth_secret() -> None:
