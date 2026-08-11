@@ -165,6 +165,9 @@ class NoiseLogEntry(BaseModel):
     label: str
     primary_class_code: str | None
     subclass_code: str | None
+    secondary_class_codes: list[str] = Field(default_factory=list)
+    secondary_learning_approved_codes: list[str] = Field(default_factory=list)
+    primary_learning_approved: bool = True
     classification_status: str
     corrected_by: str | None
     db_level: float

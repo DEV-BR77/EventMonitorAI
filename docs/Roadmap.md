@@ -83,17 +83,17 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 
 ## Phase 7 - KI
 
-- [ ] Mehrquellen- und Nebenklassifizierung als nächste KI-Erweiterung umsetzen:
+- [x] Mehrquellen- und Nebenklassifizierung als nächste KI-Erweiterung umsetzen:
       dominante Geräuschquelle weiterhin als Hauptklasse speichern, gleichzeitig hörbare
       Quellen als eine oder mehrere Nebenklassen erfassen und im Live-Strom, Audio-Lab sowie
       Lärmprotokoll getrennt darstellen. Beispiel: Hauptklasse „Schlagen gegen Metallpfosten“,
       Nebenklasse „Lautes Rufen/Geschrei“.
-- [ ] Gemischte Aufnahmen standardmäßig nicht als eindeutiges Lernbeispiel verwenden. Für jede
+- [x] Gemischte Aufnahmen standardmäßig nicht als eindeutiges Lernbeispiel verwenden. Für jede
       Haupt- und Nebenklasse muss eine getrennte manuelle Lernfreigabe möglich sein; bestehende
       Lernregeln und historische Einzelklassifizierungen bleiben kompatibel.
-- [ ] Datenmodell, API und Mandantenfilter für mehrere Klassenzuordnungen je Ereignis ergänzen,
+- [x] Datenmodell, API und Mandantenfilter für mehrere Klassenzuordnungen je Ereignis ergänzen,
       inklusive Auditverlauf, Korrektur und Entfernung einzelner Nebenklassen.
-- [ ] Mehrquellen-Klassifizierung mit Backend-, Frontend-, Mandanten- und Regressionstests
+- [x] Mehrquellen-Klassifizierung mit Backend-, Frontend-, Mandanten- und Regressionstests
       sowie Bedien- und Datenschutzdokumentation abschließen, bevor diese Punkte erledigt werden.
 
 Gilt für die Live Analyse wie Audi-Lab

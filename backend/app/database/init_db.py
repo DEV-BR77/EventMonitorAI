@@ -50,6 +50,7 @@ def add_missing_event_columns() -> None:
         ("person_monitoring_excluded", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ("assessment_excluded", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ("assessment_exclusion_reason", "VARCHAR(80)"),
+        ("primary_learning_approved", "BOOLEAN NOT NULL DEFAULT TRUE"),
     ):
         if name not in column_names:
             statements.append(f"ALTER TABLE events ADD COLUMN {name} {definition}")
@@ -121,6 +122,17 @@ def ensure_event_class_visibility_column() -> None:
             )
 
 
+def ensure_classification_revision_columns() -> None:
+    inspector = inspect(engine)
+    if "event_classification_revisions" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("event_classification_revisions")}
+    with engine.begin() as connection:
+        for name in ("secondary_class_codes_json", "learning_approved_codes_json"):
+            if name not in columns:
+                connection.execute(text(f"ALTER TABLE event_classification_revisions ADD COLUMN {name} TEXT NOT NULL DEFAULT '[]'"))
+
+
 def ensure_speaker_review_columns() -> None:
     inspector = inspect(engine)
     if "event_speaker_clusters" not in inspector.get_table_names():
@@ -187,6 +199,7 @@ def ensure_tenant_columns() -> None:
         "event_classification_revisions", "audio_clips", "review_runs",
         "assessment_config", "person_profiles", "event_person_assignments",
         "speaker_clusters", "event_speaker_clusters", "notification_rules",
+        "event_secondary_classifications", "speaker_analysis_runs",
     }
     with engine.begin() as connection:
         for table in sorted(scoped_tables & set(inspector.get_table_names())):
@@ -277,6 +290,7 @@ def init_db() -> None:
     ensure_device_position_columns()
     ensure_calibration_columns()
     ensure_event_class_visibility_column()
+    ensure_classification_revision_columns()
     ensure_speaker_review_columns()
     ensure_person_media_columns()
     add_missing_event_columns()

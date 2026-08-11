@@ -6,6 +6,24 @@ keine zweite Datenhaltung.
 
 ## Prüfworkflow
 
+### Gleichzeitige Geräuschquellen
+
+Ein Ereignis besitzt weiterhin genau eine dominante Haupt- und optionale Feinzuordnung. Dazu
+können bis zu zwölf gleichzeitig hörbare Nebenklassen gespeichert werden, beispielsweise
+**Schlagen gegen Metallpfosten** als Hauptquelle und **Lautes Rufen/Geschrei** als Nebenquelle.
+Die Nebenquellen sind im Live-Strom platzsparend eingeklappt und im Audio-Lab gesammelt
+auswählbar. Im Lärmprotokoll und in der Prüfliste bleiben beide Quellen getrennt sichtbar.
+
+Gemischte Clips werden standardmäßig weder für die Hauptklasse noch für Nebenklassen gelernt.
+Administratoren und Operatoren können die Lernfreigabe für die Hauptklasse und jede Nebenklasse
+einzeln setzen. Nur freigegebene, trainierbare Klassen erscheinen als Trainingsbeispiel; eine
+Freigabe für eine nicht zugeordnete Nebenklasse wird mit HTTP 422 abgelehnt. Änderungen werden
+einschließlich Nebenklassen und Lernfreigaben im Klassifizierungs-Audit protokolliert.
+
+Die Tabelle `event_secondary_classifications` ist mandantenbezogen und erzwingt pro Ereignis
+und Klassencode Eindeutigkeit. Historische Ereignisse bleiben ohne Nebenklassen vollständig
+kompatibel und behalten das bisherige Lernverhalten.
+
 - Klassenkacheln zeigen offene und erledigte Ereignisse je erkannter Klasse sowie „Unbekannt“.
 - Die Warteschlange lässt sich je Klasse und Status filtern.
 - Mehrere sichtbare Ereignisse können ausgewählt und mit einer gemeinsamen Basis- und

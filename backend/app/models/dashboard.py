@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from sqlalchemy import (
@@ -247,10 +248,20 @@ class EventClassificationRevision(TenantScopedMixin, Base):
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
     primary_class_code: Mapped[str] = mapped_column(String(80))
     subclass_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    secondary_class_codes_json: Mapped[str] = mapped_column(Text, default="[]")
+    learning_approved_codes_json: Mapped[str] = mapped_column(Text, default="[]")
     status: Mapped[str] = mapped_column(String(20))
     actor: Mapped[str] = mapped_column(String(80))
     reason: Mapped[str] = mapped_column(String(500), default="")
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+    @property
+    def secondary_class_codes(self) -> list[str]:
+        return json.loads(self.secondary_class_codes_json or "[]")
+
+    @property
+    def learning_approved_codes(self) -> list[str]:
+        return json.loads(self.learning_approved_codes_json or "[]")
 
 
 class AudioClip(TenantScopedMixin, Base):
@@ -299,6 +310,7 @@ class SpeakerAnalysisRun(TenantScopedMixin, Base):
     skipped: Mapped[int] = mapped_column(Integer, default=0)
     requested_by: Mapped[str] = mapped_column(String(80))
     created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
     started_at: Mapped[str | None] = mapped_column(String, nullable=True)
     finished_at: Mapped[str | None] = mapped_column(String, nullable=True)
     message: Mapped[str] = mapped_column(String(500), default="")

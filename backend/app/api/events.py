@@ -2,6 +2,7 @@ import base64
 import csv
 import hashlib
 import io
+import json
 import logging
 import math
 import struct
@@ -36,7 +37,7 @@ from app.models.dashboard import (
     ReviewRun,
     User,
 )
-from app.models.event import Event
+from app.models.event import Event, EventSecondaryClassification
 from app.schemas.dashboard import (
     DeviceTelemetryRead,
     DeviceTelemetryWrite,
@@ -386,6 +387,7 @@ async def create_event(
         display_suppressed=suppressed or ignored is not None,
         person_monitoring_excluded=False,
         assessment_excluded=False,
+        primary_learning_approved=True,
     )
 
     if ignored is not None:
@@ -508,10 +510,11 @@ def training_examples(
             Event.classification_status == "manual",
             Event.primary_class_code.is_not(None),
             Event.subclass_code.is_not(None),
+            Event.primary_learning_approved.is_(True),
         )
         .order_by(Event.id)
     ).all()
-    return [
+    result = [
         TrainingExampleRead(
             event_id=event.id,
             device_id=clip.device_id,
@@ -525,6 +528,30 @@ def training_examples(
         )
         for event, clip, event_class in rows
     ]
+    secondary_rows = db.execute(
+        select(Event, AudioClip, EventSecondaryClassification, EventClass)
+        .join(AudioClip, AudioClip.event_id == Event.id)
+        .join(EventSecondaryClassification, EventSecondaryClassification.event_id == Event.id)
+        .join(EventClass, EventClass.code == EventSecondaryClassification.class_code)
+        .where(Event.classification_status == "manual", EventSecondaryClassification.learning_approved.is_(True), EventClass.trainable.is_(True))
+        .order_by(Event.id, EventSecondaryClassification.id)
+    ).all()
+    result.extend(
+        TrainingExampleRead(
+            event_id=event.id,
+            device_id=clip.device_id,
+            timestamp=event.timestamp,
+            primary_class_code=event_class.parent_code or event_class.code,
+            subclass_code=event_class.code,
+            assignment_role="secondary",
+            label=event_class.name,
+            confidence=event.confidence,
+            clip_sha256=clip.sha256,
+            audio_url=f"/events/training-examples/{event.id}/audio",
+        )
+        for event, clip, assignment, event_class in secondary_rows
+    )
+    return result
 
 
 @router.get("/training-examples/{event_id}/audio")
@@ -539,7 +566,7 @@ def training_example_audio(
         clip is None
         or event is None
         or event.classification_status != "manual"
-        or event.subclass_code is None
+        or (not event.primary_learning_approved and not event.secondary_learning_approved_codes)
     ):
         raise HTTPException(status_code=404, detail="Trainingsbeispiel nicht gefunden")
     return FileResponse(clip.path, media_type="audio/wav", filename=f"event-{event_id}.wav")
@@ -576,6 +603,44 @@ def _validate_classes(
         ):
             raise HTTPException(status_code=422, detail="Feinzuordnung passt nicht zur Basisklasse")
     return primary, subclass
+
+
+def _validate_secondary_classes(
+    db: Session,
+    codes: list[str],
+    approved_codes: list[str],
+    primary_code: str,
+    subclass_code: str | None,
+) -> tuple[list[EventClass], set[str]]:
+    unique_codes = list(dict.fromkeys(codes))
+    approved = set(approved_codes)
+    if not approved.issubset(unique_codes):
+        raise HTTPException(status_code=422, detail="Lernfreigaben müssen Nebenklassen zugeordnet sein")
+    if primary_code in unique_codes or (subclass_code and subclass_code in unique_codes):
+        raise HTTPException(status_code=422, detail="Haupt- und Nebenklassifizierung müssen verschieden sein")
+    classes = list(db.scalars(select(EventClass).where(EventClass.code.in_(unique_codes)))) if unique_codes else []
+    if len(classes) != len(unique_codes) or any(not item.active for item in classes):
+        raise HTTPException(status_code=422, detail="Mindestens eine Nebenklasse ist ungültig oder inaktiv")
+    by_code = {item.code: item for item in classes}
+    return [by_code[code] for code in unique_codes], approved
+
+
+def _sync_secondary_classes(
+    event: Event,
+    classes: list[EventClass],
+    approved: set[str],
+    user: User,
+) -> None:
+    now = datetime.now(UTC).isoformat()
+    event.secondary_classifications[:] = [
+        EventSecondaryClassification(
+            class_code=item.code,
+            learning_approved=item.code in approved and item.trainable,
+            assigned_by=user.username,
+            assigned_at=now,
+        )
+        for item in classes
+    ]
 
 
 def _assign_manual(
@@ -803,7 +868,9 @@ def review_queue(
         statement = statement.where(Event.primary_class_code.is_(None))
     elif class_code:
         statement = statement.where(
-            (Event.primary_class_code == class_code) | (Event.subclass_code == class_code)
+            (Event.primary_class_code == class_code)
+            | (Event.subclass_code == class_code)
+            | Event.secondary_classifications.any(EventSecondaryClassification.class_code == class_code)
         )
     if start:
         statement = statement.where(Event.timestamp >= start)
@@ -836,11 +903,14 @@ def bulk_classification(
     user: Annotated[User, Depends(require_roles("admin", "operator"))],
 ) -> list[Event]:
     primary, subclass = _validate_classes(db, data.primary_class_code, data.subclass_code)
+    secondary, approved = _validate_secondary_classes(db, data.secondary_class_codes, data.secondary_learning_approved_codes, primary.code, subclass.code if subclass else None)
     events = list(db.scalars(select(Event).where(Event.id.in_(set(data.event_ids)))))
     if len(events) != len(set(data.event_ids)):
         raise HTTPException(status_code=404, detail="Mindestens ein Ereignis wurde nicht gefunden")
     for event in events:
         _assign_manual(event, primary, subclass, user, data.reason)
+        _sync_secondary_classes(event, secondary, approved, user)
+        event.primary_learning_approved = data.primary_learning_approved if data.primary_learning_approved is not None else not secondary
         event.assessment_excluded = data.assessment_excluded
         event.assessment_exclusion_reason = (
             data.assessment_exclusion_reason if data.assessment_excluded else None
@@ -850,6 +920,8 @@ def bulk_classification(
                 event_id=event.id,
                 primary_class_code=primary.code,
                 subclass_code=event.subclass_code,
+                secondary_class_codes_json=json.dumps(event.secondary_class_codes),
+                learning_approved_codes_json=json.dumps(([primary.code] if event.primary_learning_approved else []) + event.secondary_learning_approved_codes),
                 status="manual",
                 actor=user.username,
                 reason=data.reason,
@@ -859,7 +931,7 @@ def bulk_classification(
     db.flush()
     if primary.trainable and (subclass is None or subclass.trainable):
         for event in events:
-            if not event.assessment_excluded:
+            if not event.assessment_excluded and event.primary_learning_approved:
                 _apply_learned_classifications(db, event)
     db.commit()
     return events
@@ -1036,12 +1108,17 @@ async def correct_event_classification(
     if event is None:
         raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
     primary, subclass = _validate_classes(db, data.primary_class_code, data.subclass_code)
+    secondary, approved = _validate_secondary_classes(db, data.secondary_class_codes, data.secondary_learning_approved_codes, primary.code, subclass.code if subclass else None)
     _assign_manual(event, primary, subclass, user, data.reason)
+    _sync_secondary_classes(event, secondary, approved, user)
+    event.primary_learning_approved = data.primary_learning_approved if data.primary_learning_approved is not None else not secondary
     db.add(
         EventClassificationRevision(
             event_id=event.id,
             primary_class_code=primary.code,
             subclass_code=event.subclass_code,
+            secondary_class_codes_json=json.dumps(event.secondary_class_codes),
+            learning_approved_codes_json=json.dumps(([primary.code] if event.primary_learning_approved else []) + event.secondary_learning_approved_codes),
             status="manual",
             actor=user.username,
             reason=data.reason,
@@ -1049,7 +1126,7 @@ async def correct_event_classification(
         )
     )
     db.flush()
-    if primary.trainable and (subclass is None or subclass.trainable):
+    if event.primary_learning_approved and primary.trainable and (subclass is None or subclass.trainable):
         _apply_learned_classifications(db, event)
     db.commit()
     db.refresh(event)
