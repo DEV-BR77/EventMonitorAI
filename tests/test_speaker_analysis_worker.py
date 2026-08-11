@@ -28,6 +28,7 @@ def test_speaker_service_receives_required_auth_secret() -> None:
     worker_service = compose.split("  speaker-worker:", 1)[1].split("  backup:", 1)[0]
 
     assert "AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}" in worker_service
+    assert "INGEST_API_KEY: ${INGEST_API_KEY:?Set INGEST_API_KEY in .env.docker}" in worker_service
 
 
 def test_compose_configuration_is_valid() -> None:

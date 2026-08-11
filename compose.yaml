@@ -62,6 +62,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventmonitor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eventmonitor}
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}
+      INGEST_API_KEY: ${INGEST_API_KEY:?Set INGEST_API_KEY in .env.docker}
       SPEAKER_MODEL_CACHE: /models/ecapa-voxceleb
       SPEAKER_WORKER_THREADS: ${SPEAKER_WORKER_THREADS:-2}
       SPEAKER_SIMILARITY_THRESHOLD: ${SPEAKER_SIMILARITY_THRESHOLD:-0.72}
