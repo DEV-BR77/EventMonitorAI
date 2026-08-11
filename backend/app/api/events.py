@@ -383,6 +383,7 @@ async def create_event(
             "ignored" if ignored else ("suggested" if learned_class else "automatic")
         ),
         display_suppressed=suppressed or ignored is not None,
+        person_monitoring_excluded=False,
     )
 
     if ignored is not None:
