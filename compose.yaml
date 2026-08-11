@@ -42,6 +42,13 @@ services:
       SUPPORT_URL: ${SUPPORT_URL:-}
       SUPPORT_TARGET_EUR: ${SUPPORT_TARGET_EUR:-1450}
       SUPPORT_COLLECTED_EUR: ${SUPPORT_COLLECTED_EUR:-0}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://dashboard.eventmonitor.eu}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
       CLIP_DIRECTORY: /data/clips
     volumes:
       - eventmonitor_clips_data:/data/clips
@@ -50,6 +57,27 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  speaker-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.speaker
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventmonitor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eventmonitor}
+      SPEAKER_MODEL_CACHE: /models/ecapa-voxceleb
+      SPEAKER_WORKER_THREADS: ${SPEAKER_WORKER_THREADS:-2}
+      SPEAKER_SIMILARITY_THRESHOLD: ${SPEAKER_SIMILARITY_THRESHOLD:-0.72}
+      OMP_NUM_THREADS: ${SPEAKER_WORKER_THREADS:-2}
+      MKL_NUM_THREADS: ${SPEAKER_WORKER_THREADS:-2}
+    volumes:
+      - eventmonitor_clips_data:/data/clips:ro
+      - eventmonitor_speaker_models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    cpus: 2.0
+    mem_limit: 3g
     restart: unless-stopped
 
   backup:
@@ -73,3 +101,4 @@ services:
 volumes:
   eventmonitor_postgres_data:
   eventmonitor_clips_data:
+  eventmonitor_speaker_models:

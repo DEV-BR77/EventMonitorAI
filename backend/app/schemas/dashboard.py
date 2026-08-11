@@ -8,6 +8,21 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegistrationRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254, pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+    password: str = Field(min_length=10, max_length=256)
+
+
+class AdminNotificationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    kind: str
+    title: str
+    message: str
+    created_at: str
+    read_at: str | None
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -300,6 +315,22 @@ class PersonRead(PersonWrite):
 
 class PersonAssignmentWrite(BaseModel):
     person_id: int | None = None
+
+
+class SpeakerAnalysisRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    status: str
+    model_name: str
+    total: int
+    processed: int
+    clustered: int
+    skipped: int
+    requested_by: str
+    created_at: str
+    started_at: str | None
+    finished_at: str | None
+    message: str
 
 
 class SpeakerClusterUpdate(BaseModel):

@@ -859,7 +859,8 @@ def bulk_classification(
     db.flush()
     if primary.trainable and (subclass is None or subclass.trainable):
         for event in events:
-            _apply_learned_classifications(db, event)
+            if not event.assessment_excluded:
+                _apply_learned_classifications(db, event)
     db.commit()
     return events
 

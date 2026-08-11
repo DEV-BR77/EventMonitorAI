@@ -10,8 +10,8 @@ DEFAULT_EVENT_CLASSES = (
     ("AMBIENT", "Umgebung/Natur", "base", None, True, True),
     ("TECHNICAL", "Technisches Störgeräusch", "base", None, True, True),
     ("HORN", "Hupen", "base", None, False, True),
-    ("VOICE_LOUD", "Rufen/Schreien", "base", None, False, True),
-    ("VOICE_CONTEXT", "Normales Gespräch/Nahbereich", "base", None, False, False),
+    ("VOICE_LOUD", "Stimmen", "base", None, False, True),
+    ("VOICE_CONTEXT", "Normales Gespräch/Nahbereich (ersetzt)", "base", None, False, False),
     ("OWN_ACTIVITY_CONTEXT", "Eigene Tätigkeit/Nahbereich", "base", None, False, False),
     ("IMPACT", "Schlag/Aufprall/Knall", "base", None, False, True),
     ("MUSIC", "Musik", "base", None, False, True),
@@ -26,6 +26,7 @@ DEFAULT_EVENT_CLASSES = (
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT", False, True),
     ("FIRECRACKER", "Knallkörper", "fine", "IMPACT", False, True),
     ("LOUD_CALLING", "Lautes Rufen/Geschrei", "fine", "VOICE_LOUD", False, True),
+    ("CONVERSATION", "Gespräch", "fine", "VOICE_LOUD", False, True),
     ("VOICE_SUSTAINED", "Anhaltendes Rufen (ersetzt)", "fine", "VOICE_LOUD", False, False),
     ("LOUD_SCREAM", "Lautes Schreien (ersetzt)", "fine", "VOICE_LOUD", False, False),
     ("ARGUMENT", "Streit / mehrere Personen", "fine", "VOICE_LOUD", False, True),
@@ -70,11 +71,12 @@ def seed_event_classes(db: Session) -> None:
             if event_class is not None:
                 event_class.hidden_by_default = hidden_by_default
                 event_class.trainable = trainable
+                event_class.name = name
         elif code == "IMPACT":
             event_class = db.scalar(select(EventClass).where(EventClass.code == code))
             if event_class is not None:
                 event_class.name = name
-    for legacy_code in ("VOICE_SUSTAINED", "LOUD_SCREAM"):
+    for legacy_code in ("VOICE_SUSTAINED", "LOUD_SCREAM", "VOICE_CONTEXT"):
         event_class = db.scalar(select(EventClass).where(EventClass.code == legacy_code))
         if event_class is not None:
             event_class.active = False
@@ -83,6 +85,11 @@ def seed_event_classes(db: Session) -> None:
         update(Event)
         .where(Event.subclass_code.in_(("VOICE_SUSTAINED", "LOUD_SCREAM")))
         .values(subclass_code="LOUD_CALLING")
+    )
+    db.execute(
+        update(Event)
+        .where(Event.primary_class_code == "VOICE_CONTEXT")
+        .values(primary_class_code="VOICE_LOUD", subclass_code="CONVERSATION")
     )
     db.commit()
 

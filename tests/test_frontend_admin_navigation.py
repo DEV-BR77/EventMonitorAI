@@ -20,12 +20,14 @@ def test_admin_navigation_and_data_are_role_guarded() -> None:
 
     assert '$("#admin-navigation").classList.toggle("hidden", me.role !== "admin")' in javascript
     assert 'button.closest("#admin-navigation") && state.role !== "admin"' in javascript
-    assert '...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview()' in javascript
+    assert '...(me.role === "admin" ? [loadAdminNotifications(), loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview()' in javascript
 
 
-def test_live_events_offer_direct_person_assignment_with_noise_status() -> None:
+def test_person_analysis_is_separate_from_live_event_classification() -> None:
     javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
 
-    assert 'data-live-person-event="${eventId}"' in javascript
-    assert "Person zugeordnet · aus Lärmmessung ausgeschlossen" in javascript
+    assert 'data-live-person-event="${eventId}"' not in javascript
+    assert html.index('id="people"') < html.index('id="speaker-analyze"')
+    assert "/api/speaker-analysis/runs/latest" in javascript
     assert "if (me.role !== \"viewer\") await loadPeople();" in javascript

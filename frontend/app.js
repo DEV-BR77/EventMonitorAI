@@ -40,18 +40,6 @@ function rangeLabel() {
 }
 const categoryNames = { DEVICE: "Geräuschquelle", VOCALIZATION: "Lautäußerung", VOICE: "Stimme", HUMAN_SOUND: "Menschliches Geräusch", HOUSEHOLD: "Haushalt", ANIMAL: "Tier", AMBIENT: "Umgebung", MUSIC: "Musik", VEHICLE: "Fahrzeug", IMPACT: "Schlag/Aufprall", OTHER: "Sonstiges" };
 
-function livePersonControl(eventId, selectedId, monitoringExcluded) {
-  const options = state.people.filter((person) => person.active).map((person) => `<option value="${person.id}" ${Number(selectedId) === person.id ? "selected" : ""}>${escapeHtml(person.name)}${person.monitoring_enabled ? "" : " · nicht in Lärmmessung"}</option>`).join("");
-  const status = selectedId ? monitoringExcluded ? "Person zugeordnet · aus Lärmmessung ausgeschlossen" : "Person zugeordnet · in Lärmmessung enthalten" : "Manuelle Zuordnung nach dem Anhören";
-  return `<label class="live-person-assignment">Person<select data-live-person-event="${eventId}"><option value="">Keine Person</option>${options}</select></label><span class="person-monitoring-status ${monitoringExcluded ? "excluded" : ""}">${status}</span>`;
-}
-
-function assessmentControl(event) {
-  const reasons = [["near_field_conversation", "Normales Gespräch/Nahbereich"], ["own_activity", "Eigene Tätigkeit/Nahbereich"], ["technical_interference", "Technisches Störgeräusch"], ["own_presence", "Eigene Anwesenheit"], ["other_context", "Sonstiger Kontext"]];
-  const selected = event.assessment_exclusion_reason || "near_field_conversation";
-  return `<label class="assessment-exclusion"><input type="checkbox" data-assessment-event="${event.id || event.event_id}" ${event.assessment_excluded ? "checked" : ""}> Nicht bewerten</label><select data-assessment-reason="${event.id || event.event_id}">${reasons.map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("")}</select>${event.assessment_excluded ? '<span class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</span>' : ""}`;
-}
-
 function markEventListened(eventId, button) {
   const key = String(eventId);
   state.listenedEvents.delete(key);
@@ -109,6 +97,7 @@ async function start() {
     $("#device-management").classList.toggle("hidden", me.role !== "admin");
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     $("#admin-navigation").classList.toggle("hidden", me.role !== "admin");
+    $("#admin-notification-center").classList.toggle("hidden", me.role !== "admin");
     $("#tenant-management").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
     $("#website-analytics").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
     $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
@@ -122,7 +111,7 @@ async function start() {
     if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
       document.querySelector('.nav[data-view="overview"]').click();
     }
-    await Promise.all([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants(), loadWebsiteAnalytics()] : [])] : [])]);
+    await Promise.all([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadAdminNotifications(), loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants(), loadWebsiteAnalytics()] : [])] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -639,8 +628,7 @@ async function loadRecentEvents() {
     const primaryOptions = `<option value="" ${entry.primary_class_code ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
     const play = state.role === "viewer" ? `<span class="clip-unavailable">Keine Audioberechtigung</span>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>`;
     const resolved = ["manual", "learned", "context_only"].includes(entry.classification_status);
-    const personControl = state.role === "viewer" || !entry.audio_available ? "" : `${livePersonControl(entry.event_id, entry.person_id, entry.person_monitoring_excluded)}${assessmentControl(entry)}`;
-    const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}${personControl}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
+    const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
     const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : entry.classification_status === "context_only" ? "nur Metadaten-/Kontextwertung · kein akustischer Nachweis" : "automatisch";
     return `<div class="recent-event ${resolved ? "confirmed" : ""} ${state.listenedEvents.has(String(entry.event_id)) ? "listened" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(statusText)}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
@@ -665,7 +653,6 @@ function reviewSubclassOptions() {
 async function loadReview() {
   const range = eventRangeQuery();
   const [summary, runs] = await Promise.all([api(`/events/review/summary?start=${encodeURIComponent(range.start)}&end=${encodeURIComponent(range.end)}`), api("/events/review/runs"), loadPeople()]);
-  await loadSpeakerClusters();
   $("#r-open-unknown").textContent = summary.open_unknown;
   $("#r-open-recognized").textContent = summary.open_recognized;
   $("#r-done-unknown").textContent = summary.completed_unknown;
@@ -722,6 +709,32 @@ async function loadSpeakerClusters() {
   const people = `<option value="">Noch keiner bekannten Person zugeordnet</option>${state.people.filter((item) => item.active).map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}`;
   $("#speaker-clusters").innerHTML = state.speakerClusters.length ? state.speakerClusters.map((cluster) => `<form class="speaker-cluster" data-cluster-id="${cluster.id}"><div><strong>${escapeHtml(cluster.name)}</strong><small>${cluster.sample_count} Aufnahmen · Ø ${Math.round(cluster.average_similarity * 100)} % Ähnlichkeit<br>${cluster.pending_count} ungeprüft · ${cluster.confirmed_count} bestätigt · ${cluster.rejected_count} ausgeschlossen<br>${cluster.first_seen ? `${formatTime(cluster.first_seen)} bis ${formatTime(cluster.last_seen)}` : "Keine Aufnahme"}</small></div><label>Bezeichnung<input name="name" value="${escapeHtml(cluster.name)}" maxlength="100" required></label><label>Bekannte Person<select name="person_id">${people.replace(`value="${cluster.person_id || ""}"`, `value="${cluster.person_id || ""}" selected`)}</select></label><div class="speaker-cluster-actions"><button type="button" data-review-speaker="${cluster.id}">Aufnahmen prüfen</button><button type="submit">Speichern</button></div></form>`).join("") : "<p>Noch keine automatische Stimmgruppierung ausgeführt.</p>";
   if (state.speakerClusterId && !state.speakerClusters.some((item) => item.id === state.speakerClusterId)) closeSpeakerReview();
+}
+
+async function loadAdminNotifications() {
+  const items = await api("/api/admin-notifications");
+  const unread = items.filter((item) => !item.read_at).length;
+  $("#notification-count").textContent = unread;
+  $("#notification-list").innerHTML = items.length ? items.map((item) => `<article class="admin-notification ${item.read_at ? "" : "unread"}" data-notification-id="${item.id}"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.message)}</span><small>${formatTime(item.created_at)}</small></article>`).join("") : "<p>Keine neuen Benachrichtigungen.</p>";
+}
+
+let speakerProgressTimer = null;
+async function loadSpeakerAnalysisProgress() {
+  const run = await api("/api/speaker-analysis/runs/latest");
+  const panel = $("#speaker-analysis-progress");
+  if (!run) { panel.classList.add("hidden"); return; }
+  panel.classList.remove("hidden");
+  const active = run.status === "pending" || run.status === "running";
+  const percent = run.total ? Math.round(run.processed / run.total * 100) : 0;
+  $("#speaker-progress-title").textContent = { pending: "Analyse wartet", running: "Analyse läuft", completed: "Analyse abgeschlossen", failed: "Analyse fehlgeschlagen" }[run.status] || run.status;
+  $("#speaker-progress-value").textContent = run.total ? `${run.processed} / ${run.total} (${percent} %)` : "Modell wird vorbereitet";
+  $("#speaker-progress-bar").style.width = `${percent}%`;
+  $("#speaker-progress-detail").textContent = `${run.message} · ${run.clustered} Gruppen · ${run.skipped} übersprungen`;
+  $("#speaker-analyze").disabled = active;
+  $("#speaker-analyze").textContent = active ? "Stimmanalyse läuft …" : "Separate Stimmanalyse starten";
+  clearTimeout(speakerProgressTimer);
+  if (active) speakerProgressTimer = setTimeout(() => loadSpeakerAnalysisProgress().catch((error) => { $("#speaker-status").textContent = error.message; }), 2000);
+  if (run.status === "completed") await loadSpeakerClusters();
 }
 
 function speakerStatusName(status) {
@@ -789,8 +802,6 @@ function addEvent(event) {
   const primaryOptions = `<option value="" ${selectedPrimary ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${selectedPrimary === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
   const actions = state.role === "viewer" ? "" : !event.audio_available ? `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>` : `<form class="live-actions" data-event-id="${event.id}">
     <button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>
-    ${livePersonControl(event.id, event.person_id, event.person_monitoring_excluded)}
-    ${assessmentControl(event)}
     <select name="primary_class_code">${primaryOptions}</select>
     <select name="subclass_code" data-current="${escapeHtml(selectedSubclass || "")}"></select>
     <button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button>
@@ -974,6 +985,25 @@ async function loadRules() {
 }
 
 $("#login-form").addEventListener("submit", (e) => { e.preventDefault(); authenticate("/auth/login"); });
+$("#show-register").addEventListener("click", () => { $("#login-form").classList.add("hidden"); $("#register-form").classList.remove("hidden"); });
+$("#show-login").addEventListener("click", () => { $("#register-form").classList.add("hidden"); $("#login-form").classList.remove("hidden"); });
+$("#register-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = $("#register-password").value;
+  if (password !== $("#register-password-confirm").value) { $("#register-status").textContent = "Die Passwörter stimmen nicht überein."; return; }
+  try {
+    const result = await api("/auth/register", { method: "POST", body: JSON.stringify({ email: $("#register-email").value, password }) });
+    $("#register-status").textContent = `${result.message}. Bitte Posteingang und Spamordner prüfen.`;
+    event.target.reset();
+  } catch (error) { $("#register-status").textContent = error.message; }
+});
+$("#notification-toggle").addEventListener("click", () => $("#notification-list").classList.toggle("hidden"));
+$("#notification-list").addEventListener("click", async (event) => {
+  const item = event.target.closest("[data-notification-id]");
+  if (!item || !item.classList.contains("unread")) return;
+  await api(`/api/admin-notifications/${item.dataset.notificationId}/read`, { method: "POST" });
+  await loadAdminNotifications();
+});
 $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 async function applyGlobalFilter() {
@@ -1019,6 +1049,7 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
   if (button.dataset.view === "live") loadLiveLevels().catch(() => {});
   if (button.dataset.view === "kpis") loadKpis().catch(() => {});
   if (button.dataset.view === "sound-map") requestAnimationFrame(renderSoundMap);
+  if (button.dataset.view === "people") Promise.all([loadPeople(), loadSpeakerClusters(), loadSpeakerAnalysisProgress()]).catch((error) => { $("#speaker-status").textContent = error.message; });
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
 $("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
@@ -1095,29 +1126,6 @@ $("#review-events").addEventListener("change", async (e) => {
     $("#people-status").textContent = "Personenzuordnung gespeichert.";
     await loadPeople();
   } catch (error) { $("#people-status").textContent = error.message; }
-});
-document.addEventListener("change", async (e) => {
-  const select = e.target.closest("[data-live-person-event]");
-  if (!select) return;
-  select.disabled = true;
-  try {
-    await api(`/events/${select.dataset.livePersonEvent}/person`, { method: "PUT", body: JSON.stringify({ person_id: select.value ? Number(select.value) : null }) });
-    await Promise.all([loadPeople(), loadRecentEvents(), loadEvents(), refresh(), loadKpis(), loadSoundMap()]);
-  } catch (error) {
-    alert(error.message);
-    await Promise.all([loadRecentEvents(), loadEvents()]);
-  }
-});
-document.addEventListener("change", async (e) => {
-  const checkbox = e.target.closest("[data-assessment-event]");
-  if (!checkbox) return;
-  const eventId = checkbox.dataset.assessmentEvent;
-  const reason = document.querySelector(`[data-assessment-reason="${eventId}"]`)?.value || "other_context";
-  checkbox.disabled = true;
-  try {
-    await api(`/events/${eventId}/assessment-exclusion`, { method: "PUT", body: JSON.stringify({ excluded: checkbox.checked, reason: checkbox.checked ? reason : null }) });
-    await Promise.all([loadRecentEvents(), loadEvents(), refresh(), loadKpis(), loadSoundMap()]);
-  } catch (error) { alert(error.message); await Promise.all([loadRecentEvents(), loadEvents()]); }
 });
 $("#review-select-all").addEventListener("click", () => {
   document.querySelectorAll("#review-events input").forEach((item) => { item.checked = true; });
@@ -1244,13 +1252,13 @@ $("#people-list").addEventListener("click", async (e) => {
 });
 $("#speaker-analyze").addEventListener("click", async () => {
   const button = $("#speaker-analyze");
-  button.disabled = true; button.textContent = "Stimmen werden gruppiert …";
+  button.disabled = true; button.textContent = "Stimmanalyse wird gestartet …";
   try {
-    const result = await api("/api/speaker-clusters/analyze", { method: "POST" });
-    $("#speaker-status").textContent = `${result.analyzed} Aufnahmen analysiert · ${result.clusters} Stimmgruppen · ${result.skipped} nicht verwertbar.`;
-    await loadSpeakerClusters();
+    await api("/api/speaker-analysis/runs", { method: "POST" });
+    $("#speaker-status").textContent = "Der Hintergrundlauf wurde gestartet. Mikrofone und Dashboard arbeiten normal weiter.";
+    await loadSpeakerAnalysisProgress();
   } catch (error) { $("#speaker-status").textContent = error.message; }
-  finally { button.disabled = false; button.textContent = "Vorhandene Aufnahmen gruppieren"; }
+  finally { if (!button.disabled) button.textContent = "Separate Stimmanalyse starten"; }
 });
 $("#speaker-clusters").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1481,6 +1489,9 @@ const initialFilterDate = localDate(new Date());
 $("#date-from-filter").value = initialFilterDate;
 $("#date-to-filter").value = initialFilterDate;
 if (state.token) start();
+const verificationResult = new URLSearchParams(location.search).get("verification");
+if (verificationResult) $("#auth-error").textContent = verificationResult === "success" ? "E-Mail bestätigt. Sie können sich jetzt anmelden." : "Der Bestätigungslink ist ungültig oder abgelaufen.";
+if (new URLSearchParams(location.search).get("register") === "1") $("#show-register").click();
 window.addEventListener("resize", () => requestAnimationFrame(renderSoundMap));
 setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
 setInterval(() => { if (state.token) loadLiveLevels().catch(() => {}); }, 5000);

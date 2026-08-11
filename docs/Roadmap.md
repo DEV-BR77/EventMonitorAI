@@ -67,6 +67,9 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Benachrichtigungsregeln
 - [x] PostgreSQL-Option und Mehrgerätebetrieb
 - [x] Rollen, Authentifizierung und Zugriffsschutz
+- [x] Öffentliche Selbstregistrierung mit E-Mail-Adresse, 24 Stunden gültigem
+      Bestätigungslink, Login-Freigabe erst nach Bestätigung, eigenem mandantenisoliertem
+      Kundenbereich und sichtbarer Administrator-Benachrichtigung
 
 ## Phase 6 – Dashboard Erweiterungen
 
@@ -166,6 +169,10 @@ So bekommst du früh ein brauchbares Lärmprotokoll, ohne dass wir dir falsche P
       extrahierten Videotonspur mit bestätigten beziehungsweise anonymen Stimmgruppen
 - [x] Phase-8-Nachbesserung: Personen können reversibel von Lärmkennzahlen und
       Belastungsbewertung ausgenommen werden, ohne ihre persönlichen Ereignisse zu löschen
+- [x] Phase-8-Nachbesserung: akustische Klasse „Stimmen“ mit Gespräch, lautem
+      Rufen/Geschrei und Streit als getrennten Feinzuordnungen sowie eine manuell startbare,
+      lokale ECAPA-TDNN-Stimmgruppierung in einem ressourcenbegrenzten Hintergrund-Worker
+      mit sichtbarem Fortschritt bei ununterbrochener Audioannahme
 
 https://github.com/DEV-BR77/EventMonitorAI/tree/main/tools/audio-lab
 

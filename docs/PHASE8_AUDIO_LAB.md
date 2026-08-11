@@ -62,6 +62,23 @@ Identität einer Person.
 
 ## Stimmgruppenprüfung und Personenverwaltung
 
+Die Personen- und Stimmenanalyse ist von der akustischen Ereignisklassifizierung getrennt.
+Im Menü **Personen** kann ein Administrator einen manuellen ECAPA-TDNN-Lauf starten. Ein
+eigener Docker-Worker (`speaker-worker`) lädt das lokale Modell
+`speechbrain/spkrec-ecapa-voxceleb`, liest das Clip-Volume ausschließlich lesend und schreibt
+nur Fortschritt und anonyme Gruppen in die Datenbank. Das Dashboard zeigt Modellvorbereitung,
+verarbeitete/gesamte Aufnahmen, Prozentfortschritt, übersprungene Clips und gefundene Gruppen.
+Der Lauf arbeitet auch bei geschlossener Seite weiter.
+
+Der Worker besitzt keine Netzwerkports und ist auf zwei CPU-Kerne sowie 3 GB RAM begrenzt.
+Dadurch bleiben API, Dashboard und Audioannahme getrennt verfügbar; eingehende Mikrofonwerte
+werden nicht angehalten. Der Modellcache liegt in `eventmonitor_speaker_models`. Beim ersten
+Lauf kann der Modelldownload die Anzeige „Modell wird vorbereitet“ mehrere Minuten zeigen.
+Ein erneuter manueller Lauf ersetzt die technischen Stimmgruppen vollständig, lässt aber
+Personenprofile und ausdrückliche Ereignis-Person-Zuordnungen unverändert. Audio verlässt den
+Server nicht. Stimmvektoren sind biometrisch sensible Prüfmerkmale und dürfen weder als
+Identitätsbeweis noch ohne passende Rechtsgrundlage für automatisierte Entscheidungen dienen.
+
 Anonyme Stimmgruppen besitzen eine persistente Einzelprüfung. Administratoren können
 zugeordnete Clips anhören, bestätigen, als nicht passend oder als keine verwertbare
 Stimme markieren und in eine vorhandene oder neue Gruppe verschieben. Abgelehnte
