@@ -241,3 +241,24 @@ Unterbrechung und Fortsetzung von den Überarbeitungen
       einsetzen; Client-IP-Header nur aus explizit konfigurierten Proxy-Netzen
       akzeptieren, Datenschutz und Aufbewahrungsdauer dokumentieren sowie die
       Erkennung mit externen Zugriffen testen
+
+## Phase 11 - EventMonitor Voice für Android und iOS
+
+- [ ] öffentliches Interessen- und späteres Selbstregistrierungsverfahren für
+      persönliche Kundenbereiche
+- [ ] Tarifmodell für eine geliehene, vorkonfigurierte Messstelle sowie für die
+      Nutzung eines eigenen Smartphones ohne Leihgerät
+- [ ] gemeinsame mobile Codebasis für Android und iOS mit Anmeldung,
+      Gerätezuordnung, Mikrofonfreigabe und verständlicher Datenschutzinformation
+- [ ] lokale, kalibrierbare Schallpegelmessung mit dokumentierter Geräteabweichung;
+      Smartphone-Werte nicht ungeprüft mit einer Referenzmessstelle gleichsetzen
+- [ ] energiesparende Ereigniserkennung und ausdrücklich gestartete Messsitzungen;
+      Einschränkungen der Hintergrundaufnahme unter Android und iOS berücksichtigen
+- [ ] verschlüsselte Übertragung von Pegelwerten und freigegebenen Ereignisdaten an
+      den jeweiligen Kundenbereich über widerrufbare Gerätezugangsdaten
+- [ ] persönliche Live-Ansicht, KPIs, Ereignisprüfung, Push-Benachrichtigungen und
+      Export des eigenen Lärmprotokolls in der App
+- [ ] Einwilligungs-, Lösch-, Aufbewahrungs- und Berechtigungskonzept für mobile
+      Mikrofon- und Ereignisdaten einschließlich transparenter Aufnahmeanzeige
+- [ ] Beta-Test auf realen Android- und iPhone-Geräten, Sicherheitsprüfung sowie
+      Veröffentlichungsvorbereitung für Google Play und Apple App Store
