@@ -17,7 +17,10 @@ keine zweite Datenhaltung.
   ausdrücklich nur eine Metadaten-/Kontextwertung, kein akustischer Nachweis. Diese Einträge
   erscheinen nicht in der akustischen Prüfauswahl, werden von automatischen Prüfläufen
   übersprungen und niemals als KI-Trainingsbeispiel verwendet. Das Audio-Lab zeigt ihre Anzahl
-  separat als **Ohne Clip · Kontext** an.
+  separat als **Ohne Clip · Kontext** an. Auch neu eingehende Ereignisse werden nur dann in die
+  akustische Prüfliste aufgenommen, wenn tatsächlich ein Clip zugeordnet ist. Im Dashboard
+  ersetzt der Hinweis **Ohne Aufnahme · nicht akustisch prüfbar** den Anhören-Button und die
+  akustische Zuordnung.
 
 ## Automatische und nächtliche Prüfläufe
 

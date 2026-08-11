@@ -624,9 +624,9 @@ async function loadRecentEvents() {
     const witnesses = entry.witnesses.length ? entry.witnesses.map((item) => `<span class="witness ${item.response}">${escapeHtml(item.username)}: ${item.response === "confirmed" ? "bestätigt" : "abgelehnt"}</span>`).join("") : "<span class=\"witness pending\">Keine Zeugenreaktion</span>";
     const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
     const primaryOptions = `<option value="" ${entry.primary_class_code ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
-    const play = state.role === "viewer" ? `<button type="button" class="ghost" disabled>Keine Audioberechtigung</button>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<button type="button" class="ghost" disabled>▶ Kein Clip</button>`;
+    const play = state.role === "viewer" ? `<span class="clip-unavailable">Keine Audioberechtigung</span>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>`;
     const resolved = ["manual", "learned", "context_only"].includes(entry.classification_status);
-    const correction = state.role === "viewer" ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
+    const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
     const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : entry.classification_status === "context_only" ? "nur Metadaten-/Kontextwertung · kein akustischer Nachweis" : "automatisch";
     return `<div class="recent-event ${resolved ? "confirmed" : ""} ${state.listenedEvents.has(String(entry.event_id)) ? "listened" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(statusText)}</span><div>${witnesses}${correction}</div></div>`;
   }).join("") : "<p>Noch keine Ereignisse erfasst.</p>";
@@ -773,8 +773,8 @@ function addEvent(event) {
   const selectedSubclass = draft?.subclass_code ?? event.subclass_code;
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
   const primaryOptions = `<option value="" ${selectedPrimary ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${selectedPrimary === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
-  const actions = state.role === "viewer" ? "" : `<form class="live-actions" data-event-id="${event.id}">
-    ${event.audio_available ? `<button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>` : `<button type="button" class="ghost clip-unavailable" disabled>▶ Kein Clip</button>`}
+  const actions = state.role === "viewer" ? "" : !event.audio_available ? `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>` : `<form class="live-actions" data-event-id="${event.id}">
+    <button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>
     <select name="primary_class_code">${primaryOptions}</select>
     <select name="subclass_code" data-current="${escapeHtml(selectedSubclass || "")}"></select>
     <button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button>
