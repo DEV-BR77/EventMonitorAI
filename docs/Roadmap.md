@@ -270,3 +270,98 @@ Integration und Realgeräteabnahme offen; Details und Grenzen stehen in
       Mikrofon- und Ereignisdaten einschließlich transparenter Aufnahmeanzeige
 - [ ] Beta-Test auf realen Android- und iPhone-Geräten, Sicherheitsprüfung sowie
       Veröffentlichungsvorbereitung für Google Play und Apple App Store
+
+### Verbindlicher Google-Play-Live-Weg
+
+Der folgende Weg konkretisiert den letzten Phase-11-Punkt. Die Reihenfolge ist
+verbindlich; ein Schritt wird erst nach Implementierung, Prüfung und
+Dokumentation abgehakt. Eine Debug-APK ist ein installierbarer Teststand, aber
+kein veröffentlichungsfähiges Store-Artefakt.
+
+#### A. Lokaler Android-Buildstand
+
+- [x] Android-Buildumgebung außerhalb des Repositorys eingerichtet: OpenJDK 17,
+      Android SDK 36, Build-Tools 36.0.0, NDK 28.2.13676358 und CMake 3.22.1
+- [x] Debug-APK erfolgreich gebaut und per `apksigner` geprüft
+- [x] Build-Artefakte, lokale SDK-Pfade, Keystores und Geheimnisse bleiben von
+      Git ausgeschlossen
+
+Aktueller lokaler Testpfad nach `flutter build apk --debug`:
+
+```text
+mobile/build/app/outputs/flutter-apk/app-debug.apk
+```
+
+Die Datei ist flüchtiges lokales Build-Artefakt und wird bei Bedarf neu gebaut.
+Sie darf weder als Produktionsversion veröffentlicht noch dauerhaft als
+Release-Nachweis verwendet werden.
+
+#### B. Externe Entscheidungen vor der Store-Vorbereitung – Stopppunkt
+
+- [ ] rechtlichen Kontoinhaber festlegen: persönliches oder
+      Organisations-Entwicklerkonto
+- [ ] bei Organisationskonto D-U-N-S-Nummer, Organisationsdaten und
+      vertretungsberechtigte Person festlegen
+- [ ] einmalige Google-Play-Registrierungsgebühr und zuständiges Zahlungsmittel
+      freigeben
+- [ ] endgültige, nach erster Veröffentlichung nicht mehr austauschbare Android-
+      Application-ID festlegen; derzeit `de.eventmonitor.eventmonitor_voice`
+- [ ] öffentlichen Entwicklernamen, Support-Kontakt, Länder und Zielgruppe
+      festlegen
+- [ ] verbindliche Datenschutz-, Einwilligungs-, Lösch- und
+      Aufbewahrungstexte rechtlich prüfen und freigeben
+
+Ohne diese Entscheidungen werden weder Play-Console-Konto noch produktive
+Signaturschlüssel oder Store-Eintrag angelegt.
+
+#### C. Technische Release-Vorbereitung nach Freigabe
+
+- [ ] endgültige Application-ID, App-Name, Versionsschema und Release-Kanal im
+      Projekt festschreiben
+- [ ] separaten Upload-Key erzeugen, außerhalb von Git sichern und
+      Wiederherstellungs-/Verantwortlichkeitsprozess dokumentieren
+- [ ] Release-Signierung über eine nicht eingecheckte `key.properties`
+      konfigurieren und Google Play App Signing vorsehen
+- [ ] produktive App-Icons, Startbildschirm und Store-Grafiken bereitstellen
+- [ ] Release-App-Bundle mit `flutter build appbundle --release` erzeugen; der
+      erwartete lokale Pfad lautet
+      `mobile/build/app/outputs/bundle/release/app-release.aab`
+- [ ] AAB-Signatur, Paketname, Version, Ziel-API, Berechtigungen und enthaltene
+      Dateien automatisiert prüfen; SHA-256 als Release-Nachweis dokumentieren
+- [ ] Release-Build gegen den produktiven HTTPS-Endpunkt testen; keine Debug-
+      Server, Testzugänge, lokalen URLs oder Geheimnisse einbetten
+
+#### D. Datenschutz-, Sicherheits- und Realgeräteabnahme
+
+- [ ] Mikrofonfreigabe, sichtbare Aufnahme, Sitzungsende und Verhalten bei
+      Hintergrundwechsel auf mehreren realen Android-Geräten testen
+- [ ] Pegelabweichung je unterstütztem Gerätemodell gegen geeignete Referenz
+      erfassen und innerhalb der App nachvollziehbar ausweisen
+- [ ] Tenant-Isolation, Tokenablauf, Abmeldung, Gerätewiderruf, Löschung,
+      Aufbewahrung und verschlüsselte Übertragung sicherheitsseitig prüfen
+- [ ] produktive Datenflüsse vollständig für die Play-Console-Erklärung
+      „Datensicherheit“ inventarisieren
+- [ ] öffentliche HTTPS-Datenschutzerklärung bereitstellen und innerhalb der
+      App verlinken
+- [ ] bei späterer Selbstregistrierung eine von App und Website erreichbare
+      Kontolöschung implementieren und testen
+- [ ] Google-Prüfern einen zeitlich begrenzten, tenant-isolierten Testzugang mit
+      nachvollziehbarer Prüfanleitung bereitstellen
+
+#### E. Google-Play-Test- und Produktionsweg
+
+- [ ] verifiziertes Play-Console-Konto und App-Eintrag anlegen
+- [ ] signiertes Release-AAB zuerst in den internen Testtrack laden und den von
+      Google Play erzeugten Installationsstand auf realen Geräten prüfen
+- [ ] Store-Eintrag, Inhaltsklassifizierung, Zielgruppe, Werbeerklärung,
+      Datenschutzerklärung, Datensicherheit und App-Zugriff vollständig ausfüllen
+- [ ] geschlossenen Beta-Test durchführen; bei einem neuen persönlichen Konto
+      mindestens zwölf dauerhaft angemeldete Tester über vierzehn
+      aufeinanderfolgende Tage einplanen
+- [ ] Testerfeedback, Abstürze, ANRs, Mikrofon- und Geräteabweichungen auswerten,
+      beheben und erneut prüfen
+- [ ] Produktionszugang beantragen und Freigabefragen nachvollziehbar beantworten
+- [ ] erste Produktionseinführung gestaffelt durchführen, Rücknahmeweg
+      dokumentieren und technische Qualitätswerte überwachen
+- [ ] erst nach erfolgreicher Store-Prüfung, produktiver Installation und
+      dokumentierter Abnahme den Phase-11-Veröffentlichungspunkt abschließen

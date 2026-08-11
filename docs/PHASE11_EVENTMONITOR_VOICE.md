@@ -1,6 +1,7 @@
 # Phase 11 – EventMonitor Voice
 
-Stand: ausführbarer Flutter-Prototyp, noch keine Store-Beta
+Stand: ausführbarer Flutter-Prototyp und lokal verifizierte Android-Debug-APK,
+noch keine Store-Beta
 
 ## Architektur
 
@@ -43,3 +44,34 @@ Tarifentscheidung, produktiver Smartphone-Ingest, Push, Export, Löschworkflow,
 Tests auf realen Android-/iPhone-Geräten, Security-Abnahme und Store-Vorbereitung.
 Store-Konten, Gebühren sowie verbindliche Rechts- und Einwilligungstexte
 benötigen externe Entscheidungen und werden nicht vorweggenommen.
+
+## Android-Build und Weg zu Google Play
+
+Die lokale Android-Toolchain besteht aus OpenJDK 17, Android SDK 36,
+Build-Tools 36.0.0, NDK 28.2.13676358 und CMake 3.22.1. Der geprüfte
+Debug-Build wird mit folgendem Befehl erzeugt:
+
+```powershell
+flutter build apk --debug
+```
+
+Das Ergebnis `mobile/build/app/outputs/flutter-apk/app-debug.apk` dient nur der
+direkten Installation und dem Realgerätetest. Es ist mit einem Debug-Schlüssel
+signiert, bleibt durch `.gitignore` vom Repository ausgeschlossen und ist kein
+Google-Play-Release.
+
+Nach Freigabe der in `docs/Roadmap.md` dokumentierten externen Entscheidungen
+wird ein gesonderter Upload-Key außerhalb von Git eingerichtet. Der Store-Build
+erfolgt anschließend als signiertes Android App Bundle:
+
+```powershell
+flutter build appbundle --release
+```
+
+Das erwartete Artefakt ist
+`mobile/build/app/outputs/bundle/release/app-release.aab`. Erst nach
+Signaturprüfung, Datenschutz- und Security-Abnahme, Realgerätetest und
+erfolgreichem internen sowie geschlossenem Play-Test darf dieses Release in die
+Produktion überführt werden. Der detaillierte, verbindliche Ablauf und seine
+Stopppunkte stehen im Abschnitt „Verbindlicher Google-Play-Live-Weg“ der
+Roadmap.
