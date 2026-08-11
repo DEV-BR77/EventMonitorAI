@@ -244,6 +244,14 @@ Unterbrechung und Fortsetzung von den Überarbeitungen
 
 ## Phase 11 - EventMonitor Voice für Android und iOS
 
+**Zwischenstand 11. August 2026:** Unter `mobile/` steht ein ausführbarer,
+getesteter Flutter-Prototyp mit sicherer Anmeldung, tenant-isolierter
+Geräteauswahl, sichtbarer lokaler Messsitzung, dB(A)-Näherungswerten,
+MIN/MAX/AVG, Frequenzspektrum, KI-Vorschlag sowie Ereignis- und
+ELM-Navigation bereit. Die Punkte bleiben bis zur vollständigen produktiven
+Integration und Realgeräteabnahme offen; Details und Grenzen stehen in
+`docs/PHASE11_EVENTMONITOR_VOICE.md`.
+
 - [ ] öffentliches Interessen- und späteres Selbstregistrierungsverfahren für
       persönliche Kundenbereiche
 - [ ] Tarifmodell für eine geliehene, vorkonfigurierte Messstelle sowie für die
