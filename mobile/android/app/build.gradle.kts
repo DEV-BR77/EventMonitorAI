@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -8,6 +10,10 @@ android {
     namespace = "de.eventmonitor.eventmonitor_voice"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
+    buildFeatures {
+        resValues = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -25,11 +31,38 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("preview") {
+            val keystorePath = System.getenv("EVENTMONITOR_ANDROID_PREVIEW_KEYSTORE")
+            val keystorePassword = System.getenv("EVENTMONITOR_ANDROID_PREVIEW_STORE_PASSWORD")
+            val keyPasswordValue = System.getenv("EVENTMONITOR_ANDROID_PREVIEW_KEY_PASSWORD")
+            if (keystorePath != null && keystorePassword != null && keyPasswordValue != null) {
+                storeFile = File(keystorePath)
+                storePassword = keystorePassword
+                keyAlias = "eventmonitor-preview"
+                keyPassword = keyPasswordValue
+            }
+        }
+    }
+
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("preview") {
+            dimension = "distribution"
+            applicationIdSuffix = ".preview"
+            resValue("string", "app_name", "EventMonitor Voice Preview")
+            signingConfig = signingConfigs.getByName("preview")
+        }
+        create("production") {
+            dimension = "distribution"
+            resValue("string", "app_name", "EventMonitor Voice")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Production signing is deliberately not configured in source.
+            // The public preview flavor uses a separate key supplied via environment variables.
         }
     }
 }

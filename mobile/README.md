@@ -40,3 +40,28 @@ fragen die Mikrofonberechtigung beim ersten Start einer Messsitzung an.
 - keine Store-Signierung, Store-Konten oder Veröffentlichungsmetadaten
 - iOS-Build und reale Mikrofontests benötigen macOS/Xcode und ein physisches
   iPhone; Android-Realmessungen benötigen ein physisches Android-Gerät
+
+## Öffentliche Android-Vorschau
+
+Die öffentlich herunterladbare Vorschau verwendet den Flavor `preview`, die
+separate Paketkennung `de.eventmonitor.eventmonitor_voice.preview` und einen
+eigenen, außerhalb von Git aufbewahrten Signaturschlüssel. Dadurch bleibt die
+spätere Play-Store-Identität unabhängig. Ein signierter Build benötigt diese
+Umgebungsvariablen:
+
+```text
+EVENTMONITOR_ANDROID_PREVIEW_KEYSTORE
+EVENTMONITOR_ANDROID_PREVIEW_STORE_PASSWORD
+EVENTMONITOR_ANDROID_PREVIEW_KEY_PASSWORD
+```
+
+Buildbefehl:
+
+```powershell
+flutter build apk --flavor preview --release
+```
+
+Das Ergebnis liegt unter
+`build/app/outputs/flutter-apk/app-preview-release.apk`. Keystore, Kennwörter
+und APK werden nicht eingecheckt. Veröffentlichte Dateien erhalten eine
+SHA-256-Prüfsumme und werden als GitHub-Prerelease bereitgestellt.
