@@ -1,0 +1,23 @@
+# Öffentliche Projektseite. Diese Datei wird auf dem Docker-Desktop-Host in
+# den von Caddy importierten managed-Ordner übernommen.
+eventmonitor.eu, www.eventmonitor.eu {
+  encode zstd gzip
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+
+  handle /visit.gif {
+    rewrite * /public/visit.gif
+    reverse_proxy host.docker.internal:8015
+  }
+
+  handle {
+    reverse_proxy host.docker.internal:8016
+  }
+}

@@ -25,6 +25,7 @@ ZIP / Messordner
 | `import_data.py` | Kommandozeilenimport |
 | `eventmonitor/importer.py` | Dateierkennung, Parser, Import und Segmentbildung |
 | `eventmonitor/db.py` | SQLite-Schema und Datenbankverbindung |
+| `eventmonitor/visualization.py` | STFT-Spektrogramm und browsergerechte Datenreduktion |
 
 ## Datenbanktabellen
 

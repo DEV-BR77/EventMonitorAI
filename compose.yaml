@@ -1,0 +1,75 @@
+name: eventmonitorai
+
+services:
+  website:
+    build:
+      context: ./website
+    ports:
+      - "127.0.0.1:${WEBSITE_PORT:-8016}:80"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-eventmonitor}
+      POSTGRES_USER: ${POSTGRES_USER:-eventmonitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+    volumes:
+      - eventmonitor_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      APP_NAME: EventMonitorAI
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-eventmonitor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eventmonitor}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}
+      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-480}
+      INGEST_API_KEY: ${INGEST_API_KEY:?Set INGEST_API_KEY in .env.docker}
+      HOME_ASSISTANT_WEBHOOK_URL: ${HOME_ASSISTANT_WEBHOOK_URL:-}
+      HOME_ASSISTANT_TOKEN: ${HOME_ASSISTANT_TOKEN:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@eventmonitor.eu}
+      SUPPORT_URL: ${SUPPORT_URL:-}
+      SUPPORT_TARGET_EUR: ${SUPPORT_TARGET_EUR:-1450}
+      SUPPORT_COLLECTED_EUR: ${SUPPORT_COLLECTED_EUR:-0}
+      CLIP_DIRECTORY: /data/clips
+    volumes:
+      - eventmonitor_clips_data:/data/clips
+    ports:
+      - "${DASHBOARD_PORT:-8015}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backup:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-eventmonitor}
+      POSTGRES_USER: ${POSTGRES_USER:-eventmonitor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - eventmonitor_clips_data:/data/clips:ro
+      - ./backups:/backups
+      - ./ops/backup.sh:/usr/local/bin/eventmonitor-backup:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/eventmonitor-backup"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  eventmonitor_postgres_data:
+  eventmonitor_clips_data:

@@ -14,6 +14,11 @@ Direkte Entwicklungscommits auf `main` sollten vermieden werden.
 
 Das Projekt verwendet Semantic Versioning:
 
+Die aktuelle gemeinsame Version aller Komponenten steht ausschließlich in der
+Datei `VERSION`. Backend, Docker-Image, AudioLab und ESP32-Firmware übernehmen
+diesen Wert beim Start beziehungsweise Build. `scripts/check_versions.py`
+verhindert abweichende Paketmetadaten.
+
 ```text
 MAJOR.MINOR.PATCH
 ```

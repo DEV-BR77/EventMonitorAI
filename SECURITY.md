@@ -2,7 +2,9 @@
 
 ## Unterstützte Versionen
 
-EventMonitorAI befindet sich in einer Alpha-Phase. Sicherheitskorrekturen werden derzeit ausschließlich auf dem aktuellen `main`-Stand vorgenommen.
+Bis zum v1.0-Tag werden Sicherheitskorrekturen auf dem aktuellen Release-Kandidaten
+und danach für die jeweils aktuelle Minor-Version bereitgestellt. Kritische
+Korrekturen erhalten einen Patch-Release.
 
 ## Sicherheitslücken melden
 
@@ -27,3 +29,6 @@ Nicht committen:
 - trainierte Modelle, wenn sie aus privaten Audiodaten abgeleitet wurden
 
 Die zentrale `.gitignore` deckt diese Dateitypen ab. Vor jedem Push sollte dennoch `git status` kontrolliert werden.
+
+Das aktuelle technische Review und verbleibende Betriebsauflagen stehen unter
+[`docs/operations/SECURITY_PRIVACY_REVIEW.md`](docs/operations/SECURITY_PRIVACY_REVIEW.md).

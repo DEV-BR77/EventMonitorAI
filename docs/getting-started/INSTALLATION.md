@@ -15,7 +15,23 @@ git clone https://github.com/DEV-BR77/EventMonitorAI.git
 cd EventMonitorAI
 ```
 
-## Backend installieren
+## Produktionsinstallation mit Docker Desktop
+
+```powershell
+.\scripts\install.ps1 -Build
+```
+
+Dashboard und API sind danach standardmäßig unter `http://127.0.0.1:8015`
+erreichbar. Details zu Installation, Upgrade und Rollback stehen in
+[`../operations/INSTALL_UPGRADE.md`](../operations/INSTALL_UPGRADE.md).
+
+Die öffentliche, cookiefreie Projektseite läuft separat unter
+`http://127.0.0.1:8016`. Vor der Freischaltung von `eventmonitor.eu` müssen die
+vollständigen Betreiberangaben in `website/public/impressum.html` und
+`website/public/datenschutz.html` gepflegt sein. Die geprüfte Caddy-Route liegt
+unter `deploy/caddy/eventmonitor-public.caddy`.
+
+## Backend als Entwicklungsumgebung installieren
 
 ```powershell
 cd backend
@@ -71,3 +87,6 @@ Folgende Ordner enthalten Laufzeitdaten und gehören nicht ins Repository:
 - `logs/`
 
 Diese Ordner müssen separat gesichert werden, wenn Messungen oder bestätigte Labels erhalten bleiben sollen.
+
+Der Docker-Produktionsbetrieb enthält einen automatischen Backupdienst. Siehe
+[`../operations/BACKUP_RESTORE.md`](../operations/BACKUP_RESTORE.md).

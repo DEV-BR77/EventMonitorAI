@@ -48,6 +48,21 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Gemeinsamer Klassenkatalog
+
+Die Basisklassen und manuellen Feinzuordnungen werden im Dashboard unter
+**Administration → KI-Klassenkatalog** gepflegt. AudioLab besitzt unter **Klassen** eine explizite
+Synchronisierung über die Dashboard-URL und ein gültiges Benutzerkonto. Die Zugangsdaten werden
+nur für diesen Abruf verwendet und nicht in der AudioLab-Datenbank gespeichert. Deaktivierte
+Klassen bleiben historisch erhalten, werden aber nicht mehr zur neuen Zuordnung angeboten.
+
+Bestätigte Live-Ereignisse mit manueller Feinzuordnung können auf derselben Seite als
+Trainingsbeispiele importiert werden. AudioLab lädt nur die geschützten, dem Ereignis zugeordneten
+WAV-Clips, kontrolliert den vom Dashboard gelieferten SHA-256-Hash und das erwartete Audioformat
+und legt jedes Beispiel höchstens einmal ab. Der Import erzeugt direkt ein manuell bestätigtes
+Segment mit Basis- und Feinklasse; noch offene oder nur automatisch klassifizierte Ereignisse
+werden nicht als Trainingsdaten übernommen.
+
 ## Empfohlene Repository-Struktur
 
 ```text
@@ -89,6 +104,18 @@ python import_data.py "D:\Laermmessungen" --folder
 - [Messdaten und Importformat](docs/IMPORTFORMAT.md)
 - [Kategorien und Lernworkflow](docs/LABELING.md)
 - [Architektur und Datenmodell](docs/ARCHITEKTUR.md)
+- [Feature- und Preprocessing-Pipeline](docs/FEATURE_PIPELINE.md)
+- [Trainings-, Validierungs- und Testaufteilung](docs/DATASET_SPLITS.md)
+- [Basismodell und Qualitätsmetriken](docs/BASELINE_MODEL.md)
+- [Modellvorschläge bestätigen und korrigieren](docs/MODEL_SUGGESTIONS.md)
+- [Active Learning](docs/ACTIVE_LEARNING.md)
+- [Audio-Embeddings und Ähnlichkeitssuche](docs/EMBEDDINGS.md)
+- [Personenverwaltung und personenbezogene Ereignisse](docs/PEOPLE.md)
+- [Lokale Modellverwaltung und Rollback](docs/MODEL_REGISTRY.md)
+- [Zeitliche Ereignisgruppierung](docs/EVENT_GROUPING.md)
+- [Cases und Teilereignisse](docs/CASES.md)
+- [Case-Notizen, Status und Änderungshistorie](docs/CASE_AUDIT.md)
+- [Lärmprotokoll als CSV und PDF](docs/NOISE_LOG.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Grenzen und verantwortungsvolle Nutzung

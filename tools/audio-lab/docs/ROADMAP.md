@@ -12,8 +12,8 @@
 
 ## v0.3 – Importverwaltung
 
-- Importjournal mit Dateiname, Status und Fehlergrund
-- Wiederholungsfunktion für fehlgeschlagene Pakete
+- [x] Importjournal mit Dateiname, Status und Fehlergrund
+- [x] Wiederholungsfunktion für fehlgeschlagene Pakete
 - Prüfung von Audio-/CSV-Dauer
 - konfigurierbare Segmentlänge
 - frei definierbare Kategorien
@@ -22,9 +22,9 @@
 
 ## v0.4 – Ereignisvisualisierung
 
-- dB-Zeitreihe je Aufnahme
+- [x] dB-Zeitreihe je Aufnahme
 - klickbare Peaks
-- Spektrogramm je Segment
+- [x] Spektrogramm je Segment
 - Frequenzmerkmale
 - zusammenhängende Ereignisse statt isolierter Segmente
 - Start-/Endgrenzen manuell korrigieren

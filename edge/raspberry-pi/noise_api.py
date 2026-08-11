@@ -1,7 +1,14 @@
+import os
+
 import requests
 
-
-API_URL = "http://192.168.178.88:8000/events"
+API_URL = os.getenv("EVENTMONITOR_API_URL", "http://127.0.0.1:8000/events")
+TELEMETRY_URL = os.getenv(
+    "EVENTMONITOR_TELEMETRY_URL",
+    API_URL.rstrip("/") + "/telemetry",
+)
+API_KEY = os.getenv("EVENTMONITOR_API_KEY", "")
+LIVE_AUDIO_URL = os.getenv("EVENTMONITOR_LIVE_AUDIO_URL", API_URL.rstrip("/") + "/audio")
 
 
 def send_event(
@@ -22,11 +29,7 @@ def send_event(
         "label": label,
         "confidence": confidence,
         "db_level": db_level,
-        "avg_db_level": (
-            avg_db_level
-            if avg_db_level is not None
-            else db_level
-        ),
+        "avg_db_level": (avg_db_level if avg_db_level is not None else db_level),
         "device": device,
     }
 
@@ -34,6 +37,7 @@ def send_event(
         response = requests.post(
             API_URL,
             json=payload,
+            headers={"X-API-Key": API_KEY} if API_KEY else None,
             timeout=5,
         )
 
@@ -50,4 +54,64 @@ def send_event(
 
     except Exception as ex:
         print("API Fehler:", ex)
+        return False
+
+
+def send_telemetry(payload: dict[str, object]) -> bool:
+    try:
+        response = requests.post(
+            TELEMETRY_URL,
+            json=payload,
+            headers={"X-API-Key": API_KEY} if API_KEY else None,
+            timeout=5,
+        )
+        response.raise_for_status()
+        return True
+    except Exception as ex:
+        print("Telemetrie-API-Fehler:", ex)
+        return False
+
+
+def send_live_audio(device_id: str, pcm: bytes) -> bool:
+    try:
+        response = requests.post(
+            f"{LIVE_AUDIO_URL}/{device_id}",
+            data=pcm,
+            headers={
+                "Content-Type": "application/octet-stream",
+                **({"X-API-Key": API_KEY} if API_KEY else {}),
+            },
+            timeout=2,
+        )
+        response.raise_for_status()
+        return True
+    except Exception as ex:
+        print("Live-Audio-API-Fehler:", ex)
+        return False
+
+
+def send_training_clip(
+    device_id: str,
+    payload: bytes,
+    trigger_id: str,
+    trigger_uptime_ms: str,
+) -> bool:
+    if not API_KEY:
+        return False
+    try:
+        response = requests.post(
+            f"{API_URL.rstrip('/')}/clips/{device_id}",
+            data=payload,
+            headers={
+                "Content-Type": "audio/wav",
+                "X-Trigger-ID": trigger_id,
+                "X-Trigger-Uptime-Ms": trigger_uptime_ms,
+                **({"X-API-Key": API_KEY} if API_KEY else {}),
+            },
+            timeout=10,
+        )
+        response.raise_for_status()
+        return True
+    except Exception as ex:
+        print("Trainingsclip-API-Fehler:", ex)
         return False

@@ -6,7 +6,7 @@ EventMonitorAI verbindet ESP32-Audiosensoren, Raspberry-Pi-Edge-Verarbeitung, ei
 
 ## Projektstatus
 
-**Entwicklungsphase:** Alpha / aktiver Aufbau
+**Entwicklungsphase:** v1.0-Kandidat / Abnahme und Langzeittest
 
 Aktuell vorhanden:
 
@@ -14,10 +14,15 @@ Aktuell vorhanden:
 - Raspberry-Pi-Empfänger mit YAMNet-basierter Klassifizierung
 - FastAPI-Backend mit SQLite-Ereignisdatenbank
 - REST-Endpunkte für Health-Check und Ereignisse
+- geschütztes Dashboard mit Kalender, Timeline, Heatmap, Statistiken und Live-Ansicht
+- lokale Benutzerrollen, Mehrgerätebetrieb, Live-Sound-Freigaben, installierbare PWA und Push-Benachrichtigungen
+- Home-Assistant-Webhook und optionale PostgreSQL-Datenbank
 - deutsche Label- und Kategoriezuordnung
 - EventMonitor AudioLab für ZIP-Massenimport, Segmentierung, Anhören, Labeling und CSV-Export
 
-Noch nicht produktionsreif sind insbesondere die automatische Modellnachschulung, belastbare Ereigniszusammenfassung, Benutzerverwaltung, Beweissicherung und ein vollständiges Dashboard.
+Die Funktionen bis Phase 9 sind implementiert. Ein v1.0-Tag wird erst nach dem
+dokumentierten 24-Stunden-Langzeittest, Restore-Test auf einer getrennten
+Datenbank und der Betreiber-/Datenschutzfreigabe erstellt.
 
 ## Schwerpunkt der Erkennung
 
@@ -42,13 +47,13 @@ ESP32-S3 + INMP441
         │ UDP-Audio
         ▼
 Raspberry Pi / Edge Receiver
-        │ Ereignisse + Pegel + Modellresultate
+        │ Ereignisse + Pegel + Modellresultate + flüchtiger Live-Audiostream
         ▼
 FastAPI Backend ───────────────► SQLite / später PostgreSQL
         │
-        ├── REST API
+        ├── REST API und geschütztes Dashboard
         ├── Live- und Ereignisdaten
-        └── zukünftiges Dashboard
+        └── PostgreSQL, automatische Backups und Clips
 
 Historische ZIP-/Audio-Messungen
         │
@@ -97,6 +102,7 @@ Danach:
 
 - API-Dokumentation: `http://127.0.0.1:8000/docs`
 - Health-Check: `http://127.0.0.1:8000/health`
+- Dashboard: `http://127.0.0.1:8000/`
 
 Ausführliche Anleitung: [docs/getting-started/INSTALLATION.md](docs/getting-started/INSTALLATION.md)
 
@@ -132,11 +138,18 @@ Die GitHub-CI prüft Python-Syntax, Tests, sensible Dateien und grundlegende Rep
 |---|---|
 | Installation | [docs/getting-started/INSTALLATION.md](docs/getting-started/INSTALLATION.md) |
 | Architektur | [docs/Architecture.md](docs/Architecture.md) |
+| Dashboard und Integrationen | [docs/PHASE5_DASHBOARD.md](docs/PHASE5_DASHBOARD.md) |
+| Zweistufige KI-Klassifikation | [docs/PHASE7_KI.md](docs/PHASE7_KI.md) |
 | AudioLab | [tools/audio-lab/README.md](tools/audio-lab/README.md) |
 | Roadmap | [docs/Roadmap.md](docs/Roadmap.md) |
 | Produkt-Backlog | [docs/ProductBacklog.md](docs/ProductBacklog.md) |
 | Entscheidungen | [docs/DecisionLog.md](docs/DecisionLog.md) und [docs/adr/](docs/adr/) |
 | Betrieb und Datenschutz | [docs/operations/PRIVACY_AND_DATA.md](docs/operations/PRIVACY_AND_DATA.md) |
+| Installation und Upgrade | [docs/operations/INSTALL_UPGRADE.md](docs/operations/INSTALL_UPGRADE.md) |
+| Backup und Restore | [docs/operations/BACKUP_RESTORE.md](docs/operations/BACKUP_RESTORE.md) |
+| Performance | [docs/operations/PERFORMANCE.md](docs/operations/PERFORMANCE.md) |
+| Security-Review | [docs/operations/SECURITY_PRIVACY_REVIEW.md](docs/operations/SECURITY_PRIVACY_REVIEW.md) |
+| v1.0-Kriterien | [docs/releases/V1_RELEASE_CRITERIA.md](docs/releases/V1_RELEASE_CRITERIA.md) |
 
 ## Leitprinzipien
 

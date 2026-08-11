@@ -1,3 +1,37 @@
+from app.models.dashboard import (
+    AudioClip,
+    Device,
+    DeviceCalibration,
+    DeviceLevelSample,
+    DeviceTelemetry,
+    EventClass,
+    EventClassificationRevision,
+    EventSpeakerCluster,
+    EventWitnessResponse,
+    LiveAudioAccess,
+    NotificationRule,
+    PushSubscription,
+    ReviewRun,
+    SpeakerCluster,
+    User,
+)
 from app.models.event import Event
 
-__all__ = ["Event"]
+__all__ = [
+    "AudioClip",
+    "Device",
+    "DeviceCalibration",
+    "DeviceLevelSample",
+    "DeviceTelemetry",
+    "Event",
+    "EventClass",
+    "EventClassificationRevision",
+    "EventWitnessResponse",
+    "EventSpeakerCluster",
+    "LiveAudioAccess",
+    "NotificationRule",
+    "PushSubscription",
+    "ReviewRun",
+    "SpeakerCluster",
+    "User",
+]

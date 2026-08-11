@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0e1d19">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg">
+  <title>EventMonitorAI Dashboard</title>
+  <link rel="stylesheet" href="/styles.css?v=0.5.0-person-review">
+</head>
+<body>
+  <section id="auth" class="auth-shell">
+    <form id="login-form" class="panel auth-card">
+      <div class="brand-mark">EM</div>
+      <h1>EventMonitorAI</h1>
+      <p>Lokale Ereignisanalyse</p>
+      <label>Benutzername<input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Passwort<input id="password" type="password" autocomplete="current-password" required minlength="10"></label>
+      <button type="submit">Anmelden</button>
+      <span id="auth-error" class="error"></span>
+    </form>
+  </section>
+
+  <div id="app" class="app hidden">
+    <aside>
+      <div class="brand"><span class="brand-mark">EM</span><strong>EventMonitorAI</strong></div>
+      <nav>
+        <button class="nav active" data-view="overview">Übersicht</button>
+        <button class="nav" data-view="kpis">KPIs</button>
+        <button class="nav" data-view="sound-map">Messbereich</button>
+        <button id="audio-nav" class="nav hidden" data-view="audio">Live-Sound</button>
+        <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
+        <button class="nav" data-view="rules">Benachrichtigungen</button>
+        <button class="nav" data-view="support">Unterstützen</button>
+        <button class="nav" data-view="account">Mein Bereich</button>
+        <div id="admin-navigation" class="admin-navigation hidden" aria-label="Administration">
+          <span>Administration</span>
+          <button id="admin-nav" class="nav" data-view="administration">Benutzer &amp; Einstellungen</button>
+          <button id="devices-nav" class="nav" data-view="devices">Mikrofone</button>
+          <button id="people-nav" class="nav" data-view="people">Personen</button>
+          <button id="review-nav" class="nav" data-view="review">Audio-Lab</button>
+        </div>
+      </nav>
+      <div class="account"><span id="identity"></span><button id="push-enable" class="ghost hidden">Push aktivieren</button><button id="logout" class="ghost">Abmelden</button></div>
+    </aside>
+    <main>
+      <header>
+        <div><p class="eyebrow">AKUSTISCHE LAGE</p><h1 id="title">Übersicht</h1></div>
+        <div class="filters">
+          <select id="device-filter"><option value="">Alle Geräte</option></select>
+          <select id="days-filter"><option value="today" selected>Heute</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option><option value="single">Tag im Kalender wählen</option><option value="range">Zeitraum im Kalender wählen</option></select>
+          <input id="date-from-filter" class="hidden" type="date" aria-label="Startdatum im Kalender" title="Startdatum im Kalender wählen">
+          <input id="date-to-filter" class="hidden" type="date" aria-label="Enddatum im Kalender" title="Enddatum im Kalender wählen">
+        </div>
+      </header>
+
+      <section id="overview" class="view">
+        <div class="metrics">
+          <article><span>Ereignisse</span><strong id="m-total">–</strong><small>im Zeitraum</small></article>
+          <article><span>Ø Lautstärke</span><strong id="m-average">–</strong><small>dB</small></article>
+          <article><span>Spitzenpegel</span><strong id="m-max">–</strong><small>dB</small></article>
+          <article><span>Ø Konfidenz</span><strong id="m-confidence">–</strong><small>Modellwert</small></article>
+        </div>
+        <div class="grid">
+          <article class="panel span2"><div class="panel-head"><h2>Timeline</h2><span>tägliche Ereignisse</span></div><div id="timeline" class="timeline"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="categories"></div></article>
+          <article class="panel span3"><div class="panel-head"><h2>Aktivitäts-Heatmap</h2><span>Wochentag × Stunde</span></div><div id="heatmap" class="heatmap"></div></article>
+          <article class="panel span3"><div class="panel-head"><h2>Kalender</h2><span>gewählter Zeitraum</span></div><div id="calendar" class="calendar"></div></article>
+          <article class="panel span3"><div class="panel-head"><h2>Letzte 5 Ereignisse</h2><span>inklusive Zeugenreaktionen</span></div><div id="recent-events" class="recent-events"></div></article>
+        </div>
+      </section>
+
+      <section id="kpis" class="view hidden">
+        <div class="metrics kpi-metrics">
+          <article><span>Gesamtereignisse</span><strong id="k-total">–</strong><small>im gewählten Zeitraum</small></article>
+          <article><span>Überschreitungen</span><strong id="k-exceeded">–</strong><small id="k-exceeded-rate">–</small></article>
+          <article><span>95-%-Pegel</span><strong id="k-p95">–</strong><small>dB · nur 5 % lauter</small></article>
+          <article><span>Lärmdauer</span><strong id="k-duration">–</strong><small>kumulierte Ereignisdauer</small></article>
+        </div>
+        <div class="grid">
+          <article class="panel span2"><div class="panel-head"><h2>Belastungsverlauf</h2><span>Ereignisse und Überschreitungen je Tag</span></div><div id="kpi-daily" class="kpi-chart"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Top-Lärmarten</h2><span>häufigste erkannte Geräusche</span></div><div id="kpi-labels"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="kpi-categories"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Mikrofonvergleich</h2></div><div id="kpi-devices"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Tageszeiten</h2><span id="kpi-top-hour"></span></div><div id="kpi-hours" class="hour-bars"></div></article>
+        </div>
+      </section>
+
+      <section id="sound-map" class="view hidden">
+        <article class="panel">
+          <div class="panel-head"><h2>Schallausbreitung im Messbereich</h2><span id="sound-map-period">letzte 30 Tage · Überschreitung ab 55 dB</span></div>
+          <div id="map-positioning" class="map-positioning hidden">
+            <label>Mikrofon platzieren<select id="map-position-device"></select></label>
+            <span>Klicke auf die tatsächliche Position des ausgewählten Mikrofons im Luftbild.</span>
+          </div>
+          <div id="map-stage" class="map-stage">
+            <img src="/messbereich.png" alt="Messbereich aus der Roadmap">
+            <canvas id="map-heatmap"></canvas>
+            <div id="map-markers"></div>
+          </div>
+          <div id="map-legend" class="map-legend"><span>Leiser</span><i></i><span>Lauter</span></div>
+          <div id="map-unpositioned" class="management-help"></div>
+        </article>
+      </section>
+
+      <section id="live" class="view hidden">
+        <article class="panel live-level-panel">
+          <div class="panel-head"><h2 id="level-chart-title">Lautstärkepegel – letzte 10 Minuten</h2><label class="level-window">Zeitraum<select id="level-minutes"><option value="5">5 Minuten</option><option value="10" selected>10 Minuten</option><option value="30">30 Minuten</option><option value="60">60 Minuten</option></select></label></div>
+          <div id="level-chart" class="level-chart"></div>
+          <div class="level-chart-footer"><div id="level-legend" class="level-legend"></div><span id="level-chart-status">5-Sekunden-Werte · Aktualisierung alle 5 Sekunden</span></div>
+        </article>
+        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle offenen Ereignisse</option><option value="clips">Offene mit Aufnahme</option></select></label><label class="noise-toggle"><input id="show-resolved-events" type="checkbox"> Bearbeitete anzeigen</label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
+          <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span><span>Wiedergabe und Zuordnung</span></div>
+          <div id="events" class="events"></div>
+        </article>
+      </section>
+
+      <section id="audio" class="view hidden">
+        <article class="panel live-audio-panel">
+          <div class="panel-head"><h2>Live-Soundausgabe</h2><span>Nur administrativ freigegebene Mikrofone</span></div>
+          <div class="audio-controls">
+            <label>Mikrofon<select id="audio-device"></select></label>
+            <label>Lautstärke<input id="audio-volume" type="range" min="0" max="2" value="1" step="0.05"></label>
+            <label class="noise-toggle"><input id="audio-noise-filter" type="checkbox" checked> Rauschen reduzieren</label>
+            <button id="audio-toggle" type="button">Wiedergabe starten</button>
+            <button id="audio-test" type="button" class="ghost">Testton</button>
+            <span id="audio-status">Bereit</span>
+          </div>
+          <p class="management-help">Die Wiedergabe bleibt lokal im Browser. Auf dem Handy Medienlautstärke aktivieren und den Stummmodus ausschalten. Mit „Testton“ lässt sich die Browserausgabe unabhängig vom Mikrofon prüfen.</p>
+        </article>
+      </section>
+
+      <section id="review" class="view hidden">
+        <article class="panel import-panel">
+          <div class="panel-head"><h2>Historische Messungen importieren</h2><span>WAV, CSV oder ZIP · maximal 50 MB</span></div>
+          <form id="historical-import-form" class="import-form">
+            <label>Mikrofon<select id="import-device" required></select></label>
+            <label>Dateien<input id="import-files" type="file" accept=".wav,.csv,.zip,audio/wav,text/csv,application/zip" multiple required></label>
+            <button type="submit">Importieren und zur Analyse vormerken</button>
+          </form>
+          <p class="management-help">WAV-Dateien werden mit Pegelwert und Wiedergabe in die Sammelprüfung übernommen. CSV unterstützt die Spalten timestamp, db_level, label, confidence und device.</p>
+          <span id="import-status"></span>
+        </article>
+        <article class="panel people-panel">
+          <div class="panel-head"><h2>Automatisch erkannte Stimmgruppen</h2><button id="speaker-analyze" type="button">Vorhandene Aufnahmen gruppieren</button></div>
+          <p class="management-help">Ein eigener lokaler Stimmabdruck-Algorithmus gruppiert ähnliche Sprachaufnahmen zunächst anonym als „Person 1“, „Person 2“ usw. Die Prozentangabe beschreibt akustische Ähnlichkeit, nicht die Wahrscheinlichkeit einer Identität. Vor der Zuordnung zu einer bekannten Person sollten die Aufnahmen einzeln geprüft werden.</p>
+          <div id="speaker-clusters"></div><span id="speaker-status"></span>
+          <section id="speaker-review" class="speaker-review hidden">
+            <div class="panel-head"><h3 id="speaker-review-title">Stimmgruppe prüfen</h3><button id="speaker-review-close" class="ghost" type="button">Schließen</button></div>
+            <div class="speaker-review-toolbar"><label>Prüfstatus<select id="speaker-review-filter"><option value="pending">Ungeprüft</option><option value="confirmed">Bestätigt</option><option value="rejected">Nicht passend</option><option value="no_voice">Keine Stimme</option><option value="all">Alle</option></select></label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="speaker-review-count"></span></div>
+            <p class="management-help">„Bestätigen“ nimmt den Clip in das geprüfte Stimmprofil auf. „Nicht passend“ und „Keine Stimme“ schließen ihn dauerhaft aus. Verschobene Clips werden in der Zielgruppe erneut zur Prüfung vorgelegt.</p>
+            <div id="speaker-samples"></div>
+            <button id="speaker-review-more" class="ghost hidden" type="button">Weitere Aufnahmen laden</button>
+          </section>
+        </article>
+        <article class="panel learning-guide">
+          <div class="panel-head"><h2>So lernt die Klassifizierung</h2><span>Bestätigen → lernen → automatisch anwenden</span></div>
+          <ol><li>Ereignis anhören und Basis- sowie Feinzuordnung bestätigen.</li><li>Ab drei übereinstimmenden Bestätigungen mit mindestens 80 % Eindeutigkeit wird das ursprüngliche KI-Label künftig automatisch zugeordnet.</li><li>„Wind“, „Umgebung/Natur“ und technische Störungen werden gelernt, aber standardmäßig aus Übersicht, Karte und Live-Strom ausgeblendet.</li><li>„Kein Lärm / verwerfen“ löscht Ereignis und Aufnahme. Nach drei Bestätigungen wird dasselbe Modellmuster bereits beim Eingang verworfen.</li><li>Der Prüflauf arbeitet offene automatische Vorschläge erneut ab; manuelle Bestätigungen bleiben unverändert.</li></ol>
+        </article>
+        <div class="metrics review-metrics">
+          <article><span>Offen · unbekannt</span><strong id="r-open-unknown">–</strong></article>
+          <article><span>Offen · KI erkannt</span><strong id="r-open-recognized">–</strong></article>
+          <article><span>Erledigt · unbekannt</span><strong id="r-done-unknown">–</strong></article>
+          <article><span>Erledigt · erkannt</span><strong id="r-done-recognized">–</strong></article>
+        </div>
+        <article class="panel">
+          <div class="panel-head"><h2>Klassenprüfung</h2><span>Klasse wählen und identische Ereignisse gesammelt bestätigen</span></div>
+          <div id="review-classes" class="class-tiles"></div>
+          <div class="review-toolbar">
+            <select id="review-status"><option value="open">Offen</option><option value="completed">Erledigt</option><option value="all">Alle</option></select>
+            <button id="review-select-all" type="button" class="ghost">Alle sichtbaren wählen</button>
+            <label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label>
+            <span id="review-selection">0 ausgewählt</span>
+          </div>
+          <p class="management-help">Die Rauschunterdrückung wirkt nur auf die Wiedergabe. Originalaufnahme, Messwert und Trainingsdatei bleiben unverändert.</p>
+          <div id="review-events" class="review-events"></div>
+          <form id="review-bulk-form" class="review-bulk">
+            <label>Basisklasse<select id="review-primary" required></select></label>
+            <label>Feinzuordnung<select id="review-subclass"></select></label>
+            <label>Begründung<input id="review-reason" minlength="3" value="Sammelprüfung im Audio-Lab" required></label>
+            <button type="submit">Auswahl bestätigen</button>
+          </form>
+          <span id="review-status-text"></span>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2>Automatisierte Prüfläufe</h2><span>Nächtlich um 03:00 Uhr · manuelle Zuordnungen bleiben unverändert</span></div>
+          <div class="review-toolbar"><button id="review-run" type="button">Prüflauf starten</button></div>
+          <div id="review-runs"></div>
+        </article>
+        <article class="panel assessment-reference">
+          <div class="panel-head"><h2>Beurteilungszeiten und Referenzwerte</h2><span>Zeitzone Europe/Berlin</span></div>
+          <p>Tag 06:00–19:00: 50 dB(A) · Abend 19:00–22:00: 35 dB(A) · Nacht 22:00–06:00: 35 dB(A)</p>
+          <p>+6 dB zu empfindlichen Zeiten: werktags 06:00–07:00 und 20:00–22:00; sonn- und bundesweite Feiertage 06:00–09:00, 13:00–15:00 und 20:00–22:00.</p>
+        </article>
+      </section>
+
+      <section id="devices" class="view hidden">
+        <article id="device-management" class="panel device-management">
+          <div class="panel-head"><h2>Mikrofonverwaltung</h2><span>Name · Position · Status</span></div>
+          <p class="management-help">Die Position wird in Prozent relativ zur später hinterlegten Messbereichskarte angegeben.</p>
+          <div id="device-management-list"></div>
+          <span id="device-management-status"></span>
+        </article>
+        <form id="calibration-form" class="panel calibration-controls">
+          <div><h2>Gemeinsame Pegelkalibrierung</h2><p>Alle Mikrofone derselben Referenzquelle aussetzen und den tatsächlichen Referenzpegel eintragen.</p></div>
+          <label>Pegelbereich<select id="calibration-level"><option value="low">Leise</option><option value="medium">Mittel</option><option value="high">Laut</option></select></label>
+          <label>Referenzwert (dB)<input id="calibration-reference" type="number" min="0" max="140" step="0.1" required></label>
+          <button type="submit">Alle Online-Mikrofone erfassen</button>
+          <span id="calibration-status"></span>
+        </form>
+        <article class="panel calibration-import">
+          <div class="panel-head"><h2>CSV-Referenzmessung abgleichen</h2><span>mindestens 12 Werte · empfohlen 1–3 Minuten</span></div>
+          <form id="calibration-import-form" class="import-form">
+            <label>Referenz-CSV<input id="calibration-file" type="file" accept=".csv,text/csv" required></label>
+            <label>Zeit-Toleranz<select id="calibration-tolerance"><option value="2">± 2 Sekunden</option><option value="3" selected>± 3 Sekunden</option><option value="5">± 5 Sekunden</option><option value="10">± 10 Sekunden</option></select></label>
+            <fieldset><legend>Mikrofone vergleichen</legend><div id="calibration-reference-devices" class="device-checks"></div></fieldset>
+            <button type="submit">CSV vergleichen</button>
+          </form>
+          <p class="management-help">Unterstützt werden das bestehende Langzeitformat <code>Date, Time, Current (dB-A), Max (dB-A), Average (dB-A)</code> sowie <code>timestamp,reference_db</code> oder <code>zeit/dezibel</code>. Die Datei muss nicht umformatiert werden. Erst nach Prüfung wird der empfohlene Offset ausdrücklich angewendet.</p>
+          <span id="calibration-import-status"></span>
+          <div id="calibration-reference-runs"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2>Gerätestatus und Transportqualität</h2><span>Aktualisierung alle 30 Sekunden</span></div>
+          <div id="device-health" class="device-health"></div>
+        </article>
+        <article class="panel calibration-results">
+          <div class="panel-head"><h2>Kalibrierprotokoll</h2><span>Leise · Mittel · Laut</span></div>
+          <div id="calibration-list"></div>
+        </article>
+        <article class="panel people-shortcut">
+          <div class="panel-head"><h2>Personenprofile</h2><span>Stimmereignisse nur nach manueller Bestätigung</span></div>
+          <p class="management-help">Personenprofile werden im Audio-Lab angelegt. Anschließend können bestätigte Rufen-/Schreien-Ereignisse einem Profil zugeordnet werden; erst daraus entsteht ein akustisches Vergleichsprofil.</p>
+          <button id="open-people" type="button">Personenprofile im Audio-Lab öffnen</button>
+        </article>
+      </section>
+
+      <section id="rules" class="view hidden">
+        <div class="rules-layout">
+          <form id="rule-form" class="panel">
+            <h2>Neue Regel</h2>
+            <label>Name<input id="rule-name" required></label>
+            <label>Kategorie<input id="rule-category" value="*" placeholder="*"></label>
+            <label>Gerät<select id="rule-device"><option value="*">Alle Geräte</option></select></label>
+            <label>Mindest-Konfidenz<input id="rule-confidence" type="number" min="0" max="1" step=".05" value=".7"></label>
+            <label>Mindestpegel (dB)<input id="rule-db" type="number" value="0"></label>
+            <label>Cooldown (Sekunden)<input id="rule-cooldown" type="number" min="0" value="60"></label>
+            <button type="submit">Regel speichern</button>
+          </form>
+          <article class="panel"><div class="panel-head"><h2>Aktive Regeln</h2><span>Home Assistant</span></div><div id="rule-list"></div></article>
+        </div>
+      </section>
+
+      <section id="support" class="view hidden support-page">
+        <article class="panel support-hero">
+          <div><p class="eyebrow">GEMEINSAM IN DER NACHBARSCHAFT</p><h2>Für ein ruhigeres und sauberes Wohnumfeld</h2><p>EventMonitorAI soll Belastungen nachvollziehbar machen und eine sachliche Grundlage für gemeinsame Verbesserungen schaffen. Wer Interesse hat, kann sich mit Zeit, Beobachtungen, Technik, Ideen oder freiwilliger finanzieller Unterstützung beteiligen.</p></div>
+          <div class="support-total"><span>Nachweisbare Ausgaben</span><strong>mindestens 349,73 €</strong><small>zuzüglich IONOS-Domain, 24/7-Strom und persönlicher Arbeitszeit</small></div>
+        </article>
+        <div class="support-costs">
+          <article class="support-cost"><span>Messhardware</span><strong>24,95 €</strong><p>2er-Pack Freenove ESP32-S3 N16R8</p></article>
+          <article class="support-cost"><span>Mikrofone</span><strong>11,55 €</strong><p>5er-Pack INMP441-I²S-Mikrofonmodule · zwei davon im Einsatz</p></article>
+          <article class="support-cost"><span>KI-Werkzeuge</span><strong>60 €+</strong><p>3 Monate · mindestens 20 € je Monat</p></article>
+          <article class="support-cost"><span>Analyse-Rechner</span><strong>139,90 €</strong><p>Raspberry Pi 4B mit 4 GB RAM für die lokale KI-Analyse</p></article>
+          <article class="support-cost"><span>Datenspeicher</span><strong>110,33 €</strong><p>Samsung 870 EVO SSD mit 250 GB für Ereignisse, Modelle und Audioclips</p></article>
+          <article class="support-cost estimate"><span>Eigenbau-Gehäuse</span><strong>ca. 3,00 €</strong><p>Selbst im 3D-Druck gefertigt · geschätzte Filamentkosten</p></article>
+          <article class="support-cost recurring"><span>24/7-Betrieb</span><strong>laufend</strong><p>Strom für Sensoren, Raspberry Pi, Server und Netzwerk</p></article>
+          <article class="support-cost recurring"><span>Öffentliche Bereitstellung</span><strong>laufend</strong><p>IONOS-Domain eventmonitor.eu und sichere Erreichbarkeit für die Nachbarschaft</p></article>
+        </div>
+        <div class="support-columns">
+          <article class="panel"><div class="panel-head"><h2>Was bereits eingebracht wurde</h2><span>seit über 3 Monaten</span></div><ul class="support-list"><li>Planung der Messstellen und Systemarchitektur</li><li>Firmware und 24/7-Betrieb von zwei ESP32-Sensoren</li><li>Raspberry-Pi-, Netzwerk-, Docker- und Dashboard-Einrichtung</li><li>IONOS-Domain, Subdomain und sichere öffentliche Bereitstellung</li><li>Kalibrierung, Audioprüfung und manuelle Ereignisklassifizierung</li><li>KI-Auswertung, Fehleranalyse, Tests und laufende Verbesserung</li></ul><p class="support-note">Die genaue Stundenzahl wurde bislang nicht erfasst. Daher wird keine künstliche Arbeitskosten-Summe ausgewiesen.</p></article>
+          <article class="panel"><div class="panel-head"><h2>So kann man mitmachen</h2><span>jeder Beitrag hilft</span></div><div class="support-examples"><span><b>Beobachtungen</b> Ereignisse sachlich melden oder bestätigen</span><span><b>Zeit und Wissen</b> Aufnahmen prüfen, Ideen testen oder Technik unterstützen</span><span><b>Ausstattung</b> Sensoren, Gehäuse, Kabel oder Speicher beitragen</span><span><b>Freiwilliger Beitrag</b> Betrieb und Weiterentwicklung mitfinanzieren</span></div><a id="support-link" class="support-button disabled" aria-disabled="true">Unterstützungslink wird eingerichtet</a><p class="support-note">Unterstützung ist freiwillig und hat keinen Einfluss auf Benutzerrechte, Bewertungen oder Auswertungen.</p></article>
+        </div>
+        <article class="panel investment-goal">
+          <div class="panel-head"><h2>Nächste geplante Investition: normgerechte Referenzmessstation</h2><span>Planungsstand 10.08.2026</span></div>
+          <p class="investment-intro">Eine unabhängige Referenzmessung soll die aktuellen ESP32-Werte dauerhaft vergleichen und kalibrieren. Geplant ist eine vollständige Klasse-2-Messkette mit eigenem Raspberry-Pi-Gateway – nicht nur ein einzelnes Mikrofon.</p>
+          <div class="investment-layout"><div class="investment-items">
+            <div><span>Integrierender Schallpegelmesser CA 1310 · IEC 61672-1 Klasse 2 · Leq, Logger, Micro-USB</span><b>712,81 €</b></div>
+            <div><span>Akustischer Klasse-2-Kalibrator zur dokumentierten Prüfung vor und nach Messungen</span><b>451,01 €</b></div>
+            <div><span>Zusätzliches Raspberry-Pi-Gateway inklusive Netzteil und Basisspeicher · Planwert</span><b>120,00 €</b></div>
+            <div><span>Wetterfestes Gehäuse, Windschutz, Schnittstellen, Kabel und Montage · Reserve</span><b>150,00 €</b></div>
+            <div class="investment-sum"><span>Rechnerischer Bedarf 1.433,82 € · aufgerundetes Finanzierungsziel</span><b>1.450,00 €</b></div>
+          </div><div class="funding-status"><span>Gemeinsam finanziert</span><strong id="support-collected">0,00 €</strong><div class="funding-progress"><i id="support-progress"></i></div><b id="support-open">Noch offen: 1.450,00 €</b><small>Beiträge werden nach Eingang transparent aktualisiert.</small></div></div>
+          <p class="legal-measurement-note"><strong>Wichtige Einordnung:</strong> Die Klasse-2-Station verbessert Vergleichbarkeit und Dokumentation erheblich, garantiert aber keine gerichtliche Anerkennung. Für förmliche Messungen nach TA Lärm können ein geeichter Klasse-1-Schallpegelmesser, fachkundige Durchführung und ein vollständiges Messprotokoll erforderlich sein. Vor dem Kauf wird außerdem geprüft, ob die USB-Schnittstelle zuverlässig mit dem Raspberry Pi automatisierbar ist.</p>
+        </article>
+        <article class="panel support-transparency"><h2>Transparenz statt Spendenaufruf</h2><p>Die Aufstellung zeigt, was für das gemeinsame Projekt bereits eingesetzt wurde. Die nachweisbaren Kaufpreise und die mit rund 3 € geschätzten Filamentkosten ergeben zusammen mindestens 349,73 €. Noch nicht eingerechnet sind IONOS-Domain, Strom für den durchgängigen Betrieb, Netzwerk- und Serverbetrieb sowie persönliche Arbeitszeit. Weitere Beträge werden nur ergänzt, wenn sie belastbar vorliegen.</p></article>
+      </section>
+
+      <section id="people" class="view hidden">
+        <article class="panel people-panel">
+          <div class="panel-head"><h2>Personenprofile verwalten</h2><span>Nur für Administratoren</span></div>
+          <form id="person-create-form" class="person-create"><label>Neue Person / Bezeichnung<input id="person-name" maxlength="100" placeholder="z. B. Person Garten Nord" required></label><button type="submit">Person anlegen</button></form>
+          <p class="management-help">Namen, Bilder, Videos und Stimmvergleiche sind manuell gepflegte Prüfhinweise und keine automatisch festgestellte Identität. Wird „In Lärmüberwachung einbeziehen“ deaktiviert, bleiben zugeordnete Ereignisse sichtbar, fließen aber nicht in Lärmkennzahlen und Belastungsbewertung ein.</p>
+          <div id="people-list"></div><span id="people-status"></span>
+        </article>
+      </section>
+
+      <section id="account" class="view hidden">
+        <div class="metrics">
+          <article><span>Tarif</span><strong id="account-plan">–</strong><small id="account-subscription">–</small></article>
+          <article><span>Eigene Mikrofone</span><strong id="account-devices">–</strong><small id="account-device-limit">–</small></article>
+          <article><span>Eigene Ereignisse</span><strong id="account-events">–</strong><small>mandantengeschützt</small></article>
+          <article><span>Aufbewahrung</span><strong id="account-retention">–</strong><small>Tage</small></article>
+        </div>
+        <article class="panel"><div class="panel-head"><h2 id="account-tenant">Mein Kundenbereich</h2><span id="account-role"></span></div><p class="management-help">Alle Dashboard-KPIs, Ereignisse, Mikrofone, Kalibrierungen, Audioaufnahmen und Lärmprotokolle werden ausschließlich diesem Kundenbereich zugeordnet. Abonnementstatus und Benutzerrolle sind getrennte Einstellungen.</p></article>
+      </section>
+
+      <section id="administration" class="view hidden">
+        <article id="tenant-management" class="panel hidden">
+          <div class="panel-head"><h2>Kundenbereiche und Abonnements</h2><span>Plattformverwaltung</span></div>
+          <form id="tenant-create-form" class="class-create"><label>Name<input id="tenant-name" required maxlength="120"></label><label>Kurzname<input id="tenant-slug" required pattern="[a-z0-9][a-z0-9-]{1,78}[a-z0-9]"></label><label>Administrator<input id="tenant-admin" required maxlength="80"></label><label>Startpasswort<input id="tenant-password" type="password" minlength="10" required></label><label>Tarif<input id="tenant-plan" value="pilot" required></label><label>Gerätelimit<input id="tenant-max-devices" type="number" min="1" max="100" value="2"></label><label>Aufbewahrung (Tage)<input id="tenant-retention" type="number" min="1" max="3650" value="30"></label><button type="submit">Kundenbereich anlegen</button></form>
+          <span id="tenant-status"></span><div id="tenant-list"></div>
+        </article>
+        <article id="website-analytics" class="panel hidden">
+          <div class="panel-head"><h2>Öffentliche Website-Zugriffe</h2><span>letzte 30 Tage · datensparsam</span></div>
+          <p class="management-help">Erreichbare IP-Adressen werden nur als gekürztes Netz angezeigt und täglich neu pseudonymisiert. Unter Docker Desktop verbirgt das Gateway die echte Quell-IP; unterschiedliche Besucher sind dort eine datensparsame Näherung aus täglich wechselndem Prüfwert und Browserkennung. Es werden keine Cookies eingesetzt.</p>
+          <div id="website-analytics-summary" class="metrics"></div>
+          <div id="website-analytics-list"></div>
+        </article>
+        <form id="assessment-config-form" class="panel assessment-config">
+          <div class="panel-head"><h2>Beurteilungszuschlag</h2><span>Empfindliche Tageszeiten</span></div>
+          <p class="management-help">Der Zuschlag bleibt im Lärmprotokoll ausgewiesen. Hier wird festgelegt, ob er zusätzlich in die aktuelle Dashboard-Bewertung eingerechnet wird.</p>
+          <div class="config-row"><label>Zuschlag (dB)<input id="surcharge-db" type="number" min="0" max="20" step="0.5" value="6"></label><label class="active-toggle"><input id="surcharge-live" type="checkbox"> In aktueller/live Bewertung einrechnen</label><button type="submit">Einstellung speichern</button></div>
+          <span id="assessment-config-status"></span>
+        </form>
+        <article id="audio-permissions" class="panel device-management hidden">
+          <div class="panel-head"><h2>Benutzerrechte für Live-Sound</h2><span>Pro Benutzer und Mikrofon</span></div>
+          <p class="management-help">Administratoren verwalten alles. Operatoren dürfen Ereignisse zuordnen. Betrachter dürfen ausschließlich ansehen. Der Zugriff auf Live-Audio wird zusätzlich je Benutzer und Mikrofon freigegeben; ohne Freigabe ist die Funktion verborgen.</p>
+          <div id="audio-permission-list"></div>
+          <span id="audio-permission-status"></span>
+        </article>
+        <div class="rules-layout">
+          <form id="user-create-form" class="panel">
+            <h2>Benutzer anlegen</h2>
+            <label>Benutzername<input id="new-username" maxlength="80" required></label>
+            <label>Passwort<input id="new-password" type="password" minlength="10" required></label>
+            <label>Passwort bestätigen<input id="new-password-confirm" type="password" minlength="10" required></label>
+            <label>Rolle<select id="new-role"><option value="viewer">Betrachter</option><option value="operator">Operator</option><option value="admin">Administrator</option></select></label>
+            <button type="submit">Benutzer anlegen</button>
+            <span id="user-create-status"></span>
+          </form>
+          <article class="panel"><div class="panel-head"><h2>Rollen und Zugriff</h2><span>Admin · Operator · Betrachter</span></div><div id="user-list"></div><span id="user-status"></span></article>
+        </div>
+        <article class="panel class-management">
+          <div class="panel-head"><h2>KI-Klassenkatalog</h2><span>Gemeinsam für Live-Analyse und AudioLab</span></div>
+          <div class="class-help">
+            <p><strong>Basisklasse</strong> ist die Hauptgruppe, zum Beispiel Hupen. <strong>Feinzuordnung</strong> ist die konkrete Unterart und wird über „Zugeordnet zu“ mit ihrer Basisklasse verbunden.</p>
+            <p><strong>Aktiv</strong> zeigt die Klasse in Auswahlfeldern. <strong>Trainierbar</strong> erlaubt bestätigte Beispiele fürs KI-Training. <strong>Ausblenden</strong> verbirgt Treffer standardmäßig in Lagebild und Live-Strom, bewahrt sie aber für Prüfung und Training.</p>
+          </div>
+          <form id="class-create-form" class="class-create">
+            <label>Code<input id="class-code" pattern="[A-Z0-9_]{2,80}" placeholder="BALL_WOOD" required></label>
+            <label>Name<input id="class-name" maxlength="120" required></label>
+            <label>Ebene<select id="class-level"><option value="base">Basisklasse</option><option value="fine">Feinzuordnung</option></select></label>
+            <label>Zugeordnet zu<select id="class-parent"><option value="">Keine</option></select></label>
+            <label class="active-toggle"><input id="class-hidden" type="checkbox"> Standardmäßig ausblenden</label>
+            <button type="submit">Klasse anlegen</button>
+          </form>
+          <span id="class-status"></span>
+          <div id="class-list"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js?v=0.6.1-website-analytics"></script>
+</body>
+</html>
