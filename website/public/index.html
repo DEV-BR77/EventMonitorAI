@@ -1,8 +1,167 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="EventMonitorAI dokumentiert lokale Geräuschereignisse transparent, lernfähig und datenschutzbewusst."><title>EventMonitorAI – Akustische Lage gemeinsam verstehen</title><link rel="stylesheet" href="/styles.css"></head><body>
-<header><div class="topbar"><a class="brand" href="/"><span class="mark">EM</span><span>EventMonitorAI</span></a><nav><a href="#projekt">Projekt</a><a href="#technik">Technik</a><a href="#verantwortung">Verantwortung</a><a class="button" href="https://dashboard.eventmonitor.eu">Zum Dashboard</a></nav></div></header>
-<main><section class="hero"><div><p class="eyebrow">Gemeinsam genauer hinhören</p><h1>Lärm sichtbar machen. Sachlich handeln.</h1><p>EventMonitorAI ist ein lokal betriebenes Nachbarschaftsprojekt. Zwei Messstellen erfassen akustische Ereignisse, eine lokale KI unterstützt bei der Einordnung und ein geschütztes Dashboard macht Entwicklungen nachvollziehbar.</p><div class="actions"><a class="button" href="#projekt">Projekt kennenlernen</a><a class="button secondary" href="https://dashboard.eventmonitor.eu">Geschützter Zugang</a></div></div><aside class="signal" aria-label="Stilisierter Schallpegel"><div class="signal-bars"><i style="--h:20%;--o:.35"></i><i style="--h:38%;--o:.5"></i><i style="--h:65%;--o:.75"></i><i style="--h:92%;--o:1"></i><i style="--h:58%;--o:.7"></i><i style="--h:34%;--o:.5"></i><i style="--h:18%;--o:.35"></i></div><strong>24 / 7</strong><p>lokal betrieben · gemeinschaftlich verbessert</p></aside></section>
-<section id="projekt" class="section"><p class="eyebrow">Das Projekt</p><h2>Von einzelnen Eindrücken zu nachvollziehbaren Zeitverläufen.</h2><p class="intro">Das System verbindet kostengünstige ESP32-Messstellen mit lokaler Verarbeitung, Audioausschnitten zu relevanten Ereignissen und einer lernenden Klassifizierung. Bestätigungen helfen dabei, typische Geräusche der Umgebung immer besser zu unterscheiden.</p><div class="grid"><article class="card"><span>01 · ERFASSEN</span><h3>Dezentrale Messstellen</h3><p>Zwei ESP32-S3 mit digitalen Mikrofonen liefern Pegel- und Audiodaten an die lokale Infrastruktur.</p></article><article class="card"><span>02 · EINORDNEN</span><h3>Lokale KI-Analyse</h3><p>Geräuschklassen, Zeitverläufe und wiederkehrende Muster werden analysiert und manuell überprüft.</p></article><article class="card"><span>03 · VERSTEHEN</span><h3>Geschütztes Dashboard</h3><p>Kalender, KPIs, Ereignisse und Lärmprotokolle stehen ausschließlich berechtigten Benutzern zur Verfügung.</p></article></div></section>
-<section id="technik" class="section"><p class="eyebrow">Technik & Betrieb</p><h2>Die Daten bleiben unter eigener Kontrolle.</h2><div class="facts"><div class="fact"><strong>2</strong>aktive Mikrofone</div><div class="fact"><strong>lokal</strong>KI und Datenbank</div><div class="fact"><strong>TLS</strong>verschlüsselter Zugriff</div><div class="fact"><strong>offen</strong>manuell prüfbare Zuordnung</div></div><p class="notice"><strong>Wichtige Einordnung:</strong> Die aktuellen ESP32-Messstellen sind keine geeichten Schallpegelmesser. Ihre Werte unterstützen Beobachtung, Vergleich und Dokumentation, ersetzen aber keine behördliche oder sachverständige Messung. Eine Klasse-2-Referenzmessstation ist als nächste Ausbaustufe geplant.</p></section>
-<section id="verantwortung" class="section"><p class="eyebrow">Verantwortung</p><h2>Transparenz und Datenschutz gehören zur Messung.</h2><div class="grid"><article class="card"><h3>Keine öffentliche Ereigniskarte</h3><p>Audio, genaue Messstellen, Personenbezüge und Ereignisse werden nicht auf dieser öffentlichen Webseite gezeigt.</p></article><article class="card"><h3>Zugriff nach Rolle</h3><p>Dashboard-Funktionen und Live-Audio sind geschützt und werden je Benutzer und Kundenbereich freigegeben.</p></article><article class="card"><h3>KI bleibt ein Hinweis</h3><p>Geräusch- und Stimmähnlichkeiten sind Modellvorschläge und keine zweifelsfreie Identitätsfeststellung.</p></article></div></section>
-<section class="cta"><div><h2>Du möchtest das Projekt unterstützen?</h2><p>Mit Beobachtungen, technischem Wissen, Klassifizierung oder einem freiwilligen Beitrag.</p></div><a class="button" href="https://paypal.me/RadkeB" rel="noopener noreferrer">Projekt unterstützen</a></section></main>
-<footer><span>© 2026 EventMonitorAI</span><div><a href="/impressum.html">Impressum</a><a href="/datenschutz.html">Datenschutz</a><a href="https://dashboard.eventmonitor.eu">Dashboard</a></div></footer></body></html>
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="EventMonitorAI dokumentiert lokale Geräuschereignisse transparent, lernfähig und datenschutzbewusst."
+    />
+    <title>EventMonitorAI – Akustische Lage gemeinsam verstehen</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="topbar">
+        <a class="brand" href="/"
+          ><span class="mark">EM</span><span>EventMonitorAI</span></a
+        >
+        <nav>
+          <a href="#projekt">Projekt</a><a href="#technik">Technik</a
+          ><a href="#verantwortung">Verantwortung</a
+          ><a class="button" href="https://dashboard.eventmonitor.eu"
+            >Zum Dashboard</a
+          >
+        </nav>
+      </div>
+    </header>
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Gemeinsam genauer hinhören</p>
+          <h1>Lärm sichtbar machen. Sachlich handeln.</h1>
+          <p>
+            EventMonitorAI ist ein lokal betriebenes Nachbarschaftsprojekt. Zwei
+            Messstellen erfassen akustische Ereignisse, eine lokale KI
+            unterstützt bei der Einordnung und ein geschütztes Dashboard macht
+            Entwicklungen nachvollziehbar.
+          </p>
+          <div class="actions">
+            <a class="button" href="#projekt">Projekt kennenlernen</a
+            ><a
+              class="button secondary"
+              href="https://dashboard.eventmonitor.eu"
+              >Geschützter Zugang</a
+            >
+          </div>
+        </div>
+        <aside class="signal" aria-label="Stilisierter Schallpegel">
+          <div class="signal-bars">
+            <i style="--h: 20%; --o: 0.35"></i><i style="--h: 38%; --o: 0.5"></i
+            ><i style="--h: 65%; --o: 0.75"></i><i style="--h: 92%; --o: 1"></i
+            ><i style="--h: 58%; --o: 0.7"></i><i style="--h: 34%; --o: 0.5"></i
+            ><i style="--h: 18%; --o: 0.35"></i>
+          </div>
+          <strong>24 / 7</strong>
+          <p>lokal betrieben · gemeinschaftlich verbessert</p>
+        </aside>
+      </section>
+      <section id="projekt" class="section">
+        <p class="eyebrow">Das Projekt</p>
+        <h2>Von einzelnen Eindrücken zu nachvollziehbaren Zeitverläufen.</h2>
+        <p class="intro">
+          Das System verbindet kostengünstige ESP32-Messstellen mit lokaler
+          Verarbeitung, Audioausschnitten zu relevanten Ereignissen und einer
+          lernenden Klassifizierung. Bestätigungen helfen dabei, typische
+          Geräusche der Umgebung immer besser zu unterscheiden.
+        </p>
+        <div class="grid">
+          <article class="card">
+            <span>01 · ERFASSEN</span>
+            <h3>Dezentrale Messstellen</h3>
+            <p>
+              Zwei ESP32-S3 mit digitalen Mikrofonen liefern Pegel- und
+              Audiodaten an die lokale Infrastruktur.
+            </p>
+          </article>
+          <article class="card">
+            <span>02 · EINORDNEN</span>
+            <h3>Lokale KI-Analyse</h3>
+            <p>
+              Geräuschklassen, Zeitverläufe und wiederkehrende Muster werden
+              analysiert und manuell überprüft.
+            </p>
+          </article>
+          <article class="card">
+            <span>03 · VERSTEHEN</span>
+            <h3>Geschütztes Dashboard</h3>
+            <p>
+              Kalender, KPIs, Ereignisse und Lärmprotokolle stehen
+              ausschließlich berechtigten Benutzern zur Verfügung.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section id="technik" class="section">
+        <p class="eyebrow">Technik & Betrieb</p>
+        <h2>Die Daten bleiben unter eigener Kontrolle.</h2>
+        <div class="facts">
+          <div class="fact"><strong>2</strong>aktive Mikrofone</div>
+          <div class="fact"><strong>lokal</strong>KI und Datenbank</div>
+          <div class="fact"><strong>TLS</strong>verschlüsselter Zugriff</div>
+          <div class="fact">
+            <strong>offen</strong>manuell prüfbare Zuordnung
+          </div>
+        </div>
+        <p class="notice">
+          <strong>Wichtige Einordnung:</strong> Die aktuellen ESP32-Messstellen
+          sind keine geeichten Schallpegelmesser. Ihre Werte unterstützen
+          Beobachtung, Vergleich und Dokumentation, ersetzen aber keine
+          behördliche oder sachverständige Messung. Eine
+          Klasse-2-Referenzmessstation ist als nächste Ausbaustufe geplant.
+        </p>
+      </section>
+      <section id="verantwortung" class="section">
+        <p class="eyebrow">Verantwortung</p>
+        <h2>Transparenz und Datenschutz gehören zur Messung.</h2>
+        <div class="grid">
+          <article class="card">
+            <h3>Keine öffentliche Ereigniskarte</h3>
+            <p>
+              Audio, genaue Messstellen, Personenbezüge und Ereignisse werden
+              nicht auf dieser öffentlichen Webseite gezeigt.
+            </p>
+          </article>
+          <article class="card">
+            <h3>Zugriff nach Rolle</h3>
+            <p>
+              Dashboard-Funktionen und Live-Audio sind geschützt und werden je
+              Benutzer und Kundenbereich freigegeben.
+            </p>
+          </article>
+          <article class="card">
+            <h3>KI bleibt ein Hinweis</h3>
+            <p>
+              Geräusch- und Stimmähnlichkeiten sind Modellvorschläge und keine
+              zweifelsfreie Identitätsfeststellung.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="cta">
+        <div>
+          <h2>Du möchtest das Projekt unterstützen?</h2>
+          <p>
+            Mit Beobachtungen, technischem Wissen, Klassifizierung oder einem
+            freiwilligen Beitrag.
+          </p>
+        </div>
+        <a
+          class="button"
+          href="https://paypal.me/RadkeB"
+          rel="noopener noreferrer"
+          >Projekt unterstützen</a
+        >
+      </section>
+    </main>
+    <img src="/visit.gif" alt="" width="1" height="1" aria-hidden="true" />
+    <footer>
+      <span>© 2026 EventMonitorAI</span>
+      <div>
+        <a href="/impressum.html">Impressum</a
+        ><a href="/datenschutz.html">Datenschutz</a
+        ><a href="https://dashboard.eventmonitor.eu">Dashboard</a>
+      </div>
+    </footer>
+  </body>
+</html>

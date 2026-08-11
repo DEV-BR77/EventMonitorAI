@@ -12,5 +12,12 @@ eventmonitor.eu, www.eventmonitor.eu {
     -Server
   }
 
-  reverse_proxy host.docker.internal:8016
+  handle /visit.gif {
+    rewrite * /public/visit.gif
+    reverse_proxy host.docker.internal:8015
+  }
+
+  handle {
+    reverse_proxy host.docker.internal:8016
+  }
 }

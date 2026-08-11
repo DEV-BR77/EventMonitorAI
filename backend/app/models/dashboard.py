@@ -78,6 +78,19 @@ class DeviceCredential(Base):
     last_used_at: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
+class WebsiteVisit(Base):
+    __tablename__ = "website_visits"
+    __table_args__ = (UniqueConstraint("visit_date", "visitor_hash"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    visit_date: Mapped[str] = mapped_column(String(10), index=True)
+    visitor_hash: Mapped[str] = mapped_column(String(64), index=True)
+    masked_ip: Mapped[str] = mapped_column(String(80))
+    views: Mapped[int] = mapped_column(Integer, default=1)
+    first_seen_at: Mapped[str] = mapped_column(String, default=utc_now)
+    last_seen_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
 class Device(TenantScopedMixin, Base):
     __tablename__ = "devices"
 

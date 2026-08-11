@@ -311,6 +311,12 @@
           <form id="tenant-create-form" class="class-create"><label>Name<input id="tenant-name" required maxlength="120"></label><label>Kurzname<input id="tenant-slug" required pattern="[a-z0-9][a-z0-9-]{1,78}[a-z0-9]"></label><label>Administrator<input id="tenant-admin" required maxlength="80"></label><label>Startpasswort<input id="tenant-password" type="password" minlength="10" required></label><label>Tarif<input id="tenant-plan" value="pilot" required></label><label>Gerätelimit<input id="tenant-max-devices" type="number" min="1" max="100" value="2"></label><label>Aufbewahrung (Tage)<input id="tenant-retention" type="number" min="1" max="3650" value="30"></label><button type="submit">Kundenbereich anlegen</button></form>
           <span id="tenant-status"></span><div id="tenant-list"></div>
         </article>
+        <article id="website-analytics" class="panel hidden">
+          <div class="panel-head"><h2>Öffentliche Website-Zugriffe</h2><span>letzte 30 Tage · datensparsam</span></div>
+          <p class="management-help">Erreichbare IP-Adressen werden nur als gekürztes Netz angezeigt und täglich neu pseudonymisiert. Unter Docker Desktop verbirgt das Gateway die echte Quell-IP; unterschiedliche Besucher sind dort eine datensparsame Näherung aus täglich wechselndem Prüfwert und Browserkennung. Es werden keine Cookies eingesetzt.</p>
+          <div id="website-analytics-summary" class="metrics"></div>
+          <div id="website-analytics-list"></div>
+        </article>
         <form id="assessment-config-form" class="panel assessment-config">
           <div class="panel-head"><h2>Beurteilungszuschlag</h2><span>Empfindliche Tageszeiten</span></div>
           <p class="management-help">Der Zuschlag bleibt im Lärmprotokoll ausgewiesen. Hier wird festgelegt, ob er zusätzlich in die aktuelle Dashboard-Bewertung eingerechnet wird.</p>
@@ -355,6 +361,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.6.0-tenants"></script>
+  <script src="/app.js?v=0.6.1-website-analytics"></script>
 </body>
 </html>

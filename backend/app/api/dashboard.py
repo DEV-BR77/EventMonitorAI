@@ -35,6 +35,7 @@ from app.models.dashboard import (
     TenantMembership,
     TenantSubscription,
     User,
+    WebsiteVisit,
 )
 from app.models.event import Event
 from app.schemas.dashboard import (
@@ -124,6 +125,23 @@ def list_tenants(db: DatabaseSession, user: CurrentUser) -> list[dict[str, objec
             "subscription": {"plan": item.plan, "status": item.status, "max_devices": item.max_devices, "retention_days": item.retention_days} if item else None,
         })
     return result
+
+
+@router.get("/platform/website-visits")
+def website_visits(
+    db: DatabaseSession,
+    user: CurrentUser,
+    days: int = Query(default=30, ge=1, le=365),
+) -> dict[str, object]:
+    _require_platform_admin(db, user)
+    cutoff = (datetime.now(UTC) - timedelta(days=days - 1)).date().isoformat()
+    rows = list(db.scalars(select(WebsiteVisit).where(WebsiteVisit.visit_date >= cutoff).order_by(WebsiteVisit.last_seen_at.desc())))
+    return {
+        "views": sum(item.views for item in rows),
+        "visitors": len(rows),
+        "days": [{"date": day, "views": sum(item.views for item in rows if item.visit_date == day), "visitors": sum(1 for item in rows if item.visit_date == day)} for day in sorted({item.visit_date for item in rows}, reverse=True)],
+        "recent": [{"masked_ip": item.masked_ip, "views": item.views, "first_seen_at": item.first_seen_at, "last_seen_at": item.last_seen_at} for item in rows[:50]],
+    }
 
 
 @router.post("/platform/tenants", status_code=201)

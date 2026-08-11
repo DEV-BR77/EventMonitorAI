@@ -98,6 +98,7 @@ async function start() {
     $("#audio-permissions").classList.toggle("hidden", me.role !== "admin");
     $("#admin-navigation").classList.toggle("hidden", me.role !== "admin");
     $("#tenant-management").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
+    $("#website-analytics").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
     $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
     $("#map-stage").classList.toggle("positioning", me.role === "admin");
     const today = new Date().toLocaleDateString("sv-SE");
@@ -108,7 +109,7 @@ async function start() {
     if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
       document.querySelector('.nav[data-view="overview"]').click();
     }
-    await Promise.all([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants()] : [])] : [])]);
+    await Promise.all([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants(), loadWebsiteAnalytics()] : [])] : [])]);
     await preparePush().catch(() => {});
     connectLive();
   } catch (_) {
@@ -475,6 +476,12 @@ async function loadAccount() {
 async function loadTenants() {
   const tenants = await api("/api/platform/tenants");
   $("#tenant-list").innerHTML = tenants.map((tenant) => `<div class="rule"><div><strong>${escapeHtml(tenant.name)}</strong><p>${escapeHtml(tenant.slug)} · ${escapeHtml(tenant.subscription?.plan || "kein Tarif")} · ${escapeHtml(tenant.subscription?.status || "inaktiv")} · ${tenant.subscription?.max_devices || 0} Mikrofone · ${tenant.subscription?.retention_days || 0} Tage</p></div></div>`).join("") || "<p>Noch keine Kundenbereiche.</p>";
+}
+
+async function loadWebsiteAnalytics() {
+  const data = await api("/api/platform/website-visits?days=30");
+  $("#website-analytics-summary").innerHTML = `<article><span>Seitenaufrufe</span><strong>${data.views}</strong><small>30 Tage</small></article><article><span>Unterschiedliche Besucher</span><strong>${data.visitors}</strong><small>täglich pseudonymisiert</small></article>`;
+  $("#website-analytics-list").innerHTML = data.recent.length ? data.recent.map((item) => `<div class="reference-result"><strong>${escapeHtml(item.masked_ip)}</strong><span>${item.views} Aufruf${item.views === 1 ? "" : "e"}</span><span>Erster Zugriff ${formatTime(item.first_seen_at)}</span><span>Zuletzt ${formatTime(item.last_seen_at)}</span></div>`).join("") : "<p>Noch keine öffentlichen Zugriffe erfasst.</p>";
 }
 
 function mediaMime(file, kind) {

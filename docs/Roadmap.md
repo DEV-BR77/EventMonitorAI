@@ -236,3 +236,8 @@ Unterbrechung und Fortsetzung von den Überarbeitungen
 - [x] Plattformverwaltung zum Anlegen von Kundenbereichen und Erstadministratoren
 - [ ] produktiver Zahlungsanbieter mit Webhooks, Rechnungsstatus und Kündigungsablauf
 - [ ] juristisch geprüfte Vertrags-, Datenschutz- und Auftragsverarbeitungsunterlagen
+- [ ] echte Quell-IP-Netzerkennung für die öffentliche Website: Caddy entweder nativ
+      unter Windows betreiben oder einen vorgeschalteten, vertrauenswürdigen Proxy
+      einsetzen; Client-IP-Header nur aus explizit konfigurierten Proxy-Netzen
+      akzeptieren, Datenschutz und Aufbewahrungsdauer dokumentieren sowie die
+      Erkennung mit externen Zugriffen testen
