@@ -7,9 +7,46 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.database.session import SessionLocal
-from app.models.dashboard import EventClassificationRevision, ReviewRun, Tenant
+from app.models.dashboard import AudioClip, EventClassificationRevision, ReviewRun, Tenant
 from app.models.event import Event
 from app.services.taxonomy import base_class_for_detection
+
+
+def mark_clipless_events_context_only(db: Session, *, actor: str = "system") -> int:
+    """Exclude clipless metadata detections from acoustic review and learning."""
+    events = list(
+        db.scalars(
+            select(Event)
+            .outerjoin(AudioClip, AudioClip.event_id == Event.id)
+            .where(
+                AudioClip.id.is_(None),
+                Event.classification_status.notin_(("ignored", "context_only")),
+            )
+            .order_by(Event.id)
+        )
+    )
+    changed_at = datetime.now(UTC).isoformat()
+    for event in events:
+        previous_status = event.classification_status
+        event.classification_status = "context_only"
+        event.corrected_by = event.corrected_by or actor
+        event.corrected_at = changed_at
+        if event.primary_class_code:
+            db.add(
+                EventClassificationRevision(
+                    event_id=event.id,
+                    primary_class_code=event.primary_class_code,
+                    subclass_code=event.subclass_code,
+                    status="context_only",
+                    actor=actor,
+                    reason=(
+                        "Kein gespeicherter Audioclip: bestehende Zuordnung bleibt als "
+                        f"Metadaten-/Kontextwertung erhalten (vorher: {previous_status})."
+                    ),
+                )
+            )
+    db.commit()
+    return len(events)
 
 
 def process_review_run(run_id: int, batch_size: int = 100) -> None:
@@ -52,7 +89,12 @@ def process_review_run(run_id: int, batch_size: int = 100) -> None:
             for event in events:
                 run.cursor_event_id = event.id
                 run.processed += 1
-                if event.classification_status in {"manual", "learned", "suggested"}:
+                if event.classification_status in {
+                    "manual",
+                    "learned",
+                    "suggested",
+                    "context_only",
+                }:
                     continue
                 mapped = base_class_for_detection(event.label, event.category)
                 if mapped and mapped != event.primary_class_code:

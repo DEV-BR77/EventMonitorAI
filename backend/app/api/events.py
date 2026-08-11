@@ -731,9 +731,13 @@ def review_summary(
         "open_recognized": 0,
         "completed_unknown": 0,
         "completed_recognized": 0,
+        "excluded_context_only": 0,
     }
     by_class: dict[str, dict[str, int]] = {}
     for event in events:
+        if event.classification_status == "context_only":
+            summary["excluded_context_only"] += 1
+            continue
         completed = event.classification_status in {"manual", "learned"}
         recognized = event.primary_class_code is not None
         summary[
@@ -755,7 +759,7 @@ def review_queue(
     start: str | None = None,
     end: str | None = None,
 ) -> list[Event]:
-    statement = select(Event)
+    statement = select(Event).where(Event.classification_status != "context_only")
     if status_filter == "open":
         statement = statement.where(Event.classification_status.not_in(("manual", "learned")))
     elif status_filter == "completed":

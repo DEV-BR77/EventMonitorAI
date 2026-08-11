@@ -82,6 +82,7 @@ class ReviewSummary(BaseModel):
     open_recognized: int
     completed_unknown: int
     completed_recognized: int
+    excluded_context_only: int
     by_class: dict[str, dict[str, int]]
 
 
