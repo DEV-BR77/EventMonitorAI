@@ -1,6 +1,10 @@
+import hashlib
+import secrets
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -12,12 +16,70 @@ from app.core.security import (
     verify_password,
 )
 from app.database.session import get_db
-from app.models.dashboard import Tenant, TenantMembership, TenantSubscription, User
-from app.schemas.dashboard import LoginRequest, TokenResponse, UserCreate, UserRead, UserUpdate
+from app.core.config import settings
+from app.models.dashboard import AdminNotification, EmailVerification, Tenant, TenantMembership, TenantSubscription, User
+from app.schemas.dashboard import LoginRequest, RegistrationRequest, TokenResponse, UserCreate, UserRead, UserUpdate
+from app.services.email_delivery import email_configured, send_verification_email
 from app.services.login_guard import clear_failures, record_failure, retry_after
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
+
+
+@router.post("/register", status_code=status.HTTP_202_ACCEPTED)
+def register(data: RegistrationRequest, db: DatabaseSession) -> dict[str, str]:
+    if not email_configured():
+        raise HTTPException(status_code=503, detail="Registrierung ist bis zur Einrichtung des E-Mail-Versands deaktiviert")
+    email = data.email.strip().casefold()
+    if db.scalar(select(User).where(func.lower(User.username) == email)):
+        raise HTTPException(status_code=409, detail="Für diese E-Mail-Adresse besteht bereits ein Konto")
+    token = secrets.token_urlsafe(32)
+    slug = f"user-{hashlib.sha256(email.encode()).hexdigest()[:16]}"
+    user = User(username=email, password_hash=hash_password(data.password), role="admin", active=False)
+    tenant = Tenant(name=email, slug=slug)
+    db.add_all([tenant, user])
+    db.flush()
+    membership = TenantMembership(tenant_id=tenant.id, user_id=user.id, role="admin", active=False)
+    verification = EmailVerification(
+        user_id=user.id,
+        token_hash=hashlib.sha256(token.encode()).hexdigest(),
+        expires_at=(datetime.now(UTC) + timedelta(hours=24)).isoformat(),
+    )
+    db.add_all([membership, verification, TenantSubscription(tenant_id=tenant.id, plan="pilot", status="pending", max_devices=2)])
+    platform_tenant = db.get(Tenant, 1)
+    if platform_tenant is not None:
+        db.add(AdminNotification(tenant_id=1, kind="registration", title="Neue Benutzerregistrierung", message=f"{email} hat ein Konto angelegt und muss die E-Mail-Adresse noch bestätigen."))
+    verification_url = f"{settings.public_base_url.rstrip('/')}/auth/verify-email?token={token}"
+    try:
+        send_verification_email(email, verification_url)
+        db.commit()
+    except Exception as error:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Die Bestätigungs-E-Mail konnte nicht versendet werden") from error
+    return {"message": "Bestätigungs-E-Mail wurde versendet"}
+
+
+@router.get("/verify-email")
+def verify_email(token: str, db: DatabaseSession) -> RedirectResponse:
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    verification = db.scalar(select(EmailVerification).where(EmailVerification.token_hash == token_hash))
+    if verification is None or datetime.fromisoformat(verification.expires_at) < datetime.now(UTC):
+        return RedirectResponse(url="/?verification=invalid", status_code=303)
+    user = db.get(User, verification.user_id)
+    membership = db.scalar(select(TenantMembership).where(TenantMembership.user_id == verification.user_id))
+    if user is None or membership is None:
+        return RedirectResponse(url="/?verification=invalid", status_code=303)
+    user.active = True
+    membership.active = True
+    subscription = db.scalar(select(TenantSubscription).where(TenantSubscription.tenant_id == membership.tenant_id))
+    if subscription is not None:
+        subscription.status = "active"
+    notification = db.scalar(select(AdminNotification).where(AdminNotification.kind == "registration", AdminNotification.message.like(f"{user.username}%")))
+    if notification is not None:
+        notification.message = f"{user.username} hat die E-Mail-Adresse bestätigt und das Konto freigeschaltet."
+    db.delete(verification)
+    db.commit()
+    return RedirectResponse(url="/?verification=success", status_code=303)
 
 
 @router.post("/bootstrap", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)

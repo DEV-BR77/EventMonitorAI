@@ -18,7 +18,18 @@
       <label>Benutzername<input id="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
       <label>Passwort<input id="password" type="password" autocomplete="current-password" required minlength="10"></label>
       <button type="submit">Anmelden</button>
+      <button id="show-register" type="button" class="ghost">Neues Konto registrieren</button>
       <span id="auth-error" class="error"></span>
+    </form>
+    <form id="register-form" class="panel auth-card hidden">
+      <div class="brand-mark">EM</div><h1>Konto registrieren</h1>
+      <p>Nach der Registrierung senden wir einen 24 Stunden gültigen Bestätigungslink.</p>
+      <label>E-Mail-Adresse<input id="register-email" type="email" autocomplete="email" required></label>
+      <label>Passwort<input id="register-password" type="password" autocomplete="new-password" required minlength="10"></label>
+      <label>Passwort wiederholen<input id="register-password-confirm" type="password" autocomplete="new-password" required minlength="10"></label>
+      <button type="submit">Bestätigungs-E-Mail anfordern</button>
+      <button id="show-login" type="button" class="ghost">Zurück zur Anmeldung</button>
+      <span id="register-status"></span>
     </form>
   </section>
 
@@ -47,6 +58,7 @@
     <main>
       <header>
         <div><p class="eyebrow">AKUSTISCHE LAGE</p><h1 id="title">Übersicht</h1></div>
+        <div id="admin-notification-center" class="notification-center hidden"><button id="notification-toggle" type="button" class="ghost">🔔 <b id="notification-count">0</b></button><div id="notification-list" class="notification-popover hidden"></div></div>
         <div class="filters">
           <select id="device-filter"><option value="">Alle Geräte</option></select>
           <select id="days-filter"><option value="today" selected>Heute</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option><option value="single">Tag im Kalender wählen</option><option value="range">Zeitraum im Kalender wählen</option></select>
@@ -141,18 +153,6 @@
           </form>
           <p class="management-help">WAV-Dateien werden mit Pegelwert und Wiedergabe in die Sammelprüfung übernommen. CSV unterstützt die Spalten timestamp, db_level, label, confidence und device.</p>
           <span id="import-status"></span>
-        </article>
-        <article class="panel people-panel">
-          <div class="panel-head"><h2>Automatisch erkannte Stimmgruppen</h2><button id="speaker-analyze" type="button">Vorhandene Aufnahmen gruppieren</button></div>
-          <p class="management-help">Ein eigener lokaler Stimmabdruck-Algorithmus gruppiert ähnliche Sprachaufnahmen zunächst anonym als „Person 1“, „Person 2“ usw. Die Prozentangabe beschreibt akustische Ähnlichkeit, nicht die Wahrscheinlichkeit einer Identität. Vor der Zuordnung zu einer bekannten Person sollten die Aufnahmen einzeln geprüft werden.</p>
-          <div id="speaker-clusters"></div><span id="speaker-status"></span>
-          <section id="speaker-review" class="speaker-review hidden">
-            <div class="panel-head"><h3 id="speaker-review-title">Stimmgruppe prüfen</h3><button id="speaker-review-close" class="ghost" type="button">Schließen</button></div>
-            <div class="speaker-review-toolbar"><label>Prüfstatus<select id="speaker-review-filter"><option value="pending">Ungeprüft</option><option value="confirmed">Bestätigt</option><option value="rejected">Nicht passend</option><option value="no_voice">Keine Stimme</option><option value="all">Alle</option></select></label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="speaker-review-count"></span></div>
-            <p class="management-help">„Bestätigen“ nimmt den Clip in das geprüfte Stimmprofil auf. „Nicht passend“ und „Keine Stimme“ schließen ihn dauerhaft aus. Verschobene Clips werden in der Zielgruppe erneut zur Prüfung vorgelegt.</p>
-            <div id="speaker-samples"></div>
-            <button id="speaker-review-more" class="ghost hidden" type="button">Weitere Aufnahmen laden</button>
-          </section>
         </article>
         <article class="panel learning-guide">
           <div class="panel-head"><h2>So lernt die Klassifizierung</h2><span>Bestätigen → lernen → automatisch anwenden</span></div>
@@ -296,6 +296,18 @@
           <p class="management-help">Namen, Bilder, Videos und Stimmvergleiche sind manuell gepflegte Prüfhinweise und keine automatisch festgestellte Identität. Wird „In Lärmüberwachung einbeziehen“ deaktiviert, bleiben zugeordnete Ereignisse sichtbar, fließen aber nicht in Lärmkennzahlen und Belastungsbewertung ein.</p>
           <div id="people-list"></div><span id="people-status"></span>
         </article>
+        <article class="panel people-panel">
+          <div class="panel-head"><h2>Automatisch erkannte Stimmgruppen</h2><button id="speaker-analyze" type="button">Separate Stimmanalyse starten</button></div>
+          <p class="management-help">Die lokale ECAPA-TDNN-Analyse läuft manuell in einem getrennten, ressourcenbegrenzten Hintergrunddienst. Dashboard und Mikrofoneingang arbeiten währenddessen normal weiter. Stimmgruppen sind anonyme Ähnlichkeitshinweise und kein Identitätsnachweis.</p>
+          <div id="speaker-analysis-progress" class="speaker-analysis-progress hidden"><div><strong id="speaker-progress-title">Stimmanalyse</strong><span id="speaker-progress-value">0 / 0</span></div><div class="review-progress"><i id="speaker-progress-bar"></i></div><small id="speaker-progress-detail"></small></div>
+          <div id="speaker-clusters"></div><span id="speaker-status"></span>
+          <section id="speaker-review" class="speaker-review hidden">
+            <div class="panel-head"><h3 id="speaker-review-title">Stimmgruppe prüfen</h3><button id="speaker-review-close" class="ghost" type="button">Schließen</button></div>
+            <div class="speaker-review-toolbar"><label>Prüfstatus<select id="speaker-review-filter"><option value="pending">Ungeprüft</option><option value="confirmed">Bestätigt</option><option value="rejected">Nicht passend</option><option value="no_voice">Keine Stimme</option><option value="all">Alle</option></select></label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="speaker-review-count"></span></div>
+            <p class="management-help">„Bestätigen“ nimmt den Clip in das geprüfte Stimmprofil auf. „Nicht passend“ und „Keine Stimme“ schließen ihn dauerhaft aus.</p>
+            <div id="speaker-samples"></div><button id="speaker-review-more" class="ghost hidden" type="button">Weitere Aufnahmen laden</button>
+          </section>
+        </article>
       </section>
 
       <section id="account" class="view hidden">
@@ -364,6 +376,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.6.3-context-exclusion"></script>
+  <script src="/app.js?v=0.8.0-registration"></script>
 </body>
 </html>

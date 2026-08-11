@@ -16,6 +16,7 @@ from app.core.security import CurrentUser, hash_password, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
     AssessmentConfig,
+    AdminNotification,
     AudioClip,
     CalibrationReferenceResult,
     CalibrationReferenceRun,
@@ -30,6 +31,7 @@ from app.models.dashboard import (
     LiveAudioAccess,
     NotificationRule,
     PersonProfile,
+    SpeakerAnalysisRun,
     SpeakerCluster,
     Tenant,
     TenantMembership,
@@ -40,6 +42,7 @@ from app.models.dashboard import (
 from app.models.event import Event
 from app.schemas.dashboard import (
     AssessmentConfigRead,
+    AdminNotificationRead,
     AssessmentConfigWrite,
     CalibrationCapture,
     CalibrationOffsetApply,
@@ -65,6 +68,7 @@ from app.schemas.dashboard import (
     RuleRead,
     SoundMapPoint,
     SpeakerSampleReview,
+    SpeakerAnalysisRunRead,
     SpeakerClusterUpdate,
     TenantCreate,
 )
@@ -76,7 +80,6 @@ from app.services.calibration import (
 from app.services.noise_assessment import assessment_for
 from app.services.person_media import store_photo, store_video_and_compare
 from app.services.speaker_clustering import (
-    cluster_existing_voice_clips,
     create_cluster_from_event,
     link_cluster_to_person,
     recompute_cluster_centroid,
@@ -84,6 +87,27 @@ from app.services.speaker_clustering import (
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
+
+
+@router.get("/admin-notifications", response_model=list[AdminNotificationRead])
+def admin_notifications(
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> list[AdminNotification]:
+    return list(db.scalars(select(AdminNotification).where(AdminNotification.tenant_id == db.info["tenant_id"]).order_by(AdminNotification.id.desc()).limit(50)))
+
+
+@router.post("/admin-notifications/{notification_id}/read", status_code=204)
+def read_admin_notification(
+    notification_id: int,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin"))],
+) -> None:
+    notification = db.scalar(select(AdminNotification).where(AdminNotification.id == notification_id, AdminNotification.tenant_id == db.info["tenant_id"]))
+    if notification is None:
+        raise HTTPException(status_code=404, detail="Benachrichtigung nicht gefunden")
+    notification.read_at = datetime.now(UTC).isoformat()
+    db.commit()
 
 
 @router.get("/account")
@@ -573,6 +597,9 @@ def list_speaker_clusters(
 ) -> list[dict[str, object]]:
     people = {item.id: item.name for item in db.scalars(select(PersonProfile))}
     clusters = list(db.scalars(select(SpeakerCluster).order_by(SpeakerCluster.id)))
+    ecapa_clusters = [item for item in clusters if item.algorithm == "speechbrain-ecapa-voxceleb"]
+    if ecapa_clusters:
+        clusters = ecapa_clusters
     result = []
     for cluster in clusters:
         assignments = list(
@@ -606,12 +633,33 @@ def list_speaker_clusters(
     return result
 
 
-@router.post("/speaker-clusters/analyze")
-def analyze_speaker_clusters(
+@router.post(
+    "/speaker-analysis/runs",
+    response_model=SpeakerAnalysisRunRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_speaker_analysis_run(
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin"))],
+) -> SpeakerAnalysisRun:
+    active = db.scalar(
+        select(SpeakerAnalysisRun).where(SpeakerAnalysisRun.status.in_(("pending", "running")))
+    )
+    if active is not None:
+        raise HTTPException(status_code=409, detail="Eine Stimmanalyse läuft bereits")
+    run = SpeakerAnalysisRun(status="pending", requested_by=user.username, message="Analyse wartet auf den Hintergrund-Worker.")
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+@router.get("/speaker-analysis/runs/latest", response_model=SpeakerAnalysisRunRead | None)
+def latest_speaker_analysis_run(
     db: DatabaseSession,
     _: Annotated[User, Depends(require_roles("admin"))],
-) -> dict[str, int]:
-    return cluster_existing_voice_clips(db)
+) -> SpeakerAnalysisRun | None:
+    return db.scalar(select(SpeakerAnalysisRun).order_by(SpeakerAnalysisRun.id.desc()).limit(1))
 
 
 @router.patch("/speaker-clusters/{cluster_id}")

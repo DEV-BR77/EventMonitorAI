@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     support_url: str = ""
     support_target_eur: float = 1450
     support_collected_eur: float = 0
+    public_base_url: str = "http://localhost:8000"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
 
     udp_port: int = 12345
     audio_sample_rate: int = 16000

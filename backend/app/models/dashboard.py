@@ -287,6 +287,45 @@ class ReviewRun(TenantScopedMixin, Base):
     message: Mapped[str] = mapped_column(String(500), default="")
 
 
+class SpeakerAnalysisRun(TenantScopedMixin, Base):
+    __tablename__ = "speaker_analysis_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    model_name: Mapped[str] = mapped_column(String(160), default="speechbrain/spkrec-ecapa-voxceleb")
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    processed: Mapped[int] = mapped_column(Integer, default=0)
+    clustered: Mapped[int] = mapped_column(Integer, default=0)
+    skipped: Mapped[int] = mapped_column(Integer, default=0)
+    requested_by: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    started_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    finished_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    message: Mapped[str] = mapped_column(String(500), default="")
+
+
+class EmailVerification(Base):
+    __tablename__ = "email_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[str] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+
+
+class AdminNotification(Base):
+    __tablename__ = "admin_notifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(40), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    message: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[str] = mapped_column(String, default=utc_now)
+    read_at: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class AssessmentConfig(TenantScopedMixin, Base):
     __tablename__ = "assessment_config"
 

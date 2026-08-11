@@ -160,7 +160,8 @@ def test_context_class_excludes_assessment_without_creating_learning_rule() -> N
         bulk_classification(
             BulkClassificationUpdate(
                 event_ids=[conversation.id],
-                primary_class_code="VOICE_CONTEXT",
+                primary_class_code="VOICE_LOUD",
+                subclass_code="CONVERSATION",
                 reason="Normales Gespräch direkt am Mikrofon",
                 assessment_excluded=True,
                 assessment_exclusion_reason="near_field_conversation",
