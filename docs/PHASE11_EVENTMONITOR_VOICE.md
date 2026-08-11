@@ -75,3 +75,25 @@ erfolgreichem internen sowie geschlossenem Play-Test darf dieses Release in die
 Produktion überführt werden. Der detaillierte, verbindliche Ablauf und seine
 Stopppunkte stehen im Abschnitt „Verbindlicher Google-Play-Live-Weg“ der
 Roadmap.
+
+## Direkte Android-Vorschau
+
+Für Tests vor einer Google-Play-Entscheidung existiert ein getrennter
+Sideload-Kanal. Er verwendet bewusst nicht die spätere Store-Paketkennung:
+
+```text
+de.eventmonitor.eventmonitor_voice.preview
+```
+
+Der Build wird release-kompiliert, aber mit einem ausschließlich für die
+Vorschau bestimmten RSA-3072-Schlüssel signiert. Schlüssel und DPAPI-geschütztes
+Kennwort liegen lokal außerhalb des Repositorys unter
+`C:\Users\Bjoern\.codex\secrets\EventMonitorAI`. Dieser Ordner muss für weitere
+Preview-Updates gesichert werden; ohne denselben Schlüssel kann Android eine
+neue Version nicht über die installierte Vorschau aktualisieren.
+
+Version 0.1.0 wird als GitHub-Prerelease unter dem festen Dateinamen
+`eventmonitor-voice-preview-0.1.0.apk` veröffentlicht. Die Downloadseite
+`https://eventmonitor.eu/android-download.html` nennt Version, Dateigröße,
+Paketkennung, Installationsschritte und SHA-256. Die Binärdatei bleibt ein
+Build-Artefakt und wird nicht in Git aufgenommen.

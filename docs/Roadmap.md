@@ -296,6 +296,26 @@ Die Datei ist flüchtiges lokales Build-Artefakt und wird bei Bedarf neu gebaut.
 Sie darf weder als Produktionsversion veröffentlicht noch dauerhaft als
 Release-Nachweis verwendet werden.
 
+#### A.1 Direkter Android-Vorschaukanal außerhalb von Google Play
+
+- [x] separaten Flavor `preview` mit der Paketkennung
+      `de.eventmonitor.eventmonitor_voice.preview` eingerichtet
+- [x] dedizierten RSA-3072-Signaturschlüssel erzeugt und samt Kennwort
+      verschlüsselt außerhalb von Git abgelegt
+- [x] release-kompilierte Preview-APK 0.1.0 gebaut sowie Paketkennung, Signatur
+      und SHA-256 geprüft
+- [x] Downloadseite mit Samsung-Installationsanleitung, Prüfsumme,
+      Datenschutzgrenzen und Testhinweisen erstellt
+- [ ] Download und Installation der veröffentlichten APK auf einem realen
+      Samsung-Gerät prüfen und Ergebnis dokumentieren
+- [ ] reproduzierbaren, geheimnisfreien Release-Ablauf für folgende
+      Preview-Versionen automatisieren
+
+Der Vorschaukanal ist kein Ersatz für Google Play. Er darf nur klar als
+unfertige Testversion angeboten werden. Die APK liegt nicht im Repository,
+sondern als versioniertes GitHub-Prerelease; `eventmonitor.eu` verweist auf
+dieses unveränderliche Artefakt und veröffentlicht dessen SHA-256.
+
 #### B. Externe Entscheidungen vor der Store-Vorbereitung – Stopppunkt
 
 - [ ] rechtlichen Kontoinhaber festlegen: persönliches oder
