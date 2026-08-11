@@ -20,6 +20,13 @@ def test_speaker_image_contains_application_version() -> None:
     assert "COPY VERSION ./VERSION" in dockerfile
 
 
+def test_speaker_service_receives_required_auth_secret() -> None:
+    compose = (Path(__file__).parents[1] / "compose.yaml").read_text(encoding="utf-8")
+    worker_service = compose.split("  speaker-worker:", 1)[1].split("  backup:", 1)[0]
+
+    assert "AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}" in worker_service
+
+
 def test_analysis_run_is_queued_and_duplicate_is_rejected() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
