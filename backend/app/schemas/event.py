@@ -31,6 +31,8 @@ class EventRead(EventCreate):
     display_suppressed: bool = False
     person_id: int | None = None
     person_monitoring_excluded: bool = False
+    assessment_excluded: bool = False
+    assessment_exclusion_reason: str | None = None
 
 
 class EventClassificationUpdate(BaseModel):
@@ -77,6 +79,8 @@ class ReviewQueueItem(BaseModel):
     classification_status: str
     audio_available: bool = False
     person_id: int | None = None
+    assessment_excluded: bool = False
+    assessment_exclusion_reason: str | None = None
 
 
 class ReviewSummary(BaseModel):
@@ -90,6 +94,13 @@ class ReviewSummary(BaseModel):
 
 class BulkClassificationUpdate(EventClassificationUpdate):
     event_ids: list[int] = Field(min_length=1, max_length=500)
+    assessment_excluded: bool = False
+    assessment_exclusion_reason: str | None = Field(default=None, max_length=80)
+
+
+class AssessmentExclusionUpdate(BaseModel):
+    excluded: bool
+    reason: str | None = Field(default=None, max_length=80)
 
 
 class ReviewRunCreate(BaseModel):

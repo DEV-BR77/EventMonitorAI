@@ -214,6 +214,7 @@ def _events_since(
             Event.timestamp < (end + timedelta(days=1)).isoformat(),
             Event.display_suppressed.is_(False),
             Event.person_monitoring_excluded.is_(False),
+            Event.assessment_excluded.is_(False),
         )
         if device:
             statement = statement.where(Event.device == device)
@@ -226,6 +227,7 @@ def _events_since(
                 Event.timestamp.like(f"{prefix}%"),
                 Event.display_suppressed.is_(False),
                 Event.person_monitoring_excluded.is_(False),
+                Event.assessment_excluded.is_(False),
             )
             .order_by(Event.timestamp)
         )
@@ -239,6 +241,7 @@ def _events_since(
             Event.timestamp >= cutoff,
             Event.display_suppressed.is_(False),
             Event.person_monitoring_excluded.is_(False),
+            Event.assessment_excluded.is_(False),
         )
         .order_by(Event.timestamp)
     )

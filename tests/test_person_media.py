@@ -1,16 +1,18 @@
 import base64
+from datetime import date
 from pathlib import Path
 
 from types import SimpleNamespace
 
-from app.api.dashboard import update_person
-from app.api.events import assign_event_person, list_events
+from app.api.dashboard import statistics, update_person
+from app.api.events import assign_event_person, list_events, update_assessment_exclusion
 from app.api.push import noise_log
 from app.core.config import settings
 from app.database.base import Base
 from app.models.dashboard import EventPersonAssignment, PersonProfile, User
 from app.models.event import Event
 from app.schemas.dashboard import PersonAssignmentWrite, PersonUpdate
+from app.schemas.event import AssessmentExclusionUpdate
 from app.services.person_media import store_photo
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -72,3 +74,29 @@ def test_live_event_person_assignment_is_returned_with_noise_exclusion() -> None
         assert logged[0].person_id == person.id
         assert logged[0].person_name == "Nachbar"
         assert logged[0].person_monitoring_excluded is True
+
+
+def test_event_context_exclusion_keeps_raw_event_but_removes_statistics() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        event = Event(timestamp="2026-08-11T10:00:00", event_type="sound", label="Speech", label_de="Sprache", category="VOICE", confidence=0.8, db_level=55, device="mic")
+        db.add(event)
+        db.commit()
+
+        result = update_assessment_exclusion(
+            event.id,
+            AssessmentExclusionUpdate(excluded=True, reason="near_field_conversation"),
+            db,
+            User(username="operator", password_hash="hash", role="operator"),
+        )
+
+        assert result.assessment_excluded is True
+        assert result.assessment_exclusion_reason == "near_field_conversation"
+        assert list_events(db, SimpleNamespace(), limit=10)[0].id == event.id
+        assert statistics(
+            db,
+            SimpleNamespace(),
+            date_from=date(2026, 8, 11),
+            date_to=date(2026, 8, 11),
+        )["total"] == 0

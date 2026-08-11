@@ -46,6 +46,12 @@ function livePersonControl(eventId, selectedId, monitoringExcluded) {
   return `<label class="live-person-assignment">Person<select data-live-person-event="${eventId}"><option value="">Keine Person</option>${options}</select></label><span class="person-monitoring-status ${monitoringExcluded ? "excluded" : ""}">${status}</span>`;
 }
 
+function assessmentControl(event) {
+  const reasons = [["near_field_conversation", "Normales Gespräch/Nahbereich"], ["own_activity", "Eigene Tätigkeit/Nahbereich"], ["technical_interference", "Technisches Störgeräusch"], ["own_presence", "Eigene Anwesenheit"], ["other_context", "Sonstiger Kontext"]];
+  const selected = event.assessment_exclusion_reason || "near_field_conversation";
+  return `<label class="assessment-exclusion"><input type="checkbox" data-assessment-event="${event.id || event.event_id}" ${event.assessment_excluded ? "checked" : ""}> Nicht bewerten</label><select data-assessment-reason="${event.id || event.event_id}">${reasons.map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("")}</select>${event.assessment_excluded ? '<span class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</span>' : ""}`;
+}
+
 function markEventListened(eventId, button) {
   const key = String(eventId);
   state.listenedEvents.delete(key);
@@ -633,7 +639,7 @@ async function loadRecentEvents() {
     const primaryOptions = `<option value="" ${entry.primary_class_code ? "" : "selected"}>Kategorie wählen</option>${bases.map((item) => `<option value="${escapeHtml(item.code)}" ${entry.primary_class_code === item.code ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")}`;
     const play = state.role === "viewer" ? `<span class="clip-unavailable">Keine Audioberechtigung</span>` : entry.audio_available ? `<button type="button" class="ghost" data-play-event="${entry.event_id}">▶ Anhören</button>` : `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>`;
     const resolved = ["manual", "learned", "context_only"].includes(entry.classification_status);
-    const personControl = state.role === "viewer" || !entry.audio_available ? "" : livePersonControl(entry.event_id, entry.person_id, entry.person_monitoring_excluded);
+    const personControl = state.role === "viewer" || !entry.audio_available ? "" : `${livePersonControl(entry.event_id, entry.person_id, entry.person_monitoring_excluded)}${assessmentControl(entry)}`;
     const correction = state.role === "viewer" || !entry.audio_available ? play : `<form class="classification-editor ${resolved ? "confirmed" : ""}" data-event-id="${entry.event_id}">${play}${personControl}<select name="primary_class_code">${primaryOptions}</select><select name="subclass_code" data-current="${escapeHtml(entry.subclass_code || "")}"></select><button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button></form>`;
     const statusText = entry.classification_status === "manual" ? `bestätigt durch ${entry.corrected_by}` : entry.classification_status === "learned" ? "automatisch gelernt" : entry.classification_status === "context_only" ? "nur Metadaten-/Kontextwertung · kein akustischer Nachweis" : "automatisch";
     return `<div class="recent-event ${resolved ? "confirmed" : ""} ${state.listenedEvents.has(String(entry.event_id)) ? "listened" : ""}"><time>Start ${formatTime(entry.timestamp)}<br>Ende ${formatTime(entry.end_timestamp || entry.timestamp)}<br>${formatDuration(entry.duration_seconds)}</time><strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.device)} · ${entry.db_level.toFixed(1)} dB<br>${escapeHtml(statusText)}</span><div>${witnesses}${correction}</div></div>`;
@@ -688,7 +694,7 @@ async function loadReviewQueue() {
   if (state.reviewClass) query.set("class_code", state.reviewClass);
   state.reviewEvents = await api(`/events/review/queue?${query}`);
   const personOptions = `<option value="">Keine Person</option>${state.people.filter((person) => person.active).map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("")}`;
-  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}" ${event.audio_available ? "" : "disabled"}>${event.audio_available ? "▶ Anhören" : "Kein Clip"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select></span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
+  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}">${"▶ Anhören"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select>${event.assessment_excluded ? '<small class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</small>' : ""}</span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
   updateReviewSelection();
 }
 
@@ -784,6 +790,7 @@ function addEvent(event) {
   const actions = state.role === "viewer" ? "" : !event.audio_available ? `<span class="clip-unavailable">Ohne Aufnahme · nicht akustisch prüfbar</span>` : `<form class="live-actions" data-event-id="${event.id}">
     <button type="button" class="ghost" data-play-event="${event.id}">▶ Anhören</button>
     ${livePersonControl(event.id, event.person_id, event.person_monitoring_excluded)}
+    ${assessmentControl(event)}
     <select name="primary_class_code">${primaryOptions}</select>
     <select name="subclass_code" data-current="${escapeHtml(selectedSubclass || "")}"></select>
     <button type="submit">${resolved ? "Korrigieren" : "Übernehmen"}</button>
@@ -1101,6 +1108,17 @@ document.addEventListener("change", async (e) => {
     await Promise.all([loadRecentEvents(), loadEvents()]);
   }
 });
+document.addEventListener("change", async (e) => {
+  const checkbox = e.target.closest("[data-assessment-event]");
+  if (!checkbox) return;
+  const eventId = checkbox.dataset.assessmentEvent;
+  const reason = document.querySelector(`[data-assessment-reason="${eventId}"]`)?.value || "other_context";
+  checkbox.disabled = true;
+  try {
+    await api(`/events/${eventId}/assessment-exclusion`, { method: "PUT", body: JSON.stringify({ excluded: checkbox.checked, reason: checkbox.checked ? reason : null }) });
+    await Promise.all([loadRecentEvents(), loadEvents(), refresh(), loadKpis(), loadSoundMap()]);
+  } catch (error) { alert(error.message); await Promise.all([loadRecentEvents(), loadEvents()]); }
+});
 $("#review-select-all").addEventListener("click", () => {
   document.querySelectorAll("#review-events input").forEach((item) => { item.checked = true; });
   updateReviewSelection();
@@ -1114,7 +1132,8 @@ $("#review-bulk-form").addEventListener("submit", async (e) => {
       await Promise.all(eventIds.map((id) => api(`/events/${id}/ignore`, { method: "POST" })));
       $("#review-status-text").textContent = `${eventIds.length} Ereignisse als kein Lärm verworfen.`;
     } else {
-      await api("/events/review/bulk-classification", { method: "POST", body: JSON.stringify({ event_ids: eventIds, primary_class_code: $("#review-primary").value, subclass_code: $("#review-subclass").value || null, reason: $("#review-reason").value }) });
+      const assessmentExcluded = $("#review-assessment-excluded").checked;
+      await api("/events/review/bulk-classification", { method: "POST", body: JSON.stringify({ event_ids: eventIds, primary_class_code: $("#review-primary").value, subclass_code: $("#review-subclass").value || null, reason: $("#review-reason").value, assessment_excluded: assessmentExcluded, assessment_exclusion_reason: assessmentExcluded ? $("#review-assessment-reason").value : null }) });
       $("#review-status-text").textContent = `${eventIds.length} Ereignisse bestätigt.`;
     }
     await Promise.all([loadReview(), loadRecentEvents(), loadEvents()]);

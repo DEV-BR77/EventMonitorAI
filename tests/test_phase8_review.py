@@ -146,6 +146,36 @@ def test_clipless_events_become_context_only_without_changing_their_class() -> N
         assert revision.status == "context_only"
 
 
+def test_context_class_excludes_assessment_without_creating_learning_rule() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        seed_event_classes(db)
+        user = User(username="operator", password_hash="x", role="operator")
+        conversation = event("Speech")
+        later_speech = event("Speech")
+        db.add_all([user, conversation, later_speech])
+        db.commit()
+
+        bulk_classification(
+            BulkClassificationUpdate(
+                event_ids=[conversation.id],
+                primary_class_code="VOICE_CONTEXT",
+                reason="Normales Gespräch direkt am Mikrofon",
+                assessment_excluded=True,
+                assessment_exclusion_reason="near_field_conversation",
+            ),
+            db,
+            user,
+        )
+
+        assert conversation.classification_status == "manual"
+        assert conversation.assessment_excluded is True
+        assert conversation.assessment_exclusion_reason == "near_field_conversation"
+        assert later_speech.classification_status == "automatic"
+        assert later_speech.primary_class_code is None
+
+
 def test_noise_assessment_uses_evening_reference_and_sunday_surcharge() -> None:
     weekday = assessment_for("2026-08-07T19:30:00+02:00", 34)
     sunday = assessment_for("2026-08-09T20:30:00+02:00", 30)

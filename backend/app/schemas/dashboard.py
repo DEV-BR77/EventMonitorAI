@@ -157,6 +157,8 @@ class NoiseLogEntry(BaseModel):
     person_id: int | None = None
     person_name: str | None = None
     person_monitoring_excluded: bool = False
+    assessment_excluded: bool = False
+    assessment_exclusion_reason: str | None = None
     witnesses: list[WitnessResponseRead]
 
 

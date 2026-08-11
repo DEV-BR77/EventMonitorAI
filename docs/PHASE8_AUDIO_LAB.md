@@ -85,6 +85,17 @@ im Live-Ereignisstrom oder im aktuellen Lärmprotokoll einer aktiven Person zuor
 Hinweis **aus Lärmmessung ausgeschlossen** wird unmittelbar an der Zeile angezeigt; Ereignisse
 ohne Aufnahme bieten diese akustisch begründete Direktzuordnung nicht an.
 
+Für bekannte Nahbereichssituationen stehen die nicht lernenden Klassen **Normales
+Gespräch/Nahbereich** und **Eigene Tätigkeit/Nahbereich** zur Verfügung. Sie beschreiben den
+manuell bekannten Kontext, ohne aus dem ursprünglichen Modelllabel – insbesondere `Speech` –
+eine globale Lernregel abzuleiten. Mit **Nicht bewerten** wird ein einzelnes Live-Ereignis samt
+Grund aus Kennzahlen, Heatmap, Kalender und Belastungsbewertung ausgeschlossen. Im Audio-Lab
+kann dieselbe Entscheidung über **Alle sichtbaren wählen** gesammelt auf längere Zeiträume
+angewendet werden. Rohzeit, dB-Wert, Aufnahme, Modelllabel und Audit-Zuordnung bleiben erhalten.
+**Kein Lärm / verwerfen** ist hierfür ausdrücklich nicht vorgesehen, weil diese Funktion das
+Ereignis und seinen Clip löscht und nach drei gleichen Bestätigungen bereits den Modelltreffer
+vor der Speicherung verwirft.
+
 Der integrierte Scheduler startet täglich um 03:00 Uhr in `Europe/Berlin` einen nächtlichen Lauf,
 sofern für den Tag noch kein Nachtlauf existiert und kein anderer Lauf aktiv ist. Die Stunde kann
 mit `NIGHTLY_REVIEW_HOUR` geändert werden. Neustarts sind sicher, weil Laufstatus, Fortschritt und
