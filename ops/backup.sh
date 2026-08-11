@@ -1,4 +1,5 @@
 #!/bin/sh
+# This file must keep LF line endings because it runs in an Alpine container.
 set -eu
 umask 077
 
