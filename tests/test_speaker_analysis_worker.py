@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -11,6 +12,12 @@ from app.database.base import Base
 from app.models.dashboard import AudioClip, EventSpeakerCluster, SpeakerAnalysisRun, SpeakerCluster, User
 from app.models.event import Event
 from app.services import speaker_worker
+
+
+def test_speaker_image_contains_application_version() -> None:
+    dockerfile = (Path(__file__).parents[1] / "Dockerfile.speaker").read_text(encoding="utf-8")
+
+    assert "COPY VERSION ./VERSION" in dockerfile
 
 
 def test_analysis_run_is_queued_and_duplicate_is_rejected() -> None:
