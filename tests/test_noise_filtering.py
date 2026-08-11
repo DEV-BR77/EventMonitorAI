@@ -6,7 +6,7 @@ from app.api.events import create_event, ignore_event_as_no_noise, list_events
 from app.database.base import Base
 from app.models.dashboard import IgnoredDetectionPattern, User
 from app.models.event import Event
-from app.schemas.event import EventCreate
+from app.schemas.event import EventCreate, EventRead
 from app.services.taxonomy import seed_event_classes
 from fastapi import BackgroundTasks
 from sqlalchemy import create_engine, select
@@ -56,4 +56,5 @@ def test_three_no_noise_confirmations_discard_future_matching_detection() -> Non
         discarded = asyncio.run(create_event(_event(), BackgroundTasks(), db, None))
         assert discarded.id == 0
         assert discarded.classification_status == "ignored"
+        assert EventRead.model_validate(discarded).person_monitoring_excluded is False
         assert list(db.scalars(select(Event))) == []
