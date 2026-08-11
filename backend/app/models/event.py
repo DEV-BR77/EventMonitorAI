@@ -48,6 +48,8 @@ class Event(TenantScopedMixin, Base):
     classification_status: Mapped[str] = mapped_column(String(20), default="automatic")
     display_suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
     person_monitoring_excluded: Mapped[bool] = mapped_column(Boolean, default=False)
+    assessment_excluded: Mapped[bool] = mapped_column(Boolean, default=False)
+    assessment_exclusion_reason: Mapped[str | None] = mapped_column(String(80), nullable=True)
     corrected_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
     corrected_at: Mapped[str | None] = mapped_column(String, nullable=True)
 

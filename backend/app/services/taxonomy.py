@@ -11,6 +11,8 @@ DEFAULT_EVENT_CLASSES = (
     ("TECHNICAL", "Technisches Störgeräusch", "base", None, True, True),
     ("HORN", "Hupen", "base", None, False, True),
     ("VOICE_LOUD", "Rufen/Schreien", "base", None, False, True),
+    ("VOICE_CONTEXT", "Normales Gespräch/Nahbereich", "base", None, False, False),
+    ("OWN_ACTIVITY_CONTEXT", "Eigene Tätigkeit/Nahbereich", "base", None, False, False),
     ("IMPACT", "Schlag/Aufprall/Knall", "base", None, False, True),
     ("MUSIC", "Musik", "base", None, False, True),
     ("DOG", "Hund", "base", None, False, True),
@@ -60,7 +62,10 @@ def seed_event_classes(db: Session) -> None:
                     sort_order=order,
                 )
             )
-        elif code in {"NO_NOISE", "WIND", "AMBIENT", "TECHNICAL"}:
+        elif code in {
+            "NO_NOISE", "WIND", "AMBIENT", "TECHNICAL",
+            "VOICE_CONTEXT", "OWN_ACTIVITY_CONTEXT",
+        }:
             event_class = db.scalar(select(EventClass).where(EventClass.code == code))
             if event_class is not None:
                 event_class.hidden_by_default = hidden_by_default

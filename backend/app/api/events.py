@@ -43,6 +43,7 @@ from app.schemas.dashboard import (
     PersonAssignmentWrite,
 )
 from app.schemas.event import (
+    AssessmentExclusionUpdate,
     BulkClassificationUpdate,
     EventClassificationRevisionRead,
     EventClassificationUpdate,
@@ -384,6 +385,7 @@ async def create_event(
         ),
         display_suppressed=suppressed or ignored is not None,
         person_monitoring_excluded=False,
+        assessment_excluded=False,
     )
 
     if ignored is not None:
@@ -839,6 +841,10 @@ def bulk_classification(
         raise HTTPException(status_code=404, detail="Mindestens ein Ereignis wurde nicht gefunden")
     for event in events:
         _assign_manual(event, primary, subclass, user, data.reason)
+        event.assessment_excluded = data.assessment_excluded
+        event.assessment_exclusion_reason = (
+            data.assessment_exclusion_reason if data.assessment_excluded else None
+        )
         db.add(
             EventClassificationRevision(
                 event_id=event.id,
@@ -851,8 +857,9 @@ def bulk_classification(
             )
         )
     db.flush()
-    for event in events:
-        _apply_learned_classifications(db, event)
+    if primary.trainable and (subclass is None or subclass.trainable):
+        for event in events:
+            _apply_learned_classifications(db, event)
     db.commit()
     return events
 
@@ -1041,10 +1048,33 @@ async def correct_event_classification(
         )
     )
     db.flush()
-    _apply_learned_classifications(db, event)
+    if primary.trainable and (subclass is None or subclass.trainable):
+        _apply_learned_classifications(db, event)
     db.commit()
     db.refresh(event)
     await live_hub.broadcast(db.info.get("tenant_id", 1), EventRead.model_validate(event).model_dump())
+    return event
+
+
+@router.put("/{event_id}/assessment-exclusion", response_model=EventRead)
+def update_assessment_exclusion(
+    event_id: int,
+    data: AssessmentExclusionUpdate,
+    db: DatabaseSession,
+    _: Annotated[User, Depends(require_roles("admin", "operator"))],
+) -> Event:
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
+    if data.excluded and not data.reason:
+        raise HTTPException(status_code=422, detail="Ausschlussgrund ist erforderlich")
+    event.assessment_excluded = data.excluded
+    event.assessment_exclusion_reason = data.reason if data.excluded else None
+    db.commit()
+    db.refresh(event)
+    event.audio_available = db.scalar(
+        select(AudioClip.id).where(AudioClip.event_id == event.id)
+    ) is not None
     return event
 
 

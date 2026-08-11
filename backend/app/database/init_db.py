@@ -48,6 +48,8 @@ def add_missing_event_columns() -> None:
         ("corrected_at", "VARCHAR"),
         ("display_suppressed", "BOOLEAN NOT NULL DEFAULT FALSE"),
         ("person_monitoring_excluded", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("assessment_excluded", "BOOLEAN NOT NULL DEFAULT FALSE"),
+        ("assessment_exclusion_reason", "VARCHAR(80)"),
     ):
         if name not in column_names:
             statements.append(f"ALTER TABLE events ADD COLUMN {name} {definition}")

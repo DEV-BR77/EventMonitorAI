@@ -140,6 +140,8 @@ def noise_log(
             person_id=assignments.get(event.id),
             person_name=people.get(assignments.get(event.id)),
             person_monitoring_excluded=event.person_monitoring_excluded,
+            assessment_excluded=event.assessment_excluded,
+            assessment_exclusion_reason=event.assessment_exclusion_reason,
             witnesses=witnesses[event.id],
         )
         for event in events
