@@ -6,11 +6,19 @@ from sqlalchemy.orm import Session, sessionmaker, with_loader_criteria
 from app.core.config import settings
 from app.database.tenancy import TenantScopedMixin
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+is_sqlite = settings.database_url.startswith("sqlite")
+connect_args = {"check_same_thread": False} if is_sqlite else {}
+pool_options = {} if is_sqlite else {
+    "pool_size": 20,
+    "max_overflow": 20,
+    "pool_timeout": 10,
+    "pool_pre_ping": True,
+}
 
 engine = create_engine(
     settings.database_url,
     connect_args=connect_args,
+    **pool_options,
 )
 
 SessionLocal = sessionmaker(
