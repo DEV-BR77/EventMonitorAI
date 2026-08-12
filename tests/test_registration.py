@@ -32,6 +32,7 @@ def test_registration_requires_email_confirmation(monkeypatch) -> None:
 
 def test_registration_ui_is_linked_from_public_site() -> None:
     assert "?register=1" in open("website/public/index.html", encoding="utf-8").read()
+    assert "/downloads/eventmonitor-voice-android-beta.apk" in open("website/public/index.html", encoding="utf-8").read()
     dashboard = open("frontend/index.html", encoding="utf-8").read()
     assert 'id="register-form"' in dashboard
     assert 'id="admin-notification-center"' in dashboard
