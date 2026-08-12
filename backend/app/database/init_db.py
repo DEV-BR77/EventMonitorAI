@@ -1,5 +1,5 @@
 from sqlalchemy import inspect, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, noload
 
 from app.database.base import Base
 from app.database.session import engine
@@ -245,7 +245,7 @@ def ensure_tenant_unique_constraints() -> None:
 
 def backfill_events() -> None:
     with Session(engine) as db:
-        events = list(db.scalars(select(Event)).all())
+        events = list(db.scalars(select(Event).options(noload("*"))).all())
         changed = False
 
         for event in events:
