@@ -91,6 +91,29 @@ function logout() {
   $("#auth").classList.remove("hidden");
 }
 
+const activeView = () => document.querySelector(".nav.active")?.dataset.view || "overview";
+
+async function loadView(view) {
+  const tasks = {
+    overview: [refresh, loadRecentEvents, ...(state.role === "admin" ? [loadAdminNotifications] : [])],
+    kpis: [loadKpis],
+    "sound-map": [loadSoundMap],
+    audio: [loadLiveAudioDevices],
+    live: [loadLiveLevels, loadEvents],
+    rules: [loadRules],
+    support: [loadSupport],
+    account: [loadAccount],
+    administration: [loadUsers, loadAssessmentConfig, loadAudioPermissions, ...(state.role === "admin" ? [loadTenants, loadWebsiteAnalytics] : [])],
+    devices: [loadTelemetry, loadCalibrations, loadCalibrationReferenceRuns],
+    people: [loadPeople, loadSpeakerClusters, loadSpeakerAnalysisProgress],
+    review: [loadReview],
+  }[view] || [];
+  const results = await Promise.allSettled(tasks.map((task) => task()));
+  const rejected = results.filter((result) => result.status === "rejected");
+  if (rejected.some((result) => result.reason?.status === 401)) throw rejected.find((result) => result.reason?.status === 401).reason;
+  if (rejected.length) console.warn(`${view} teilweise geladen`, rejected.map((result) => result.reason));
+}
+
 async function start() {
   try {
     const me = await api("/auth/me");
@@ -116,10 +139,7 @@ async function start() {
     if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
       document.querySelector('.nav[data-view="overview"]').click();
     }
-    const results = await Promise.allSettled([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadAdminNotifications(), loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants(), loadWebsiteAnalytics()] : [])] : [])]);
-    const rejected = results.filter((result) => result.status === "rejected");
-    if (rejected.some((result) => result.reason?.status === 401)) throw rejected.find((result) => result.reason?.status === 401).reason;
-    if (rejected.length) console.warn("Dashboard teilweise geladen", rejected.map((result) => result.reason));
+    await loadView(activeView());
     await preparePush().catch(() => {});
     connectLive();
   } catch (error) {
@@ -990,7 +1010,10 @@ function connectLive() {
   const scheme = location.protocol === "https:" ? "wss" : "ws";
   state.socket = new WebSocket(`${scheme}://${location.host}/ws/events?token=${encodeURIComponent(state.token)}`);
   state.socket.onopen = () => { $("#connection").textContent = "Live verbunden"; $("#live-dot").style.background = "var(--accent)"; };
-  state.socket.onmessage = (message) => { addEvent(JSON.parse(message.data)); refresh(); loadRecentEvents(); };
+  state.socket.onmessage = (message) => {
+    addEvent(JSON.parse(message.data));
+    if (activeView() === "overview") loadRecentEvents().catch(() => {});
+  };
   state.socket.onclose = () => {
     $("#connection").textContent = "Verbindung unterbrochen";
     $("#live-dot").style.background = "var(--danger)";
@@ -1034,7 +1057,7 @@ async function applyGlobalFilter() {
   if (days() === "range" && !$("#date-to-filter").value) $("#date-to-filter").value = $("#date-from-filter").value;
   $("#date-from-filter").classList.toggle("hidden", !custom);
   $("#date-to-filter").classList.toggle("hidden", days() !== "range");
-  await Promise.all([refresh(), loadKpis(), loadSoundMap(), loadEvents(), loadRecentEvents(), ...(state.role === "viewer" ? [] : [loadReview()])]);
+  await loadView(activeView());
 }
 
 async function loadSupport() {
@@ -1067,10 +1090,11 @@ document.querySelectorAll(".nav").forEach((button) => button.addEventListener("c
   $(`#${button.dataset.view}`).classList.remove("hidden");
   $("#title").textContent = button.textContent.trim();
   $(".filters").classList.toggle("hidden", button.dataset.view === "support");
-  if (button.dataset.view === "live") loadLiveLevels().catch(() => {});
-  if (button.dataset.view === "kpis") loadKpis().catch(() => {});
   if (button.dataset.view === "sound-map") requestAnimationFrame(renderSoundMap);
-  if (button.dataset.view === "people") Promise.all([loadPeople(), loadSpeakerClusters(), loadSpeakerAnalysisProgress()]).catch((error) => { $("#speaker-status").textContent = error.message; });
+  loadView(button.dataset.view).catch((error) => {
+    if (error?.status === 401) logout();
+    else console.error(`${button.dataset.view} konnte nicht geladen werden`, error);
+  });
 }));
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
 $("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
@@ -1531,6 +1555,6 @@ const verificationResult = new URLSearchParams(location.search).get("verificatio
 if (verificationResult) $("#auth-error").textContent = verificationResult === "success" ? "E-Mail bestätigt. Sie können sich jetzt anmelden." : "Der Bestätigungslink ist ungültig oder abgelaufen.";
 if (new URLSearchParams(location.search).get("register") === "1") $("#show-register").click();
 window.addEventListener("resize", () => requestAnimationFrame(renderSoundMap));
-setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
-setInterval(() => { if (state.token) loadLiveLevels().catch(() => {}); }, 5000);
+setInterval(() => { if (state.token && activeView() === "devices") loadTelemetry().catch(() => {}); }, 30000);
+setInterval(() => { if (state.token && activeView() === "live") loadLiveLevels().catch(() => {}); }, 5000);
 window.addEventListener("resize", () => { if (state.token) renderSoundMap(); });
