@@ -65,6 +65,29 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
         assert legacy_event.subclass_code == "LOUD_CALLING"
 
 
+def test_seed_event_classes_backfills_vehicle_children() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add(
+            EventClass(
+                code="VEHICLE",
+                name="Fahrzeuge",
+                level="base",
+                parent_code=None,
+                hidden_by_default=False,
+                trainable=True,
+                sort_order=1,
+            )
+        )
+        db.commit()
+        seed_event_classes(db)
+        classes = {item.code: item for item in db.scalars(select(EventClass))}
+
+    assert classes["CAR"].parent_code == "VEHICLE"
+    assert classes["MOTORCYCLE"].parent_code == "VEHICLE"
+
+
 def test_dashboard_rejects_fine_class_with_unknown_parent() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

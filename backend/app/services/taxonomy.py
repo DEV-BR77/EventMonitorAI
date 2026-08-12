@@ -76,6 +76,8 @@ def seed_event_classes(db: Session) -> None:
                 event_class.hidden_by_default = hidden_by_default
                 event_class.trainable = trainable
                 event_class.name = name
+                event_class.level = level
+                event_class.parent_code = parent_code
         elif code == "IMPACT":
             event_class = db.scalar(select(EventClass).where(EventClass.code == code))
             if event_class is not None:
