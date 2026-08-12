@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, noload
 
 from app.models.dashboard import AudioClip
 from app.models.event import Event
@@ -86,6 +86,7 @@ def consolidate_existing_events(db: Session) -> int:
     events = list(
         db.scalars(
             select(Event)
+            .options(noload("*"))
             .where(Event.classification_status != "manual")
             .order_by(Event.device, Event.timestamp, Event.id)
         )
