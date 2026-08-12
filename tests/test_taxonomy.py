@@ -42,6 +42,7 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
         assert not next(item for item in classes if item.code == "VOICE_SUSTAINED").active
         assert next(item for item in classes if item.code == "ARGUMENT").parent_code == "VOICE_LOUD"
         assert next(item for item in classes if item.code == "TRAIN_HORN").parent_code == "HORN"
+        assert next(item for item in classes if item.code == "AIRCRAFT").parent_code == "VEHICLE"
 
         legacy_event = Event(
             timestamp="2026-08-10T20:00:00+00:00",

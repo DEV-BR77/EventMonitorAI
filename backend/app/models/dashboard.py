@@ -344,6 +344,7 @@ class AssessmentConfig(TenantScopedMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     sensitive_surcharge_db: Mapped[float] = mapped_column(Float, default=6.0)
     apply_to_live: Mapped[bool] = mapped_column(Boolean, default=False)
+    class_rules_json: Mapped[str] = mapped_column(Text, default="{}")
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 

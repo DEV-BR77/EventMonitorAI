@@ -283,6 +283,7 @@ class RuleRead(RuleCreate):
 class AssessmentConfigWrite(BaseModel):
     sensitive_surcharge_db: float = Field(default=6.0, ge=0, le=20)
     apply_to_live: bool = False
+    class_rules: dict[str, bool] = Field(default_factory=dict)
 
 
 class AssessmentConfigRead(AssessmentConfigWrite):

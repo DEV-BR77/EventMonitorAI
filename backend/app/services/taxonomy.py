@@ -21,6 +21,7 @@ DEFAULT_EVENT_CLASSES = (
     ("BIRDS", "Vögel", "base", None, False, True),
     ("MACHINERY", "Maschinen", "base", None, False, True),
     ("VEHICLE", "Fahrzeuge", "base", None, False, True),
+    ("AIRCRAFT", "Flugzeug/Fluglärm", "fine", "VEHICLE", False, True),
     ("BALL_CONCRETE", "Fußball gegen Beton", "fine", "IMPACT", False, True),
     ("BALL_METAL", "Fußball gegen Metall", "fine", "IMPACT", False, True),
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT", False, True),

@@ -1,10 +1,11 @@
 import asyncio
+import json
 from types import SimpleNamespace
 
 from app.api.dashboard import statistics
 from app.api.events import create_event, ignore_event_as_no_noise, list_events
 from app.database.base import Base
-from app.models.dashboard import IgnoredDetectionPattern, User
+from app.models.dashboard import AssessmentConfig, IgnoredDetectionPattern, User
 from app.models.event import Event
 from app.schemas.event import EventCreate, EventRead
 from app.services.taxonomy import seed_event_classes
@@ -58,3 +59,22 @@ def test_three_no_noise_confirmations_discard_future_matching_detection() -> Non
         assert discarded.classification_status == "ignored"
         assert EventRead.model_validate(discarded).person_monitoring_excluded is False
         assert list(db.scalars(select(Event))) == []
+
+
+def test_tenant_assessment_rules_filter_statistics_with_fine_override() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add(AssessmentConfig(class_rules_json=json.dumps({"VEHICLE": False, "AIRCRAFT": True})))
+        db.add_all(
+            [
+                Event(timestamp="2026-08-12T12:00:00+00:00", event_type="AUDIO", label="Car", label_de="Auto", category="VEHICLE", confidence=.9, db_level=70, device="mic", primary_class_code="VEHICLE"),
+                Event(timestamp="2026-08-12T12:01:00+00:00", event_type="AUDIO", label="Aircraft", label_de="Flugzeug", category="VEHICLE", confidence=.9, db_level=75, device="mic", primary_class_code="VEHICLE", subclass_code="AIRCRAFT"),
+            ]
+        )
+        db.commit()
+
+        result = statistics(db, SimpleNamespace(), 1)
+
+        assert result["total"] == 1
+        assert result["max_db"] == 75

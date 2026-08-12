@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 import secrets
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
@@ -216,6 +217,43 @@ def _assessment_config(db: Session) -> AssessmentConfig:
     return config
 
 
+DEFAULT_ASSESSMENT_CLASS_RULES = {
+    "NO_NOISE": False,
+    "WIND": False,
+    "AMBIENT": False,
+    "TECHNICAL": False,
+}
+
+
+def _assessment_class_rules(config: AssessmentConfig) -> dict[str, bool]:
+    try:
+        stored = json.loads(config.class_rules_json or "{}")
+    except (TypeError, ValueError):
+        stored = {}
+    return {
+        **DEFAULT_ASSESSMENT_CLASS_RULES,
+        **{str(code): value for code, value in stored.items() if isinstance(value, bool)},
+    }
+
+
+def _event_is_assessment_included(event: Event, config: AssessmentConfig) -> bool:
+    rules = _assessment_class_rules(config)
+    if event.subclass_code in rules:
+        return rules[event.subclass_code]
+    if event.primary_class_code in rules:
+        return rules[event.primary_class_code]
+    return True
+
+
+def _assessment_config_payload(config: AssessmentConfig) -> dict[str, object]:
+    return {
+        "sensitive_surcharge_db": config.sensitive_surcharge_db,
+        "apply_to_live": config.apply_to_live,
+        "class_rules": _assessment_class_rules(config),
+        "updated_at": config.updated_at,
+    }
+
+
 def _events_since(
     db: Session,
     days: int,
@@ -224,6 +262,7 @@ def _events_since(
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> list[Event]:
+    config = _assessment_config(db)
     if date_from or date_to:
         start = date_from or date_to
         end = date_to or date_from
@@ -236,20 +275,18 @@ def _events_since(
         statement = select(Event).where(
             Event.timestamp >= start.isoformat(),
             Event.timestamp < (end + timedelta(days=1)).isoformat(),
-            Event.display_suppressed.is_(False),
             Event.person_monitoring_excluded.is_(False),
             Event.assessment_excluded.is_(False),
         )
         if device:
             statement = statement.where(Event.device == device)
-        return list(db.scalars(statement.order_by(Event.timestamp)).all())
+        return [event for event in db.scalars(statement.order_by(Event.timestamp)).all() if _event_is_assessment_included(event, config)]
     if selected_date is not None:
         prefix = selected_date.isoformat()
         statement = (
             select(Event)
             .where(
                 Event.timestamp.like(f"{prefix}%"),
-                Event.display_suppressed.is_(False),
                 Event.person_monitoring_excluded.is_(False),
                 Event.assessment_excluded.is_(False),
             )
@@ -257,13 +294,12 @@ def _events_since(
         )
         if device:
             statement = statement.where(Event.device == device)
-        return list(db.scalars(statement).all())
+        return [event for event in db.scalars(statement).all() if _event_is_assessment_included(event, config)]
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     statement = (
         select(Event)
         .where(
             Event.timestamp >= cutoff,
-            Event.display_suppressed.is_(False),
             Event.person_monitoring_excluded.is_(False),
             Event.assessment_excluded.is_(False),
         )
@@ -271,7 +307,7 @@ def _events_since(
     )
     if device:
         statement = statement.where(Event.device == device)
-    return list(db.scalars(statement).all())
+    return [event for event in db.scalars(statement).all() if _event_is_assessment_included(event, config)]
 
 
 @router.get("/statistics")
@@ -417,8 +453,8 @@ def noise_kpis(
 
 
 @router.get("/assessment-config", response_model=AssessmentConfigRead)
-def get_assessment_config(db: DatabaseSession, _: CurrentUser) -> AssessmentConfig:
-    return _assessment_config(db)
+def get_assessment_config(db: DatabaseSession, _: CurrentUser) -> dict[str, object]:
+    return _assessment_config_payload(_assessment_config(db))
 
 
 @router.put("/assessment-config", response_model=AssessmentConfigRead)
@@ -426,14 +462,19 @@ def update_assessment_config(
     data: AssessmentConfigWrite,
     db: DatabaseSession,
     _: Annotated[User, Depends(require_roles("admin"))],
-) -> AssessmentConfig:
+) -> dict[str, object]:
     config = _assessment_config(db)
     config.sensitive_surcharge_db = data.sensitive_surcharge_db
     config.apply_to_live = data.apply_to_live
+    valid_codes = set(db.scalars(select(EventClass.code)).all())
+    config.class_rules_json = json.dumps(
+        {code: included for code, included in data.class_rules.items() if code in valid_codes},
+        sort_keys=True,
+    )
     config.updated_at = datetime.now(UTC).isoformat()
     db.commit()
     db.refresh(config)
-    return config
+    return _assessment_config_payload(config)
 
 
 @router.get("/people", response_model=list[PersonRead])

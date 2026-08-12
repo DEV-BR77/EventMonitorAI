@@ -339,6 +339,9 @@
           <div class="panel-head"><h2>Beurteilungszuschlag</h2><span>Empfindliche Tageszeiten</span></div>
           <p class="management-help">Der Zuschlag bleibt im Lärmprotokoll ausgewiesen. Hier wird festgelegt, ob er zusätzlich in die aktuelle Dashboard-Bewertung eingerechnet wird.</p>
           <div class="config-row"><label>Zuschlag (dB)<input id="surcharge-db" type="number" min="0" max="20" step="0.5" value="6"></label><label class="active-toggle"><input id="surcharge-live" type="checkbox"> In aktueller/live Bewertung einrechnen</label><button type="submit">Einstellung speichern</button></div>
+          <div class="panel-head assessment-classes-head"><h2>Lärmbelastung nach Klasse</h2><span>Mandantenspezifisch</span></div>
+          <p class="management-help">Nur aktivierte Klassen fließen in Kennzahlen, Überschreitungen, Kalender und Belastungsstatistik ein. Die Erkennung und Anzeige der Ereignisse bleibt davon unberührt. Bei Feinklassen gilt deren eigene Einstellung vor der Hauptkategorie.</p>
+          <div id="assessment-class-list" class="assessment-class-list"></div>
           <span id="assessment-config-status"></span>
         </form>
         <article id="audio-permissions" class="panel device-management hidden">
@@ -379,6 +382,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.9.3-filter-counts"></script>
+  <script src="/app.js?v=0.9.4-noise-rules"></script>
 </body>
 </html>
