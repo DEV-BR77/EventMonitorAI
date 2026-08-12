@@ -25,6 +25,11 @@ def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
     assert 'activeView() === "devices"' in javascript
     assert 'activeView() === "live"' in javascript
     assert "loadAccount(), loadLiveAudioDevices(), loadSoundMap()" not in javascript
+    assert "function eventFilterKey(event)" in javascript
+    assert "function eventMatchesLiveFilters(event)" in javascript
+    assert "function updateCategoryFilter()" in javascript
+    assert 'localStorage.setItem("em_event_filter"' in javascript
+    assert 'localStorage.setItem("em_category_filter"' in javascript
 
 
 def test_postgres_pool_supports_parallel_dashboard_requests() -> None:

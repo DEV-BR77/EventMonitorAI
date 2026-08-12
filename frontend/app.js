@@ -813,21 +813,70 @@ async function loadEvents() {
   if (device()) query.set("device", device());
   const events = await api(`/events?${query}`);
   state.liveEvents = events;
+  updateCategoryFilter();
+  updateEventFilter();
   renderEvents();
+}
+
+function updateCategoryFilter() {
+  const select = $("#category-filter");
+  const selected = select.value !== "all" ? select.value : localStorage.getItem("em_category_filter") || "all";
+  const counts = new Map();
+  for (const event of state.liveEvents) {
+    const key = event.category || "OTHER";
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const options = [...counts.entries()].sort((a, b) => (categoryNames[a[0]] || a[0]).localeCompare(categoryNames[b[0]] || b[0], "de"));
+  select.innerHTML = `<option value="all">Alle Kategorien (${state.liveEvents.length})</option>${options.map(([key, count]) => `<option value="${escapeHtml(key)}">${escapeHtml(categoryNames[key] || key)} (${count})</option>`).join("")}`;
+  select.value = counts.has(selected) ? selected : "all";
+  localStorage.setItem("em_category_filter", select.value);
+}
+
+function eventFilterKey(event) {
+  if (event.subclass_code) return `class:${event.subclass_code}`;
+  if (event.primary_class_code) return `class:${event.primary_class_code}`;
+  return `label:${String(event.label_de || event.label || "Unbekannt").trim().toLocaleLowerCase("de-DE")}`;
+}
+
+function eventFilterName(event) {
+  const code = event.subclass_code || event.primary_class_code;
+  return state.eventClasses.find((item) => item.code === code)?.name || event.label_de || event.label || "Unbekannt";
+}
+
+function updateEventFilter() {
+  const select = $("#event-filter");
+  const selected = select.value !== "all" ? select.value : localStorage.getItem("em_event_filter") || "all";
+  const groups = new Map();
+  for (const event of state.liveEvents) {
+    const key = eventFilterKey(event);
+    const current = groups.get(key) || { name: eventFilterName(event), count: 0 };
+    current.count += 1;
+    groups.set(key, current);
+  }
+  const options = [...groups.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "de"));
+  select.innerHTML = `<option value="all">Alle Ereignisse (${state.liveEvents.length})</option>${options.map(([key, item]) => `<option value="${escapeHtml(key)}">${escapeHtml(item.name)} (${item.count})</option>`).join("")}`;
+  select.value = groups.has(selected) ? selected : "all";
+  localStorage.setItem("em_event_filter", select.value);
+}
+
+function eventMatchesLiveFilters(event) {
+  const resolved = ["manual", "learned", "context_only"].includes(event.classification_status);
+  const selectedEvent = $("#event-filter").value;
+  const selectedCategory = $("#category-filter").value;
+  return ($("#show-resolved-events").checked || !resolved)
+    && ($("#clip-filter").value !== "clips" || event.audio_available)
+    && (selectedCategory === "all" || (event.category || "OTHER") === selectedCategory)
+    && (selectedEvent === "all" || eventFilterKey(event) === selectedEvent);
 }
 
 function renderEvents() {
   $("#events").innerHTML = "";
-  const showResolved = $("#show-resolved-events").checked;
-  state.liveEvents.filter((event) => {
-    const resolved = ["manual", "learned", "context_only"].includes(event.classification_status);
-    return (showResolved || !resolved) && ($("#clip-filter").value !== "clips" || event.audio_available);
-  }).slice().reverse().forEach(addEvent);
+  state.liveEvents.filter(eventMatchesLiveFilters).slice().reverse().forEach(addEvent);
 }
 
 function addEvent(event) {
   const resolved = ["manual", "learned", "context_only"].includes(event.classification_status);
-  if ((!$("#show-resolved-events").checked && resolved) || ($("#clip-filter").value === "clips" && !event.audio_available)) return;
+  if (!eventMatchesLiveFilters(event)) return;
   $("#events").querySelector(`[data-event-id="${event.id}"]`)?.remove();
   const row = document.createElement("div");
   row.className = `event-row ${resolved ? "confirmed" : ""} ${state.listenedEvents.has(String(event.id)) ? "listened" : ""}`;
@@ -1080,6 +1129,14 @@ $("#date-from-filter").addEventListener("change", () => applyGlobalFilter().catc
 $("#date-to-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
 $("#device-filter").addEventListener("change", () => Promise.all([applyGlobalFilter(), loadLiveLevels()]));
 $("#clip-filter").addEventListener("change", renderEvents);
+$("#category-filter").addEventListener("change", () => {
+  localStorage.setItem("em_category_filter", $("#category-filter").value);
+  renderEvents();
+});
+$("#event-filter").addEventListener("change", () => {
+  localStorage.setItem("em_event_filter", $("#event-filter").value);
+  renderEvents();
+});
 $("#show-resolved-events").addEventListener("change", renderEvents);
 for (const picker of [$("#date-from-filter"), $("#date-to-filter")]) picker.addEventListener("click", () => picker.showPicker?.());
 $("#level-minutes").addEventListener("change", loadLiveLevels);
