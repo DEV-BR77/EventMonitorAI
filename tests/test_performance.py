@@ -21,6 +21,10 @@ def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
     assert "Promise.allSettled" in javascript
     assert "if (error?.status === 401) logout();" in javascript
     assert "requestToken === state.token" in javascript
+    assert "async function loadView(view)" in javascript
+    assert 'activeView() === "devices"' in javascript
+    assert 'activeView() === "live"' in javascript
+    assert "loadAccount(), loadLiveAudioDevices(), loadSoundMap()" not in javascript
 
 
 def test_postgres_pool_supports_parallel_dashboard_requests() -> None:
