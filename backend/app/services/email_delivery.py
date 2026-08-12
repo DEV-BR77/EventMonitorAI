@@ -13,6 +13,7 @@ def send_verification_email(recipient: str, verification_url: str) -> None:
         raise RuntimeError("E-Mail-Versand ist noch nicht konfiguriert")
     payload = json.dumps({
         "from": settings.resend_from,
+        "reply_to": settings.resend_reply_to,
         "to": [recipient],
         "subject": "EventMonitorAI – E-Mail-Adresse bestätigen",
         "text": (

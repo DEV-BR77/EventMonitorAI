@@ -18,10 +18,13 @@ Vor Aktivierung in Produktion müssen folgende Werte in `.env.docker` hinterlegt
 ```text
 PUBLIC_BASE_URL=https://dashboard.eventmonitor.eu
 RESEND_API_KEY=<separater Resend-API-Schlüssel>
-RESEND_FROM=EventMonitorAI <noreply@send.eventmonitor.eu>
+RESEND_FROM=EventMonitorAI <noreply@eventmonitor.eu>
+RESEND_REPLY_TO=kontakt@eventmonitor.eu
 ```
 
 Ohne `RESEND_API_KEY` und `RESEND_FROM` antwortet die Registrierung bewusst mit HTTP 503 und legt
 kein halbfertiges Konto an. Geheimnisse gehören ausschließlich in `.env.docker` und niemals
-ins Repository. `send.eventmonitor.eu` muss bei Resend verifiziert bleiben. Der API-Schlüssel
+ins Repository. `eventmonitor.eu` muss bei Resend für ausgehenden Versand verifiziert bleiben;
+eingehende Nachrichten an `kontakt@eventmonitor.eu` werden bei IONOS weitergeleitet und die
+IONOS-MX-Einträge dürfen nicht durch Resend-Inbound-Einträge ersetzt werden. Der API-Schlüssel
 soll ausschließlich Versandberechtigung besitzen und bei Offenlegung sofort rotiert werden.
