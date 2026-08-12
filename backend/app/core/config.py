@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     support_collected_eur: float = 0
     public_base_url: str = "http://localhost:8000"
     resend_api_key: str = ""
-    resend_from: str = "EventMonitorAI <noreply@send.eventmonitor.eu>"
+    resend_from: str = "EventMonitorAI <noreply@eventmonitor.eu>"
+    resend_reply_to: str = "kontakt@eventmonitor.eu"
 
     udp_port: int = 12345
     audio_sample_rate: int = 16000

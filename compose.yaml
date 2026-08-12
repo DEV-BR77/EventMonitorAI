@@ -44,7 +44,8 @@ services:
       SUPPORT_COLLECTED_EUR: ${SUPPORT_COLLECTED_EUR:-0}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://dashboard.eventmonitor.eu}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM: ${RESEND_FROM:-EventMonitorAI <noreply@send.eventmonitor.eu>}
+      RESEND_FROM: ${RESEND_FROM:-EventMonitorAI <noreply@eventmonitor.eu>}
+      RESEND_REPLY_TO: ${RESEND_REPLY_TO:-kontakt@eventmonitor.eu}
       CLIP_DIRECTORY: /data/clips
     volumes:
       - eventmonitor_clips_data:/data/clips
