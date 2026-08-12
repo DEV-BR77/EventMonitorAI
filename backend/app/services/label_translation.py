@@ -87,7 +87,9 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Rodents, rats, mice": ("Nagetiere, Ratten oder Mäuse", "ANIMAL"),
     # Verkehr
     "Vehicle": ("Fahrzeug", "VEHICLE"),
-    "Car": ("Auto", "VEHICLE"),
+    "Car": ("Pkw", "CAR"),
+    "Motorcycle": ("Motorrad", "MOTORCYCLE"),
+    "Motorbike": ("Motorrad", "MOTORCYCLE"),
     "Vehicle horn, car horn, honking": ("Fahrzeughupe", "VEHICLE"),
     "Helicopter": ("Hubschrauber", "VEHICLE"),
     "Rail transport": ("Schienenverkehr", "VEHICLE"),

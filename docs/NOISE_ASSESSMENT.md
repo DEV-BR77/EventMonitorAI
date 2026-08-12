@@ -29,7 +29,7 @@ bereits vorhandene Ereignisse, ohne deren gespeicherte Klassifizierung umzuschre
 | Sirene | einbezogen | Polizeisirene |
 | Vögel | einbezogen | – |
 | Maschinen | einbezogen | – |
-| Fahrzeuge | einbezogen | Flugzeug/Fluglärm |
+| Fahrzeuge | einbezogen | Pkw, Motorrad, Flugzeug/Fluglärm |
 | Sonstiger Lärm | einbezogen | eigenständige Feinklasse ohne Hauptkategorie |
 
 Die ersetzten, inaktiven Klassen „Normales Gespräch/Nahbereich“, „Anhaltendes Rufen“ und
@@ -44,6 +44,8 @@ empfindliche Tageszeiten ist eine separate Einstellung.
 ## Flugzeug zuordnen
 
 Ein Flugzeug wird als Hauptkategorie **Fahrzeuge** und Feinklasse
-**Flugzeug/Fluglärm** zugeordnet. Ob es anschließend als Lärmbelastung zählt, entscheidet
-allein der Schalter der Feinklasse (oder, solange keine eigene Feinregel gespeichert ist,
-die Einstellung der Hauptkategorie Fahrzeuge).
+**Flugzeug/Fluglärm** zugeordnet. Ein Pkw oder Motorrad wird entsprechend als
+Feinklasse **Pkw** oder **Motorrad** zugeordnet. Ob ein Fahrzeugereignis
+anschließend als Lärmbelastung zählt, entscheidet allein der Schalter der
+Feinklasse (oder, solange keine eigene Feinregel gespeichert ist, die
+Einstellung der Hauptkategorie Fahrzeuge).

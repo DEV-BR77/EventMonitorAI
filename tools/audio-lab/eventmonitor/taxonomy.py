@@ -15,6 +15,8 @@ DEFAULT_CLASSES = (
     ("BIRDS", "Vögel", "base", None),
     ("MACHINERY", "Maschinen", "base", None),
     ("VEHICLE", "Fahrzeuge", "base", None),
+    ("CAR", "Pkw", "fine", "VEHICLE"),
+    ("MOTORCYCLE", "Motorrad", "fine", "VEHICLE"),
     ("BALL_CONCRETE", "Fußball gegen Beton", "fine", "IMPACT"),
     ("BALL_METAL", "Fußball gegen Metall", "fine", "IMPACT"),
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT"),

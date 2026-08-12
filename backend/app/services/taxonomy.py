@@ -21,6 +21,8 @@ DEFAULT_EVENT_CLASSES = (
     ("BIRDS", "Vögel", "base", None, False, True),
     ("MACHINERY", "Maschinen", "base", None, False, True),
     ("VEHICLE", "Fahrzeuge", "base", None, False, True),
+    ("CAR", "Pkw", "fine", "VEHICLE", False, True),
+    ("MOTORCYCLE", "Motorrad", "fine", "VEHICLE", False, True),
     ("AIRCRAFT", "Flugzeug/Fluglärm", "fine", "VEHICLE", False, True),
     ("BALL_CONCRETE", "Fußball gegen Beton", "fine", "IMPACT", False, True),
     ("BALL_METAL", "Fußball gegen Metall", "fine", "IMPACT", False, True),
@@ -67,6 +69,7 @@ def seed_event_classes(db: Session) -> None:
         elif code in {
             "NO_NOISE", "WIND", "AMBIENT", "TECHNICAL",
             "VOICE_CONTEXT", "OWN_ACTIVITY_CONTEXT",
+            "VEHICLE",
         }:
             event_class = db.scalar(select(EventClass).where(EventClass.code == code))
             if event_class is not None:
