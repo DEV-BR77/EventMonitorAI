@@ -20,7 +20,10 @@ def test_admin_navigation_and_data_are_role_guarded() -> None:
 
     assert '$("#admin-navigation").classList.toggle("hidden", me.role !== "admin")' in javascript
     assert 'button.closest("#admin-navigation") && state.role !== "admin"' in javascript
-    assert '...(me.role === "admin" ? [loadAdminNotifications(), loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview()' in javascript
+    assert 'administration: [loadUsers, loadAssessmentConfig, loadAudioPermissions, ...(state.role === "admin"' in javascript
+    assert 'devices: [loadTelemetry, loadCalibrations, loadCalibrationReferenceRuns]' in javascript
+    assert 'people: [loadPeople, loadSpeakerClusters, loadSpeakerAnalysisProgress]' in javascript
+    assert 'review: [loadReview]' in javascript
 
 
 def test_person_analysis_is_separate_from_live_event_classification() -> None:

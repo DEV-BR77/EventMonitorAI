@@ -285,8 +285,26 @@ async function loadUsers() {
 
 async function loadAssessmentConfig() {
   const config = await api("/api/assessment-config");
+  state.assessmentConfig = config;
   $("#surcharge-db").value = config.sensitive_surcharge_db;
   $("#surcharge-live").checked = config.apply_to_live;
+  renderAssessmentClassRules();
+}
+
+function renderAssessmentClassRules() {
+  const target = $("#assessment-class-list");
+  if (!target || !state.assessmentConfig || !state.eventClasses.length) return;
+  const rules = state.assessmentConfig.class_rules || {};
+  const included = (item) => Object.hasOwn(rules, item.code)
+    ? rules[item.code]
+    : (item.parent_code && Object.hasOwn(rules, item.parent_code) ? rules[item.parent_code] : true);
+  const rows = (level) => state.eventClasses.filter((item) => item.level === level).map((item) => `
+    <label class="assessment-class-rule ${item.active ? "" : "inactive"}">
+      <input type="checkbox" data-assessment-class="${escapeHtml(item.code)}" ${included(item) ? "checked" : ""}>
+      <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.code)}${item.parent_code ? ` · unter ${escapeHtml(state.eventClasses.find((parent) => parent.code === item.parent_code)?.name || item.parent_code)}` : ""}${item.active ? "" : " · inaktiv"}</small></span>
+      <em>${included(item) ? "fließt ein" : "ausgeschlossen"}</em>
+    </label>`).join("");
+  target.innerHTML = `<section><h3>Hauptkategorien</h3>${rows("base")}</section><section><h3>Feinklassen</h3>${rows("fine")}</section>`;
 }
 
 function fileAsBase64(file) {
@@ -314,6 +332,7 @@ async function loadEventClasses() {
       <label class="active-toggle" title="Treffer standardmäßig aus Lagebild und Live-Strom ausblenden"><input name="hidden_by_default" type="checkbox" ${item.hidden_by_default ? "checked" : ""}> Ausblenden</label>
       <button type="submit">Speichern</button>
     </form>`).join("");
+  renderAssessmentClassRules();
 }
 
 async function initializeAudioOutput() {
@@ -1483,8 +1502,10 @@ $("#user-create-form").addEventListener("submit", async (e) => {
 $("#assessment-config-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
-    await api("/api/assessment-config", { method: "PUT", body: JSON.stringify({ sensitive_surcharge_db: Number($("#surcharge-db").value), apply_to_live: $("#surcharge-live").checked }) });
+    const classRules = Object.fromEntries(Array.from(document.querySelectorAll("[data-assessment-class]"), (item) => [item.dataset.assessmentClass, item.checked]));
+    state.assessmentConfig = await api("/api/assessment-config", { method: "PUT", body: JSON.stringify({ sensitive_surcharge_db: Number($("#surcharge-db").value), apply_to_live: $("#surcharge-live").checked, class_rules: classRules }) });
     $("#assessment-config-status").textContent = "Beurteilungseinstellung gespeichert.";
+    renderAssessmentClassRules();
     await refresh();
   } catch (error) { $("#assessment-config-status").textContent = error.message; }
 });
@@ -1532,6 +1553,11 @@ $("#recent-events").addEventListener("change", (e) => {
     if (!e.target.checked) learning.checked = false;
     if (e.target.checked) form.querySelector('input[name="primary_learning_approved"]').checked = false;
   }
+});
+$("#assessment-class-list").addEventListener("change", (e) => {
+  if (!e.target.matches("[data-assessment-class]")) return;
+  const status = e.target.closest(".assessment-class-rule").querySelector("em");
+  status.textContent = e.target.checked ? "fließt ein" : "ausgeschlossen";
 });
 $("#recent-events").addEventListener("click", async (e) => {
   const button = e.target.closest("[data-play-event]");

@@ -70,6 +70,10 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Öffentliche Selbstregistrierung mit E-Mail-Adresse, 24 Stunden gültigem
       Bestätigungslink, Login-Freigabe erst nach Bestätigung, eigenem mandantenisoliertem
       Kundenbereich und sichtbarer Administrator-Benachrichtigung
+- [x] Mandantenspezifisch bearbeitbare Lärmbewertung je Haupt- und Feinklasse; Anzeige und
+      KI-Klassifizierung bleiben davon getrennt, bestehende Ereignisse werden ohne erneute
+      Klassifizierung in Kennzahlen und Überschreitungen neu bewertet. Siehe
+      `docs/NOISE_ASSESSMENT.md`.
 
 ## Phase 6 – Dashboard Erweiterungen
 

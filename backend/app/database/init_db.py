@@ -120,6 +120,21 @@ def ensure_event_class_visibility_column() -> None:
             )
 
 
+def ensure_assessment_class_rules_column() -> None:
+    inspector = inspect(engine)
+    if "assessment_config" not in inspector.get_table_names():
+        return
+    column_names = {column["name"] for column in inspector.get_columns("assessment_config")}
+    if "class_rules_json" not in column_names:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE assessment_config ADD COLUMN "
+                    "class_rules_json TEXT NOT NULL DEFAULT '{}'"
+                )
+            )
+
+
 def ensure_classification_revision_columns() -> None:
     inspector = inspect(engine)
     if "event_classification_revisions" not in inspector.get_table_names():
@@ -288,6 +303,7 @@ def init_db() -> None:
     ensure_device_position_columns()
     ensure_calibration_columns()
     ensure_event_class_visibility_column()
+    ensure_assessment_class_rules_column()
     ensure_classification_revision_columns()
     ensure_speaker_review_columns()
     ensure_person_media_columns()
