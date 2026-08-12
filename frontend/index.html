@@ -122,7 +122,7 @@
           <div id="level-chart" class="level-chart"></div>
           <div class="level-chart-footer"><div id="level-legend" class="level-legend"></div><span id="level-chart-status">5-Sekunden-Werte · Aktualisierung alle 5 Sekunden</span></div>
         </article>
-        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle offenen Ereignisse</option><option value="clips">Offene mit Aufnahme</option></select></label><label class="noise-toggle"><input id="show-resolved-events" type="checkbox"> Bearbeitete anzeigen</label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
+        <article class="panel"><div class="panel-head"><h2>Live-Ereignisstrom</h2><div class="live-stream-tools"><label>Anzeige<select id="clip-filter"><option value="all">Alle offenen Ereignisse</option><option value="clips">Offene mit Aufnahme</option></select></label><label>Kategorie<select id="category-filter"><option value="all">Alle Kategorien</option></select></label><label>Ereignis<select id="event-filter"><option value="all">Alle Ereignisse</option></select></label><label class="noise-toggle"><input id="show-resolved-events" type="checkbox"> Bearbeitete anzeigen</label><label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label><span id="connection">Verbindung wird aufgebaut…</span></div></div>
           <div class="event-head"><span>Zeit</span><span>Gerät</span><span>Ereignis</span><span>Pegel</span><span>Konfidenz</span><span>Wiedergabe und Zuordnung</span></div>
           <div id="events" class="events"></div>
         </article>
@@ -379,6 +379,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.9.1-lazy-dashboard"></script>
+  <script src="/app.js?v=0.9.2-event-filter"></script>
 </body>
 </html>
