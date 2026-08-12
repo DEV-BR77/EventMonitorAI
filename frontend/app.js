@@ -51,9 +51,14 @@ function markEventListened(eventId, button) {
 
 async function api(path, options = {}) {
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  const requestToken = state.token;
+  if (requestToken) headers.Authorization = `Bearer ${requestToken}`;
   const response = await fetch(path, { ...options, headers });
-  if (response.status === 401) logout();
+  if (response.status === 401 && requestToken && requestToken === state.token) {
+    const error = new Error("Sitzung abgelaufen");
+    error.status = 401;
+    throw error;
+  }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.detail || `HTTP ${response.status}`);
@@ -111,11 +116,15 @@ async function start() {
     if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
       document.querySelector('.nav[data-view="overview"]').click();
     }
-    await Promise.all([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadAdminNotifications(), loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants(), loadWebsiteAnalytics()] : [])] : [])]);
+    const results = await Promise.allSettled([loadAccount(), loadLiveAudioDevices(), loadSoundMap(), loadRecentEvents(), loadLiveLevels(), refresh(), loadKpis(), loadEvents(), loadRules(), loadSupport(), ...(me.role === "admin" ? [loadAdminNotifications(), loadTelemetry(), loadCalibrations(), loadCalibrationReferenceRuns(), loadReview(), loadAudioPermissions(), loadUsers(), loadAssessmentConfig(), ...(me.tenant_id === 1 ? [loadTenants(), loadWebsiteAnalytics()] : [])] : [])]);
+    const rejected = results.filter((result) => result.status === "rejected");
+    if (rejected.some((result) => result.reason?.status === 401)) throw rejected.find((result) => result.reason?.status === 401).reason;
+    if (rejected.length) console.warn("Dashboard teilweise geladen", rejected.map((result) => result.reason));
     await preparePush().catch(() => {});
     connectLive();
-  } catch (_) {
-    logout();
+  } catch (error) {
+    if (error?.status === 401) logout();
+    else console.error("Dashboard konnte nicht vollständig geladen werden", error);
   }
 }
 

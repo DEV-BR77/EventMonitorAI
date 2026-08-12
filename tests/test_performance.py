@@ -1,6 +1,7 @@
 import asyncio
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 
 from app.api.dashboard import statistics
@@ -9,6 +10,26 @@ from app.models.event import Event
 from app.services.audio import LiveAudioHub
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+
+    assert "Promise.allSettled" in javascript
+    assert "if (error?.status === 401) logout();" in javascript
+    assert "requestToken === state.token" in javascript
+
+
+def test_postgres_pool_supports_parallel_dashboard_requests() -> None:
+    session_module = (ROOT / "backend" / "app" / "database" / "session.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '"pool_size": 20' in session_module
+    assert '"pool_pre_ping": True' in session_module
 
 
 def test_dashboard_statistics_handles_twenty_thousand_events_under_five_seconds() -> None:
