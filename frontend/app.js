@@ -813,22 +813,34 @@ async function loadEvents() {
   if (device()) query.set("device", device());
   const events = await api(`/events?${query}`);
   state.liveEvents = events;
-  updateCategoryFilter();
-  updateEventFilter();
+  updateLiveFilterOptions();
   renderEvents();
+}
+
+function eventMatchesBaseFilters(event) {
+  const resolved = ["manual", "learned", "context_only"].includes(event.classification_status);
+  return ($("#show-resolved-events").checked || !resolved)
+    && ($("#clip-filter").value !== "clips" || event.audio_available);
 }
 
 function updateCategoryFilter() {
   const select = $("#category-filter");
   const selected = select.value !== "all" ? select.value : localStorage.getItem("em_category_filter") || "all";
+  const selectedEvent = $("#event-filter").value;
   const counts = new Map();
+  const known = new Set();
   for (const event of state.liveEvents) {
+    if (selectedEvent !== "all" && eventFilterKey(event) !== selectedEvent) continue;
     const key = event.category || "OTHER";
+    known.add(key);
+    if (!eventMatchesBaseFilters(event)) continue;
     counts.set(key, (counts.get(key) || 0) + 1);
   }
+  if (selected !== "all" && known.has(selected) && !counts.has(selected)) counts.set(selected, 0);
   const options = [...counts.entries()].sort((a, b) => (categoryNames[a[0]] || a[0]).localeCompare(categoryNames[b[0]] || b[0], "de"));
-  select.innerHTML = `<option value="all">Alle Kategorien (${state.liveEvents.length})</option>${options.map(([key, count]) => `<option value="${escapeHtml(key)}">${escapeHtml(categoryNames[key] || key)} (${count})</option>`).join("")}`;
-  select.value = counts.has(selected) ? selected : "all";
+  const openTotal = [...counts.values()].reduce((total, count) => total + count, 0);
+  select.innerHTML = `<option value="all">Alle Kategorien (${openTotal})</option>${options.map(([key, count]) => `<option value="${escapeHtml(key)}">${escapeHtml(categoryNames[key] || key)} (${count})</option>`).join("")}`;
+  select.value = known.has(selected) ? selected : "all";
   localStorage.setItem("em_category_filter", select.value);
 }
 
@@ -847,24 +859,35 @@ function updateEventFilter() {
   const select = $("#event-filter");
   const selected = select.value !== "all" ? select.value : localStorage.getItem("em_event_filter") || "all";
   const groups = new Map();
+  const known = new Map();
+  const selectedCategory = $("#category-filter").value;
   for (const event of state.liveEvents) {
+    if (selectedCategory !== "all" && (event.category || "OTHER") !== selectedCategory) continue;
     const key = eventFilterKey(event);
+    known.set(key, eventFilterName(event));
+    if (!eventMatchesBaseFilters(event)) continue;
     const current = groups.get(key) || { name: eventFilterName(event), count: 0 };
     current.count += 1;
     groups.set(key, current);
   }
+  if (selected !== "all" && known.has(selected) && !groups.has(selected)) groups.set(selected, { name: known.get(selected), count: 0 });
   const options = [...groups.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "de"));
-  select.innerHTML = `<option value="all">Alle Ereignisse (${state.liveEvents.length})</option>${options.map(([key, item]) => `<option value="${escapeHtml(key)}">${escapeHtml(item.name)} (${item.count})</option>`).join("")}`;
-  select.value = groups.has(selected) ? selected : "all";
+  const openTotal = [...groups.values()].reduce((total, item) => total + item.count, 0);
+  select.innerHTML = `<option value="all">Alle Ereignisse (${openTotal})</option>${options.map(([key, item]) => `<option value="${escapeHtml(key)}">${escapeHtml(item.name)} (${item.count})</option>`).join("")}`;
+  select.value = known.has(selected) ? selected : "all";
   localStorage.setItem("em_event_filter", select.value);
 }
 
+function updateLiveFilterOptions() {
+  updateCategoryFilter();
+  updateEventFilter();
+  updateCategoryFilter();
+}
+
 function eventMatchesLiveFilters(event) {
-  const resolved = ["manual", "learned", "context_only"].includes(event.classification_status);
   const selectedEvent = $("#event-filter").value;
   const selectedCategory = $("#category-filter").value;
-  return ($("#show-resolved-events").checked || !resolved)
-    && ($("#clip-filter").value !== "clips" || event.audio_available)
+  return eventMatchesBaseFilters(event)
     && (selectedCategory === "all" || (event.category || "OTHER") === selectedCategory)
     && (selectedEvent === "all" || eventFilterKey(event) === selectedEvent);
 }
@@ -1128,16 +1151,20 @@ $("#days-filter").addEventListener("change", () => applyGlobalFilter().catch(() 
 $("#date-from-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
 $("#date-to-filter").addEventListener("change", () => applyGlobalFilter().catch(() => {}));
 $("#device-filter").addEventListener("change", () => Promise.all([applyGlobalFilter(), loadLiveLevels()]));
-$("#clip-filter").addEventListener("change", renderEvents);
+$("#clip-filter").addEventListener("change", () => { updateLiveFilterOptions(); renderEvents(); });
 $("#category-filter").addEventListener("change", () => {
   localStorage.setItem("em_category_filter", $("#category-filter").value);
+  updateEventFilter();
+  updateCategoryFilter();
   renderEvents();
 });
 $("#event-filter").addEventListener("change", () => {
   localStorage.setItem("em_event_filter", $("#event-filter").value);
+  updateCategoryFilter();
+  updateEventFilter();
   renderEvents();
 });
-$("#show-resolved-events").addEventListener("change", renderEvents);
+$("#show-resolved-events").addEventListener("change", () => { updateLiveFilterOptions(); renderEvents(); });
 for (const picker of [$("#date-from-filter"), $("#date-to-filter")]) picker.addEventListener("click", () => picker.showPicker?.());
 $("#level-minutes").addEventListener("change", loadLiveLevels);
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {

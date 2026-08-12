@@ -28,6 +28,8 @@ def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
     assert "function eventFilterKey(event)" in javascript
     assert "function eventMatchesLiveFilters(event)" in javascript
     assert "function updateCategoryFilter()" in javascript
+    assert "function eventMatchesBaseFilters(event)" in javascript
+    assert "function updateLiveFilterOptions()" in javascript
     assert 'localStorage.setItem("em_event_filter"' in javascript
     assert 'localStorage.setItem("em_category_filter"' in javascript
 
