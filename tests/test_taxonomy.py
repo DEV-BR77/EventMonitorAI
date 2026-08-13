@@ -45,6 +45,11 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
         assert next(item for item in classes if item.code == "AIRCRAFT").parent_code == "VEHICLE"
         assert next(item for item in classes if item.code == "CAR").parent_code == "VEHICLE"
         assert next(item for item in classes if item.code == "MOTORCYCLE").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "BICYCLE").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "BICYCLE_BRAKE_SQUEAL").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "FOOTSTEPS").parent_code == "HOUSEHOLD"
+        assert next(item for item in classes if item.code == "SHOPPING_CART").parent_code == "HOUSEHOLD"
+        assert next(item for item in classes if item.code == "DOOR_SLAM").parent_code == "HOUSEHOLD"
 
         legacy_event = Event(
             timestamp="2026-08-10T20:00:00+00:00",
@@ -86,6 +91,10 @@ def test_seed_event_classes_backfills_vehicle_children() -> None:
 
     assert classes["CAR"].parent_code == "VEHICLE"
     assert classes["MOTORCYCLE"].parent_code == "VEHICLE"
+    assert classes["BICYCLE"].parent_code == "VEHICLE"
+    assert classes["BICYCLE_BRAKE_SQUEAL"].parent_code == "VEHICLE"
+    assert classes["FOOTSTEPS"].parent_code == "HOUSEHOLD"
+    assert classes["DISHES"].parent_code == "HOUSEHOLD"
 
 
 def test_dashboard_rejects_fine_class_with_unknown_parent() -> None:

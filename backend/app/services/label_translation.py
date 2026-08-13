@@ -28,7 +28,7 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Heart sounds, heartbeat": ("Herzschlag", "HUMAN_SOUND"),
     "Hiccup": ("Schluckauf", "HUMAN_SOUND"),
     "Stomach rumble": ("Magenknurren", "HUMAN_SOUND"),
-    "Walk, footsteps": ("Gehen und Schritte", "HUMAN_SOUND"),
+    "Walk, footsteps": ("Gehen und Schritte", "HOUSEHOLD"),
     "Beatboxing": ("Beatboxen", "HUMAN_SOUND"),
     # Hand-, Schlag- und Impulsgeräusche
     "Hands": ("Handgeräusch", "IMPACT"),
@@ -94,6 +94,9 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Helicopter": ("Hubschrauber", "VEHICLE"),
     "Rail transport": ("Schienenverkehr", "VEHICLE"),
     "Skateboard": ("Skateboard", "VEHICLE"),
+    "Bicycle": ("Fahrrad", "VEHICLE"),
+    "Bicycle bell": ("Fahrradklingel", "VEHICLE"),
+    "Skidding": ("Bremsen / Reifenquietschen", "VEHICLE"),
     # Haushalt und Materialien
     "Crumpling, crinkling": ("Zerknüllen und Rascheln", "HOUSEHOLD"),
     "Cupboard open or close": ("Schrank öffnen oder schließen", "HOUSEHOLD"),
@@ -108,6 +111,7 @@ LABEL_TRANSLATIONS: dict[str, tuple[str, str]] = {
     "Spray": ("Sprühen", "HOUSEHOLD"),
     "Wind chime": ("Windspiel", "HOUSEHOLD"),
     "Zipper (clothing)": ("Reißverschluss", "HOUSEHOLD"),
+    "Shopping cart": ("Einkaufswagen", "HOUSEHOLD"),
     # Musik
     "Music": ("Musik", "MUSIC"),
 }

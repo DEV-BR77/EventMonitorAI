@@ -29,7 +29,8 @@ bereits vorhandene Ereignisse, ohne deren gespeicherte Klassifizierung umzuschre
 | Sirene | einbezogen | Polizeisirene |
 | Vögel | einbezogen | – |
 | Maschinen | einbezogen | – |
-| Fahrzeuge | einbezogen | Pkw, Motorrad, Flugzeug/Fluglärm |
+| Haushalt/Alltag | einbezogen | Schritte / Fußtritte, Geschirr, Einkaufswagen / Rollen und Scheppern, Wohnungstür zuschlagen |
+| Fahrzeuge | einbezogen | Pkw, Motorrad, Fahrrad, Bremsen / Reifenquietschen, Flugzeug/Fluglärm |
 | Sonstiger Lärm | einbezogen | eigenständige Feinklasse ohne Hauptkategorie |
 
 Die ersetzten, inaktiven Klassen „Normales Gespräch/Nahbereich“, „Anhaltendes Rufen“ und
@@ -45,7 +46,10 @@ empfindliche Tageszeiten ist eine separate Einstellung.
 
 Ein Flugzeug wird als Hauptkategorie **Fahrzeuge** und Feinklasse
 **Flugzeug/Fluglärm** zugeordnet. Ein Pkw oder Motorrad wird entsprechend als
-Feinklasse **Pkw** oder **Motorrad** zugeordnet. Ob ein Fahrzeugereignis
+Feinklasse **Pkw** oder **Motorrad** zugeordnet. Fahrradgeräusche werden als
+**Fahrrad** bzw. **Bremsen / Reifenquietschen** zugeordnet. Schritte, Geschirr,
+Einkaufswagen und eine zuschlagende Wohnungstür gehören zu
+**Haushalt/Alltag**. Ob ein Fahrzeugereignis
 anschließend als Lärmbelastung zählt, entscheidet allein der Schalter der
 Feinklasse (oder, solange keine eigene Feinregel gespeichert ist, die
 Einstellung der Hauptkategorie Fahrzeuge).
