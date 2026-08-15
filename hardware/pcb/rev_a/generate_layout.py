@@ -332,6 +332,12 @@ def make() -> Path:
     route(board, boot, ((31.0, 41.125), (37.0, 41.125)), 0.20)
     route(board, boot, ((36.175, 35.0), (37.0, 35.0), (37.0, 41.125)),
           0.20)
+    signal_via(board, boot, 32.0, 29.0)
+    signal_via(board, boot, 36.175, 34.0)
+    route(board, boot, ((31.9375, 27.0), (32.0, 27.0), (32.0, 29.0)), 0.20)
+    route(board, boot, ((32.0, 29.0), (36.175, 29.0), (36.175, 34.0)),
+          0.20, pcbnew.B_Cu)
+    route(board, boot, ((36.175, 34.0), (36.175, 35.0)), 0.20)
 
     # Status LED: a short top-layer run connects the series resistor to D1
     # without entering either the USB or radio-frequency routing corridors.
