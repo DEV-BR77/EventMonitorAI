@@ -74,6 +74,9 @@ def copper_plane(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM, layer: int,
 def make() -> Path:
     board = pcbnew.BOARD()
     board.SetCopperLayerCount(4)
+    # JLCPCB's published 4-layer capability recommends a 0.20 mm PTH drill.
+    # The ESP32 module footprint uses 0.20 mm thermal-ground drills.
+    board.GetDesignSettings().m_MinThroughDrill = pcbnew.FromMM(0.20)
     edge(board, 65, 50)
     nets = {}
     for name in ("GND", "+3V3", "USB_5V", "USB_D+", "USB_D-", "USB_D+_ESD", "USB_D-_ESD", "USB_CC1", "USB_CC2",

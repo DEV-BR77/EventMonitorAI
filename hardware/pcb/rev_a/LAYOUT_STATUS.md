@@ -28,10 +28,9 @@ were spaced apart before routing starts.
 The current design-rule report intentionally remains non-zero because this is
 still the placement/net-assignment phase:
 
-- 12 reports are the 0.20 mm thermal-ground drill holes embedded in KiCad's
-  ESP32-S3-WROOM-1U footprint. The JLCPCB fabrication rule must be explicitly
-  set to a 0.20 mm finished drill before the final DRC gate; do not silently
-  waive these checks.
+- The project design rule is explicitly set to a 0.20 mm plated through-hole,
+  matching the thermal-ground drills embedded in KiCad's ESP32-S3-WROOM-1U
+  footprint and JLCPCB's published recommended 4-layer capability.
 - Isolated inner-3V3 copper and silkscreen warnings are expected until the
   final routing, copper pours, reference cleanup and keepouts are complete.
 - All 85 electrical connections are still unrouted. Gerber, BOM and CPL
