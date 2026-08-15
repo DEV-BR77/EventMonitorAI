@@ -59,6 +59,13 @@ def make() -> Path:
     board = pcbnew.BOARD()
     board.SetCopperLayerCount(4)
     edge(board, 65, 50)
+    nets = {}
+    for name in ("GND", "+3V3", "USB_5V", "USB_D+", "USB_D-", "USB_CC1", "USB_CC2",
+                 "UART_TX_ESP", "UART_RX_ESP", "EN", "BOOT", "I2S_WS", "I2S_BCLK",
+                 "I2S_DATA", "U2_RST", "AUTO_DTR", "AUTO_RTS", "LED_STATUS"):
+        item = pcbnew.NETINFO_ITEM(board, name)
+        board.Add(item)
+        nets[name] = item
     # x/y are deliberate Rev-A locations, not arbitrary quote coordinates.
     parts = (
         ("Connector_USB", "USB_C_Receptacle_HRO_TYPE-C-31-M-12", "J1", "USB-C USB2.0", 4.5, 25, 90),
@@ -97,8 +104,62 @@ def make() -> Path:
         load(board, "Package_TO_SOT_SMD", "SOT-23", ref, "BC847B", x, y)
     for ref, x, y in (("H1", 4, 4), ("H2", 61, 4), ("H3", 4, 46), ("H4", 61, 46)):
         load(board, "MountingHole", "MountingHole_2.7mm_M2.5_DIN965_Pad", ref, "M2.5", x, y)
+
+    def connect(ref: str, pad: str, name: str) -> None:
+        footprint = board.FindFootprintByReference(ref)
+        selected = footprint.FindPadByNumber(pad)
+        if selected is None:
+            raise RuntimeError(f"missing pad {ref}.{pad}")
+        selected.SetNet(nets[name])
+
+    def connect_all(ref: str, pad: str, name: str) -> None:
+        footprint = board.FindFootprintByReference(ref)
+        matched = [item for item in footprint.Pads() if item.GetNumber() == pad]
+        if not matched:
+            raise RuntimeError(f"missing pad {ref}.{pad}")
+        for selected in matched:
+            selected.SetNet(nets[name])
+
+    # USB-C receptacle and ESD array (USBLC6-2SC6 pin pairs 1/6 and 3/4).
+    for pad in ("A1", "A12", "B1", "B12", "SH"):
+        connect("J1", pad, "GND")
+    for pad in ("A4", "A9", "B4", "B9"):
+        connect("J1", pad, "USB_5V")
+    for pad, name in (("A5", "USB_CC1"), ("B5", "USB_CC2"), ("A6", "USB_D+"),
+                      ("B6", "USB_D+"), ("A7", "USB_D-"), ("B7", "USB_D-")):
+        connect("J1", pad, name)
+    for pad, name in (("1", "USB_D+"), ("6", "USB_D+"), ("3", "USB_D-"),
+                      ("4", "USB_D-"), ("2", "GND"), ("5", "USB_5V")):
+        connect("U4", pad, name)
+
+    # CP2102N-A02-GQFN24R; VIO/VDD/VREGIN use the external 3V3 rail.
+    for pad in ("2", "25"):
+        connect("U2", pad, "GND")
+    for pad in ("5", "6", "7"):
+        connect("U2", pad, "+3V3")
+    for pad, name in (("3", "USB_D+"), ("4", "USB_D-"), ("8", "USB_5V"),
+                      ("9", "U2_RST"), ("19", "AUTO_RTS"), ("20", "UART_RX_ESP"),
+                      ("21", "UART_TX_ESP"), ("23", "AUTO_DTR")):
+        connect("U2", pad, name)
+
+    # ESP32-S3-WROOM-1U pins from the Espressif WROOM-1U pin table.
+    for pad in ("1", "40"):
+        connect("U1", pad, "GND")
+    connect_all("U1", "41", "GND")
+    for pad, name in (("2", "+3V3"), ("3", "EN"), ("4", "I2S_WS"),
+                      ("5", "I2S_BCLK"), ("6", "I2S_DATA"), ("27", "BOOT"),
+                      ("36", "UART_RX_ESP"), ("37", "UART_TX_ESP"), ("25", "LED_STATUS")):
+        connect("U1", pad, name)
+
+    # ICS-43434: SD, VDD, GND, SCK, WS, L/R. L/R low selects the left channel.
+    for pad, name in (("1", "I2S_DATA"), ("2", "+3V3"), ("3", "GND"),
+                      ("4", "I2S_BCLK"), ("5", "I2S_WS"), ("6", "GND")):
+        connect("U5", pad, name)
+    for pad, name in (("1", "USB_5V"), ("2", "+3V3"), ("3", "GND")):
+        connect("U3", pad, name)
+
     text(board, "EventMonitor Audio Node", 32.5, 2.5, 1.5)
-    text(board, "REV-A / 4L / NOT FOR FABRICATION", 32.5, 47.5, 1.0)
+    text(board, "REV-A / 4L / NETS ASSIGNED - UNROUTED", 32.5, 47.5, 1.0)
     target = OUT / "eventmonitor_audio_node_rev_a.kicad_pcb"
     target.parent.mkdir(exist_ok=True)
     board.Save(str(target))
