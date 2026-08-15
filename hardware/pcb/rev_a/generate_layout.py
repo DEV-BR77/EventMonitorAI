@@ -76,7 +76,7 @@ def make() -> Path:
     board.SetCopperLayerCount(4)
     edge(board, 65, 50)
     nets = {}
-    for name in ("GND", "+3V3", "USB_5V", "USB_D+", "USB_D-", "USB_CC1", "USB_CC2",
+    for name in ("GND", "+3V3", "USB_5V", "USB_D+", "USB_D-", "USB_D+_ESD", "USB_D-_ESD", "USB_CC1", "USB_CC2",
                  "UART_TX_ESP", "UART_RX_ESP", "UART_RX_CP", "UART_TX_CP", "EN", "BOOT",
                  "I2S_WS", "I2S_BCLK", "I2S_DATA", "U2_RST", "AUTO_DTR", "AUTO_RTS",
                  "Q1_BASE", "Q2_BASE", "LED_STATUS", "LED_A"):
@@ -85,7 +85,8 @@ def make() -> Path:
         nets[name] = item
     # x/y are deliberate Rev-A locations, not arbitrary quote coordinates.
     parts = (
-        ("Connector_USB", "USB_C_Receptacle_HRO_TYPE-C-31-M-12", "J1", "USB-C USB2.0", 4.5, 25, 90),
+        # Keep the physical connector pads well inside the board outline.
+        ("Connector_USB", "USB_C_Receptacle_HRO_TYPE-C-31-M-12", "J1", "USB-C USB2.0", 5.7, 25, 90),
         ("Package_TO_SOT_SMD", "SOT-23-6", "U4", "USBLC6-2SC6", 12.5, 19, 0),
         ("Package_DFN_QFN", "QFN-24-1EP_4x4mm_P0.5mm_EP2.65x2.65mm", "U2", "CP2102N-A02-GQFN24R", 20, 20, 0),
         ("Package_TO_SOT_SMD", "SOT-223-3_TabPin2", "U3", "AMS1117-3.3", 18, 38, 0),
@@ -105,20 +106,20 @@ def make() -> Path:
         ("R5", "1k LED", 34, 10), ("R6", "22R D+", 14, 22),
         ("R7", "22R D-", 14, 25), ("R8", "499R TX", 27, 18),
         ("R9", "499R RX", 27, 21), ("R10", "1k U2 RST", 25, 14),
-        ("R11", "10k DTR", 24, 28), ("R12", "10k RTS", 39, 28),
+        ("R11", "10k DTR", 21, 31), ("R12", "10k RTS", 29, 31),
     )
     for ref, value, x, y in passive:
         load(board, "Resistor_SMD", "R_0603_1608Metric", ref, value, x, y)
     caps = (
-        ("C1", "10u VIN", 14, 34), ("C2", "10u VOUT", 23, 34),
-        ("C3", "100n U3", 26, 34), ("C4", "100n U1", 35, 15),
+        ("C1", "10u VIN", 10, 34), ("C2", "10u VOUT", 25, 38),
+        ("C3", "100n U3", 26, 34), ("C4", "100n U1", 33, 12),
         ("C5", "100n EN", 30, 38), ("C6", "1u MIC", 51, 41),
         ("C7", "100n MIC", 51, 44), ("C8", "4u7 U2", 20, 14),
-        ("C9", "100n U2", 24, 14), ("C10", "1u EN", 33, 38),
+        ("C9", "100n U2", 24, 10), ("C10", "1u EN", 34, 38),
     )
     for ref, value, x, y in caps:
         load(board, "Capacitor_SMD", "C_0805_2012Metric" if ref in {"C1", "C2", "C8"} else "C_0603_1608Metric", ref, value, x, y)
-    for ref, x, y in (("Q1", 29, 28), ("Q2", 35, 28)):
+    for ref, x, y in (("Q1", 26, 27), ("Q2", 31, 27)):
         load(board, "Package_TO_SOT_SMD", "SOT-23", ref, "BC847B", x, y)
     for ref, x, y in (("H1", 4, 4), ("H2", 61, 4), ("H3", 4, 46), ("H4", 61, 46)):
         load(board, "MountingHole", "MountingHole_2.7mm_M2.5_DIN965_Pad", ref, "M2.5", x, y)
@@ -143,11 +144,11 @@ def make() -> Path:
         connect("J1", pad, "GND")
     for pad in ("A4", "A9", "B4", "B9"):
         connect("J1", pad, "USB_5V")
-    for pad, name in (("A5", "USB_CC1"), ("B5", "USB_CC2"), ("A6", "USB_D+"),
-                      ("B6", "USB_D+"), ("A7", "USB_D-"), ("B7", "USB_D-")):
+    for pad, name in (("A5", "USB_CC1"), ("B5", "USB_CC2"), ("A6", "USB_D+_ESD"),
+                      ("B6", "USB_D+_ESD"), ("A7", "USB_D-_ESD"), ("B7", "USB_D-_ESD")):
         connect("J1", pad, name)
-    for pad, name in (("1", "USB_D+"), ("6", "USB_D+"), ("3", "USB_D-"),
-                      ("4", "USB_D-"), ("2", "GND"), ("5", "USB_5V")):
+    for pad, name in (("1", "USB_D+_ESD"), ("6", "USB_D+_ESD"), ("3", "USB_D-_ESD"),
+                      ("4", "USB_D-_ESD"), ("2", "GND"), ("5", "USB_5V")):
         connect("U4", pad, name)
 
     # CP2102N-A02-GQFN24R; VIO/VDD/VREGIN use the external 3V3 rail.
@@ -176,15 +177,16 @@ def make() -> Path:
     for pad, name in (("1", "USB_5V"), ("2", "+3V3"), ("3", "GND")):
         connect("U3", pad, name)
 
-    # Passive network assignments. R6/R7 remain no-fit USB damping options
-    # until the impedance calculation locks their exact position.
+    # Passive network assignments.
     for ref, net in (("R1", "USB_CC1"), ("R2", "USB_CC2"), ("R3", "EN"),
-                     ("R4", "BOOT"), ("R5", "LED_STATUS"), ("R8", "UART_TX_ESP"),
+                     ("R4", "BOOT"), ("R5", "LED_STATUS"), ("R6", "USB_D+_ESD"),
+                     ("R7", "USB_D-_ESD"), ("R8", "UART_TX_ESP"),
                      ("R9", "UART_RX_ESP"), ("R10", "U2_RST"), ("R11", "AUTO_DTR"),
                      ("R12", "AUTO_RTS")):
         connect(ref, "1", net)
     for ref, net in (("R1", "GND"), ("R2", "GND"), ("R3", "+3V3"),
-                     ("R4", "+3V3"), ("R5", "LED_A"), ("R8", "UART_RX_CP"),
+                     ("R4", "+3V3"), ("R5", "LED_A"), ("R6", "USB_D+"),
+                     ("R7", "USB_D-"), ("R8", "UART_RX_CP"),
                      ("R9", "UART_TX_CP"), ("R10", "+3V3"), ("R11", "Q1_BASE"),
                      ("R12", "Q2_BASE")):
         connect(ref, "2", net)
