@@ -16,12 +16,15 @@
 | R5 | 1 kΩ | 0603 | LED resistor |
 | R6 / R7 | 22 Ω | 0603 | optional USB damping |
 | R8 / R9 | 499 Ω | 0603 | UART series resistors |
+| R10 | 1 kΩ | 0603 | CP2102N reset pull-up |
 | C1 | 10 µF 10 V X5R | 0805 | AMS1117 input |
 | C2 | 10 µF 6.3 V X5R | 0805 | AMS1117 output |
 | C3 / C4 | 100 nF X7R | 0603 | regulator / MCU bypass |
 | C5 | 100 nF X7R | 0603 | EN reset capacitor |
 | C6 | 1 µF X7R | 0603 | microphone bypass |
 | C7 | 100 nF X7R | 0603 | microphone bypass |
+| C8 | 4.7 µF 6.3 V X5R | 0805 | CP2102N VDD/VIO bypass |
+| C9 | 100 nF X7R | 0603 | CP2102N local bypass |
 | H1–H4 | M2.5, 2.7 mm NPTH | PCB | enclosure mounting |
 | P1 | U.FL-to-RP-SMA bulkhead pigtail | cable | user supplied; attaches directly to U1 |
 

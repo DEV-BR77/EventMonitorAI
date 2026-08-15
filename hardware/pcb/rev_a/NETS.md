@@ -13,11 +13,17 @@ KiCad schematic. Signal names deliberately match the firmware where applicable.
 | USB_CC2 | J1 B5 → R2 5.1 kΩ → GND |
 | USB_D+ | J1 A6+B6 → U4 → optional R6 22 Ω → U2 D+ |
 | USB_D- | J1 A7+B7 → U4 → optional R7 22 Ω → U2 D- |
-| +3V3 | U3 VOUT; U1 3V3; U2 VDD; U5 VDD; C2/C3/C4/C6/C7 positive; pull-ups |
+| +3V3 | U3 VOUT; U1 3V3; U2 VIO/VDD/VREGIN; U5 VDD; C2/C3/C4/C6/C7/C8/C9 positive; pull-ups |
 
 The USB shield joins GND near J1 with a controlled short connection. The final
 layout may use a 0 Ω link / EMI option only if pre-compliance testing shows it
 is needed; it is not an arbitrary split ground.
+
+For U2 (CP2102N QFN24), VIO (pin 5), VDD (pin 6) and VREGIN (pin 7) use the
+external regulated +3V3 configuration; VBUS (pin 8) senses USB_5V. R10 (1 kΩ)
+pulls RSTb (pin 9) to +3V3. C8 (4.7 µF) and C9 (100 nF) are directly at the
+U2 supply pins. This explicitly avoids powering any ESP32 rail from the USB
+bridge's internal regulator.
 
 ## Programming and reset
 
