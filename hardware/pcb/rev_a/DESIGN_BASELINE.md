@@ -13,7 +13,8 @@ schematic and layout; it is not a manufacturing release.
 * USBLC6-2SC6 (or electrically equivalent, validated JLC basic/extended part)
   directly behind the receptacle. USB D+/D- are routed as a 90-ohm differential
   pair to a CP2102N USB-UART bridge.
-* CP2102N connects to U0RXD/GPIO44 and U0TXD/GPIO43. DTR/RTS drive the standard
+* **CP2102N-A02-GQFN24R** (LCSC `C969151`) connects to U0RXD/GPIO44 and
+  U0TXD/GPIO43. Its DTR/RTS drive the standard
   two-transistor auto-program circuit for EN and GPIO0. Manual BOOT and RESET
   buttons remain available.
 * USB 5 V feeds an AMS1117-3.3. The regulator has 10 µF MLCC at VIN and VOUT,

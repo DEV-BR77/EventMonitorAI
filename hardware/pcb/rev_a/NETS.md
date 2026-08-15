@@ -27,7 +27,7 @@ is needed; it is not an arbitrary split ground.
 | UART_RX_ESP | U1 pin 36 (U0RXD/GPIO44) ← R9 499 Ω ← U2 TXD |
 | EN | U1 pin 3; R3 10 kΩ to +3V3; C5 100 nF to GND; SW2 to GND; Q1 auto-reset collector |
 | BOOT | U1 pin 27 (GPIO0); R4 10 kΩ to +3V3; SW1 to GND; Q2 auto-boot collector |
-| DTR / RTS | U2 control outputs → Espressif two-NPN auto-program circuit Q1/Q2; circuit must reproduce the Espressif truth table so opening a serial port cannot hold EN and GPIO0 low simultaneously |
+| DTR / RTS | U2 pins 23/19 (`~DTR` / `~RTS`) → Espressif two-NPN auto-program circuit Q1/Q2; circuit must reproduce the Espressif truth table so opening a serial port cannot hold EN and GPIO0 low simultaneously |
 
 ## Microphone
 
