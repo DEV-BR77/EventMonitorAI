@@ -290,8 +290,9 @@ def make() -> Path:
 
     text(board, "EventMonitor Audio Node", 32.5, 2.5, 1.5)
     text(board, "REV-A / 4L / POWER PLANES - UNROUTED", 32.5, 47.5, 1.0)
-    target = OUT / "eventmonitor_audio_node_rev_a.kicad_pcb"
-    target.parent.mkdir(exist_ok=True)
+    # This is the native, version-controlled KiCad source. Renderings and
+    # DRC reports remain in generated/, but the editable board itself does not.
+    target = HERE / "eventmonitor_audio_node_rev_a.kicad_pcb"
     board.Save(str(target))
     return target
 

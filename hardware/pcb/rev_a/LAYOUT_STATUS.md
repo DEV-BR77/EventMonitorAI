@@ -4,8 +4,10 @@ Updated: 15 August 2026
 
 ## What is in the native KiCad source
 
-`generate_layout.py` generates a 65 x 50 mm, four-layer native KiCad board
-with real footprints for the USB-C receptacle, CP2102N-A02-GQFN24R,
+`eventmonitor_audio_node_rev_a.kicad_pcb` is the native, version-controlled
+65 x 50 mm, four-layer KiCad source. `generate_layout.py` creates or refreshes
+this controlled baseline, with real footprints for the USB-C receptacle,
+CP2102N-A02-GQFN24R,
 ESP32-S3-WROOM-1U-N16R8, AMS1117-3.3, ICS-43434, ESD protection, automatic
 boot/reset circuit, controls, LED and four M2.5 mounting holes.
 
