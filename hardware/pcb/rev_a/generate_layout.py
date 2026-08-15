@@ -55,6 +55,22 @@ def text(board: pcbnew.BOARD, value: str, x: float, y: float, size: float = 1.2)
     board.Add(label)
 
 
+def copper_plane(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM, layer: int,
+                 inset: float = 0.5) -> None:
+    """Add a board-wide plane. Fine keepouts are added during final routing."""
+    area = pcbnew.ZONE(board)
+    area.SetNet(signal)
+    area.SetLayer(layer)
+    area.SetLocalClearance(pcbnew.FromMM(0.2))
+    area.SetMinThickness(pcbnew.FromMM(0.2))
+    polygon = area.Outline()
+    polygon.NewOutline()
+    for point in ((inset, inset), (65 - inset, inset), (65 - inset, 50 - inset),
+                  (inset, 50 - inset)):
+        polygon.Append(mm(*point))
+    board.Add(area)
+
+
 def make() -> Path:
     board = pcbnew.BOARD()
     board.SetCopperLayerCount(4)
@@ -191,8 +207,15 @@ def make() -> Path:
                            ("Q2", "2", "AUTO_DTR"), ("Q2", "3", "BOOT")):
         connect(ref, pin, name)
 
+    # Four-layer stackup: inner one is uninterrupted GND, inner two distributes
+    # 3V3. Bottom GND is added for return-current continuity and stitching.
+    copper_plane(board, nets["GND"], pcbnew.In1_Cu)
+    copper_plane(board, nets["+3V3"], pcbnew.In2_Cu)
+    copper_plane(board, nets["GND"], pcbnew.B_Cu)
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+
     text(board, "EventMonitor Audio Node", 32.5, 2.5, 1.5)
-    text(board, "REV-A / 4L / NETS ASSIGNED - UNROUTED", 32.5, 47.5, 1.0)
+    text(board, "REV-A / 4L / POWER PLANES - UNROUTED", 32.5, 47.5, 1.0)
     target = OUT / "eventmonitor_audio_node_rev_a.kicad_pcb"
     target.parent.mkdir(exist_ok=True)
     board.Save(str(target))
