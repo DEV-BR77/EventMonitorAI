@@ -315,6 +315,12 @@ def make() -> Path:
     route(board, rts, ((21.25, 16.5), (23.5, 16.5), (23.5, 28.0),
                         (27.0, 28.0), (27.0, 30.0)), 0.20, pcbnew.B_Cu)
 
+    # Status LED: a short top-layer run connects the series resistor to D1
+    # without entering either the USB or radio-frequency routing corridors.
+    led_a = nets["LED_A"]
+    route(board, led_a, ((34.825, 10.0), (34.825, 7.0), (33.2125, 7.0),
+                         (33.2125, 6.0)), 0.20)
+
     # Four-layer stackup: inner one is uninterrupted GND, inner two distributes
     # 3V3. Bottom GND is added for return-current continuity and stitching.
     copper_plane(board, nets["GND"], pcbnew.F_Cu)
