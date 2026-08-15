@@ -268,6 +268,21 @@ def make() -> Path:
     route(board, p3, ((50.225, 44.0), (49.0, 44.0), (49.0, 40.4)), 0.25)
     route(board, p3, ((54.1, 40.458), (53.0, 40.458), (53.0, 40.1),
                       (50.225, 40.1), (50.225, 41.0)), 0.20)
+    # Local plane drops around the CP2102N and the reset/boot pull-ups.
+    # Each is deliberately a short, single-net connection to In2.Cu.
+    for x, y in ((16.0, 20.4), (16.0, 21.6), (18.75, 23.0),
+                 (17.5, 14.0), (21.0, 10.0), (27.0, 14.0),
+                 (30.0, 12.0), (31.0, 36.0), (39.0, 35.0)):
+        power_via(board, p3, x, y)
+    route(board, p3, ((18.05, 20.75), (16.0, 20.75), (16.0, 20.4)), 0.20)
+    route(board, p3, ((18.05, 21.25), (16.0, 21.25), (16.0, 21.6)), 0.20)
+    route(board, p3, ((18.75, 21.95), (18.75, 23.0)), 0.20)
+    route(board, p3, ((19.05, 14.0), (17.5, 14.0)), 0.25)
+    route(board, p3, ((23.225, 10.0), (21.0, 10.0)), 0.20)
+    route(board, p3, ((25.825, 14.0), (27.0, 14.0)), 0.20)
+    route(board, p3, ((32.225, 12.0), (30.0, 12.0)), 0.20)
+    route(board, p3, ((30.825, 35.0), (31.0, 35.0), (31.0, 36.0)), 0.20)
+    route(board, p3, ((37.825, 35.0), (39.0, 35.0)), 0.20)
 
     # USB-C CC sink resistors. These low-speed lines are intentionally kept
     # separate from the D+/D- corridor used later for the differential pair.
