@@ -63,7 +63,7 @@ def make() -> Path:
     for name in ("GND", "+3V3", "USB_5V", "USB_D+", "USB_D-", "USB_CC1", "USB_CC2",
                  "UART_TX_ESP", "UART_RX_ESP", "UART_RX_CP", "UART_TX_CP", "EN", "BOOT",
                  "I2S_WS", "I2S_BCLK", "I2S_DATA", "U2_RST", "AUTO_DTR", "AUTO_RTS",
-                 "LED_STATUS", "LED_A"):
+                 "Q1_BASE", "Q2_BASE", "LED_STATUS", "LED_A"):
         item = pcbnew.NETINFO_ITEM(board, name)
         board.Add(item)
         nets[name] = item
@@ -89,6 +89,7 @@ def make() -> Path:
         ("R5", "1k LED", 34, 10), ("R6", "22R D+", 14, 22),
         ("R7", "22R D-", 14, 25), ("R8", "499R TX", 27, 18),
         ("R9", "499R RX", 27, 21), ("R10", "1k U2 RST", 25, 14),
+        ("R11", "10k DTR", 24, 28), ("R12", "10k RTS", 39, 28),
     )
     for ref, value, x, y in passive:
         load(board, "Resistor_SMD", "R_0603_1608Metric", ref, value, x, y)
@@ -97,7 +98,7 @@ def make() -> Path:
         ("C3", "100n U3", 26, 34), ("C4", "100n U1", 35, 15),
         ("C5", "100n EN", 30, 38), ("C6", "1u MIC", 51, 41),
         ("C7", "100n MIC", 51, 44), ("C8", "4u7 U2", 20, 14),
-        ("C9", "100n U2", 24, 14),
+        ("C9", "100n U2", 24, 14), ("C10", "1u EN", 33, 38),
     )
     for ref, value, x, y in caps:
         load(board, "Capacitor_SMD", "C_0805_2012Metric" if ref in {"C1", "C2", "C8"} else "C_0603_1608Metric", ref, value, x, y)
@@ -163,17 +164,19 @@ def make() -> Path:
     # until the impedance calculation locks their exact position.
     for ref, net in (("R1", "USB_CC1"), ("R2", "USB_CC2"), ("R3", "EN"),
                      ("R4", "BOOT"), ("R5", "LED_STATUS"), ("R8", "UART_TX_ESP"),
-                     ("R9", "UART_RX_ESP"), ("R10", "U2_RST")):
+                     ("R9", "UART_RX_ESP"), ("R10", "U2_RST"), ("R11", "AUTO_DTR"),
+                     ("R12", "AUTO_RTS")):
         connect(ref, "1", net)
     for ref, net in (("R1", "GND"), ("R2", "GND"), ("R3", "+3V3"),
                      ("R4", "+3V3"), ("R5", "LED_A"), ("R8", "UART_RX_CP"),
-                     ("R9", "UART_TX_CP"), ("R10", "+3V3")):
+                     ("R9", "UART_TX_CP"), ("R10", "+3V3"), ("R11", "Q1_BASE"),
+                     ("R12", "Q2_BASE")):
         connect(ref, "2", net)
     for ref, left, right in (("C1", "USB_5V", "GND"), ("C2", "+3V3", "GND"),
                              ("C3", "+3V3", "GND"), ("C4", "+3V3", "GND"),
                              ("C5", "EN", "GND"), ("C6", "+3V3", "GND"),
                              ("C7", "+3V3", "GND"), ("C8", "+3V3", "GND"),
-                             ("C9", "+3V3", "GND")):
+                             ("C9", "+3V3", "GND"), ("C10", "EN", "GND")):
         connect(ref, "1", left)
         connect(ref, "2", right)
     connect("D1", "1", "LED_A")
@@ -182,6 +185,11 @@ def make() -> Path:
     connect_all("SW1", "2", "GND")
     connect_all("SW2", "1", "EN")
     connect_all("SW2", "2", "GND")
+    # Espressif two-NPN, cross-coupled automatic boot/reset circuit.
+    for ref, pin, name in (("Q1", "1", "Q1_BASE"), ("Q1", "2", "AUTO_RTS"),
+                           ("Q1", "3", "EN"), ("Q2", "1", "Q2_BASE"),
+                           ("Q2", "2", "AUTO_DTR"), ("Q2", "3", "BOOT")):
+        connect(ref, pin, name)
 
     text(board, "EventMonitor Audio Node", 32.5, 2.5, 1.5)
     text(board, "REV-A / 4L / NETS ASSIGNED - UNROUTED", 32.5, 47.5, 1.0)

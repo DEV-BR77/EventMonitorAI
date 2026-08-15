@@ -31,9 +31,9 @@ bridge's internal regulator.
 | --- | --- |
 | UART_TX_ESP | U1 pin 37 (U0TXD/GPIO43) → R8 499 Ω → U2 RXD |
 | UART_RX_ESP | U1 pin 36 (U0RXD/GPIO44) ← R9 499 Ω ← U2 TXD |
-| EN | U1 pin 3; R3 10 kΩ to +3V3; C5 100 nF to GND; SW2 to GND; Q1 auto-reset collector |
+| EN | U1 pin 3; R3 10 kΩ to +3V3; C5 100 nF plus C10 1 µF to GND; SW2 to GND; Q1 auto-reset collector |
 | BOOT | U1 pin 27 (GPIO0); R4 10 kΩ to +3V3; SW1 to GND; Q2 auto-boot collector |
-| DTR / RTS | U2 pins 23/19 (`~DTR` / `~RTS`) → Espressif two-NPN auto-program circuit Q1/Q2; circuit must reproduce the Espressif truth table so opening a serial port cannot hold EN and GPIO0 low simultaneously |
+| DTR / RTS | U2 pins 23/19 (`~DTR` / `~RTS`) → R11/R12 (10 kΩ) → Espressif two-NPN auto-program circuit Q1/Q2. Q1: base from DTR via R11, emitter to RTS, collector to EN. Q2: base from RTS via R12, collector to DTR, emitter to GPIO0/BOOT. This cross-coupling prevents a serial terminal from holding EN and GPIO0 low together. |
 
 ## Microphone
 
