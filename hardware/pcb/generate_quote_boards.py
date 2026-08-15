@@ -135,7 +135,8 @@ def native_usb_smd_quote() -> Path:
     """Native-USB, external-antenna SMD layout for JLCPCB price quotations.
 
     The external antenna is a U.FL pigtail to an enclosure-mounted RP-SMA
-    bulkhead.  It is not an assembly component and consequently has no CPL row.
+    bulkhead.  The WROOM-1U module already has that U.FL connector, so the
+    pigtail is not an on-board assembly component and has no CPL row.
     """
     name = "smd_native_usb_external_antenna_quote"
     board = pcbnew.BOARD()
@@ -146,7 +147,6 @@ def native_usb_smd_quote() -> Path:
     parts = (
         ("RF_Module", "ESP32-S3-WROOM-1U", "U1", "ESP32-S3-WROOM-1U-N16R8", 42, 25, 90),
         ("Connector_USB", "USB_C_Receptacle_HRO_TYPE-C-31-M-12", "J1", "USB-C (power + native USB)", 8, 25, 90),
-        ("Connector_Coaxial", "U.FL_Hirose_U.FL-R-SMT-1_Vertical", "J2", "U.FL antenna connector", 55, 8, 0),
         ("Sensor_Audio", "InvenSense_ICS-43434-6_3.5x2.65mm", "U2", "ICS-43434 I2S microphone", 48, 41, 0),
         ("Package_TO_SOT_SMD", "SOT-223-3_TabPin2", "U3", "AMS1117-3.3", 20, 36, 0),
         ("Button_Switch_SMD", "SW_Push_1P1T_XKB_TS-1187A", "SW1", "BOOT (GPIO0)", 29, 40, 0),
@@ -179,7 +179,6 @@ def native_usb_smd_quote() -> Path:
         ("U2", 1, "ICS-43434 I²S MEMS microphone", "Sensor_Audio:InvenSense_ICS-43434-6_3.5x2.65mm", "SMD", "Bottom acoustic port; keep aperture clear"),
         ("U3", 1, "AMS1117-3.3, SOT-223", "Package_TO_SOT_SMD:SOT-223-3_TabPin2", "SMD", "Thermal copper required in routed revision"),
         ("J1", 1, "USB-C receptacle, USB2.0 + 5V", "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12", "SMD", "Native USB: GPIO19/20"),
-        ("J2", 1, "U.FL / I-PEX MHF1 board connector", "Connector_Coaxial:U.FL_Hirose_U.FL-R-SMT-1_Vertical", "SMD", "Use separate U.FL-to-RP-SMA bulkhead pigtail"),
         ("SW1,SW2", 2, "SMD tactile button, BOOT / RESET", "Button_Switch_SMD:SW_Push_1P1T_XKB_TS-1187A", "SMD", ""),
         ("D1", 1, "Green LED 0603", "LED_SMD:LED_0603_1608Metric", "SMD", ""),
         ("R1,R2", 2, "5.1 kΩ 0603 USB-C CC pull-down", "Resistor_SMD:R_0603_1608Metric", "SMD", ""),
@@ -191,7 +190,7 @@ def native_usb_smd_quote() -> Path:
         ("C3,C4", 2, "100 nF 0805 X7R", "Capacitor_SMD:C_0805_2012Metric", "SMD", ""),
         ("C5", 1, "1 µF 0805 X7R", "Capacitor_SMD:C_0805_2012Metric", "SMD", ""),
         ("H1,H2,H3,H4", 4, "M2.5 plated enclosure mounting holes", "MountingHole:MountingHole_2.7mm_M2.5_DIN965_Pad", "PCB", "No PCBA placement"),
-        ("PIGTAIL", 1, "U.FL to RP-SMA female bulkhead cable", "External cable", "USER SUPPLIED", "Not placed by JLC"),
+        ("PIGTAIL", 1, "U.FL to RP-SMA female bulkhead cable", "External cable", "USER SUPPLIED", "Connect directly to the WROOM-1U module; not placed by JLC"),
     )
     with (target.parent / "BOM.csv").open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)

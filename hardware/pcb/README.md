@@ -24,9 +24,10 @@ Kalkulationsmappe ohne Steckfassungen:
 Die Platine ist 65 × 50 mm groß und enthält das externe-Antennenmodul
 `ESP32-S3-WROOM-1U-N16R8`, einen direkt aufgelöteten ICS-43434-I²S-MEMS-Sensor,
 USB-C für 5 V und natives USB (GPIO19/GPIO20), AMS1117-3.3, BOOT/RESET,
-Status-LED, U.FL und vier M2.5-Gehäusebohrungen. Das RP-SMA-Teil ist bewusst
-kein Platinenbauteil: Es ist ein U.FL-auf-RP-SMA-Bulkhead-Pigtail, das später im
-Gehäuse verschraubt wird.
+Status-LED und vier M2.5-Gehäusebohrungen. Das RP-SMA-Teil ist bewusst kein
+Platinenbauteil: Es ist ein U.FL-auf-RP-SMA-Bulkhead-Pigtail, das direkt an die
+bereits vorhandene U.FL-Buchse des WROOM-1U-Moduls kommt und später im Gehäuse
+verschraubt wird.
 
 Wichtig: `ESP32-S3-WROOM-1-N16R8-H4` ist keine einzelne Espressif-Variante.
 `N16R8` (16 MB Flash, 8 MB PSRAM) und `H4` sind unterschiedliche
