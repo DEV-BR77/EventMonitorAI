@@ -71,6 +71,32 @@ def copper_plane(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM, layer: int,
     board.Add(area)
 
 
+def route(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM,
+          points: tuple[tuple[float, float], ...], width: float = 0.25,
+          layer: int = pcbnew.F_Cu) -> None:
+    """Add one intentionally reviewed polyline, never an autorouted guess."""
+    for start, end in zip(points, points[1:]):
+        item = pcbnew.PCB_TRACK(board)
+        item.SetStart(mm(*start))
+        item.SetEnd(mm(*end))
+        item.SetWidth(pcbnew.FromMM(width))
+        item.SetLayer(layer)
+        item.SetNet(signal)
+        board.Add(item)
+
+
+def power_via(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM,
+              x: float, y: float) -> None:
+    """0.60/0.30 mm F.Cu-to-In2.Cu power-plane transition."""
+    item = pcbnew.PCB_VIA(board)
+    item.SetPosition(mm(x, y))
+    item.SetWidth(pcbnew.FromMM(0.60))
+    item.SetDrill(pcbnew.FromMM(0.30))
+    item.SetLayerPair(pcbnew.F_Cu, pcbnew.In2_Cu)
+    item.SetNet(signal)
+    board.Add(item)
+
+
 def make() -> Path:
     board = pcbnew.BOARD()
     board.SetCopperLayerCount(4)
@@ -177,8 +203,9 @@ def make() -> Path:
     for pad, name in (("1", "I2S_DATA"), ("2", "+3V3"), ("3", "GND"),
                       ("4", "I2S_BCLK"), ("5", "I2S_WS"), ("6", "GND")):
         connect("U5", pad, name)
-    for pad, name in (("1", "USB_5V"), ("2", "+3V3"), ("3", "GND")):
-        connect("U3", pad, name)
+    connect("U3", "1", "USB_5V")
+    connect_all("U3", "2", "+3V3")
+    connect("U3", "3", "GND")
 
     # Passive network assignments.
     for ref, net in (("R1", "USB_CC1"), ("R2", "USB_CC2"), ("R3", "EN"),
@@ -212,8 +239,26 @@ def make() -> Path:
                            ("Q2", "2", "AUTO_DTR"), ("Q2", "3", "BOOT")):
         connect(ref, pin, name)
 
+    # Power backbone: short local traces from each supply pin to dedicated
+    # In2.Cu plane vias. This avoids long, high-current 3V3 traces on F.Cu.
+    p3 = nets["+3V3"]
+    power_via(board, p3, 22.0, 38.0)
+    route(board, p3, ((14.85, 38.0), (22.0, 38.0)), 0.60)
+    route(board, p3, ((21.15, 38.0), (22.0, 38.0)), 0.80)
+    route(board, p3, ((24.05, 38.0), (22.0, 38.0)), 0.50)
+    power_via(board, p3, 27.5, 32.0)
+    route(board, p3, ((25.225, 34.0), (25.225, 32.0), (27.5, 32.0)), 0.35)
+    power_via(board, p3, 37.86, 33.0)
+    route(board, p3, ((37.86, 31.75), (37.86, 33.0)), 0.35)
+    power_via(board, p3, 49.0, 40.4)
+    route(board, p3, ((50.225, 41.0), (50.225, 40.4), (49.0, 40.4)), 0.25)
+    route(board, p3, ((50.225, 44.0), (49.0, 44.0), (49.0, 40.4)), 0.25)
+    route(board, p3, ((54.1, 40.458), (53.0, 40.458), (53.0, 40.1),
+                      (50.225, 40.1), (50.225, 41.0)), 0.20)
+
     # Four-layer stackup: inner one is uninterrupted GND, inner two distributes
     # 3V3. Bottom GND is added for return-current continuity and stitching.
+    copper_plane(board, nets["GND"], pcbnew.F_Cu)
     copper_plane(board, nets["GND"], pcbnew.In1_Cu)
     copper_plane(board, nets["+3V3"], pcbnew.In2_Cu)
     copper_plane(board, nets["GND"], pcbnew.B_Cu)
