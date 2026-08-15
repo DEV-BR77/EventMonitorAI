@@ -30,9 +30,9 @@ were spaced apart before routing starts.
 The current design-rule report intentionally remains non-zero because this is
 still the controlled-routing phase. The 3V3 power backbone, its local
 decoupling connections and the top-layer GND pour have been added. The
-CP2102N auto-program control paths and the status LED path are routed,
-reducing open electrical connections from 85 to 38 without any shorts or
-clearance errors.
+CP2102N auto-program control paths, the two transistor base-resistor paths
+and the status LED path are routed, reducing open electrical connections from
+85 to 36 without any shorts or clearance errors.
 
 - The project design rule is explicitly set to a 0.20 mm plated through-hole,
 matching the thermal-ground drills embedded in KiCad's ESP32-S3-WROOM-1U
@@ -41,7 +41,7 @@ capability](https://jlcpcb.com/blog/complete-pcb-layout-guide).
 - The remaining warnings are one microphone ground thermal connection and
   silkscreen cleanup; they are expected until the final routing, copper pours,
   reference cleanup and keepouts are complete.
-- 38 electrical connections are still unrouted. Gerber, BOM and CPL
+- 36 electrical connections are still unrouted. Gerber, BOM and CPL
   export are therefore blocked.
 
 ## Release gate

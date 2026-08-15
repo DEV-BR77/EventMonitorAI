@@ -315,6 +315,16 @@ def make() -> Path:
     route(board, rts, ((21.25, 16.5), (23.5, 16.5), (23.5, 28.0),
                         (27.0, 28.0), (27.0, 30.0)), 0.20, pcbnew.B_Cu)
 
+    # The base-resistor runs are short, isolated top-layer connections to the
+    # two auto-program transistors. They remain clear of the DTR/RTS paths.
+    route(board, nets["Q1_BASE"], ((21.825, 31.0), (22.0, 30.5),
+                                    (22.0, 25.0), (25.0625, 25.0),
+                                    (25.0625, 26.05)), 0.20)
+    route(board, nets["Q2_BASE"], ((29.825, 31.0), (33.0, 31.0),
+                                    (33.0, 24.0), (29.5, 24.0),
+                                    (29.5, 26.05),
+                                    (30.0625, 26.05)), 0.20)
+
     # Status LED: a short top-layer run connects the series resistor to D1
     # without entering either the USB or radio-frequency routing corridors.
     led_a = nets["LED_A"]
