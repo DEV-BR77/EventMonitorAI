@@ -61,8 +61,9 @@ def make() -> Path:
     edge(board, 65, 50)
     nets = {}
     for name in ("GND", "+3V3", "USB_5V", "USB_D+", "USB_D-", "USB_CC1", "USB_CC2",
-                 "UART_TX_ESP", "UART_RX_ESP", "EN", "BOOT", "I2S_WS", "I2S_BCLK",
-                 "I2S_DATA", "U2_RST", "AUTO_DTR", "AUTO_RTS", "LED_STATUS"):
+                 "UART_TX_ESP", "UART_RX_ESP", "UART_RX_CP", "UART_TX_CP", "EN", "BOOT",
+                 "I2S_WS", "I2S_BCLK", "I2S_DATA", "U2_RST", "AUTO_DTR", "AUTO_RTS",
+                 "LED_STATUS", "LED_A"):
         item = pcbnew.NETINFO_ITEM(board, name)
         board.Add(item)
         nets[name] = item
@@ -138,8 +139,8 @@ def make() -> Path:
     for pad in ("5", "6", "7"):
         connect("U2", pad, "+3V3")
     for pad, name in (("3", "USB_D+"), ("4", "USB_D-"), ("8", "USB_5V"),
-                      ("9", "U2_RST"), ("19", "AUTO_RTS"), ("20", "UART_RX_ESP"),
-                      ("21", "UART_TX_ESP"), ("23", "AUTO_DTR")):
+                      ("9", "U2_RST"), ("19", "AUTO_RTS"), ("20", "UART_RX_CP"),
+                      ("21", "UART_TX_CP"), ("23", "AUTO_DTR")):
         connect("U2", pad, name)
 
     # ESP32-S3-WROOM-1U pins from the Espressif WROOM-1U pin table.
@@ -157,6 +158,30 @@ def make() -> Path:
         connect("U5", pad, name)
     for pad, name in (("1", "USB_5V"), ("2", "+3V3"), ("3", "GND")):
         connect("U3", pad, name)
+
+    # Passive network assignments. R6/R7 remain no-fit USB damping options
+    # until the impedance calculation locks their exact position.
+    for ref, net in (("R1", "USB_CC1"), ("R2", "USB_CC2"), ("R3", "EN"),
+                     ("R4", "BOOT"), ("R5", "LED_STATUS"), ("R8", "UART_TX_ESP"),
+                     ("R9", "UART_RX_ESP"), ("R10", "U2_RST")):
+        connect(ref, "1", net)
+    for ref, net in (("R1", "GND"), ("R2", "GND"), ("R3", "+3V3"),
+                     ("R4", "+3V3"), ("R5", "LED_A"), ("R8", "UART_RX_CP"),
+                     ("R9", "UART_TX_CP"), ("R10", "+3V3")):
+        connect(ref, "2", net)
+    for ref, left, right in (("C1", "USB_5V", "GND"), ("C2", "+3V3", "GND"),
+                             ("C3", "+3V3", "GND"), ("C4", "+3V3", "GND"),
+                             ("C5", "EN", "GND"), ("C6", "+3V3", "GND"),
+                             ("C7", "+3V3", "GND"), ("C8", "+3V3", "GND"),
+                             ("C9", "+3V3", "GND")):
+        connect(ref, "1", left)
+        connect(ref, "2", right)
+    connect("D1", "1", "LED_A")
+    connect("D1", "2", "GND")
+    connect("SW1", "1", "BOOT")
+    connect("SW1", "2", "GND")
+    connect("SW2", "1", "EN")
+    connect("SW2", "2", "GND")
 
     text(board, "EventMonitor Audio Node", 32.5, 2.5, 1.5)
     text(board, "REV-A / 4L / NETS ASSIGNED - UNROUTED", 32.5, 47.5, 1.0)
