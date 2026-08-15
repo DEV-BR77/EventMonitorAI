@@ -32,8 +32,9 @@ still the controlled-routing phase. The 3V3 power backbone, its local
 decoupling connections and the top-layer GND pour have been added. The
 CP2102N auto-program control paths, the two transistor base-resistor paths
 the manual BOOT switch/pull-up/transistor path and the status LED path are
-routed. The CP2102N reset pull-up path is also routed, reducing open electrical
-connections from 85 to 32 without any shorts
+routed. The CP2102N reset pull-up path, the three I2S lines and the long
+ESP32 BOOT/UART/LED paths are also routed, reducing open electrical
+connections from 85 to 25 without any shorts
 or clearance errors.
 
 - The project design rule is explicitly set to a 0.20 mm plated through-hole,
@@ -43,7 +44,7 @@ capability](https://jlcpcb.com/blog/complete-pcb-layout-guide).
 - The remaining warnings are one microphone ground thermal connection and
   silkscreen cleanup; they are expected until the final routing, copper pours,
   reference cleanup and keepouts are complete.
-- 32 electrical connections are still unrouted. Gerber, BOM and CPL
+- 25 electrical connections are still unrouted. Gerber, BOM and CPL
   export are therefore blocked.
 
 ## Release gate

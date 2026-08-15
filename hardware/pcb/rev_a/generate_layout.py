@@ -344,6 +344,60 @@ def make() -> Path:
                                    (24.5, 23.5), (24.5, 14.0),
                                    (24.175, 14.0)), 0.20)
 
+    # I2S: escape the ESP32 pin row straight to B.Cu, then keep each signal in
+    # a separate corridor. This avoids passing F.Cu tracks over unused module
+    # pads and retains the continuous inner ground plane underneath.
+    signal_via(board, nets["I2S_WS"], 40.4, 33.0)
+    signal_via(board, nets["I2S_WS"], 56.5, 38.0)
+    signal_via(board, nets["I2S_BCLK"], 41.67, 32.0)
+    signal_via(board, nets["I2S_BCLK"], 60.0, 32.0)
+    signal_via(board, nets["I2S_DATA"], 42.94, 34.0)
+    signal_via(board, nets["I2S_DATA"], 53.0, 38.0)
+    route(board, nets["I2S_WS"], ((40.4, 31.75), (40.4, 33.0)), 0.20)
+    route(board, nets["I2S_WS"], ((40.4, 33.0), (56.5, 33.0),
+                                   (56.5, 38.0)), 0.20, pcbnew.B_Cu)
+    route(board, nets["I2S_WS"], ((56.5, 38.0), (56.5, 39.636),
+                                   (55.9, 39.636)), 0.20)
+    route(board, nets["I2S_BCLK"], ((41.67, 31.75), (41.67, 32.0)), 0.20)
+    route(board, nets["I2S_BCLK"], ((41.67, 32.0), (60.0, 32.0)),
+          0.20, pcbnew.B_Cu)
+    route(board, nets["I2S_BCLK"], ((60.0, 32.0), (60.0, 40.458),
+                                     (55.9, 40.458)), 0.20)
+    route(board, nets["I2S_DATA"], ((42.94, 31.75), (42.94, 34.0)), 0.20)
+    route(board, nets["I2S_DATA"], ((42.94, 34.0), (53.0, 34.0),
+                                     (53.0, 38.0)),
+          0.20, pcbnew.B_Cu)
+    route(board, nets["I2S_DATA"], ((53.0, 38.0), (53.0, 39.636),
+                                     (54.1, 39.636)), 0.20)
+
+    # Long, low-speed ESP32 control and UART runs use B.Cu corridors with
+    # short F.Cu stubs at their pads. They stay clear of the I2S corridor.
+    signal_via(board, nets["BOOT"], 53.1, 12.0)
+    route(board, nets["BOOT"], ((32.0, 29.0), (53.1, 29.0), (53.1, 12.0)),
+          0.20, pcbnew.B_Cu)
+    route(board, nets["BOOT"], ((53.1, 12.0), (53.1, 14.25)), 0.20)
+
+    signal_via(board, nets["UART_TX_ESP"], 26.175, 16.5)
+    signal_via(board, nets["UART_TX_ESP"], 40.4, 12.5)
+    route(board, nets["UART_TX_ESP"], ((26.175, 18.0), (26.175, 16.5)), 0.20)
+    route(board, nets["UART_TX_ESP"], ((26.175, 16.5), (40.4, 16.5),
+                                        (40.4, 12.5)), 0.20, pcbnew.B_Cu)
+    route(board, nets["UART_TX_ESP"], ((40.4, 12.5), (40.4, 14.25)), 0.20)
+
+    signal_via(board, nets["UART_RX_ESP"], 26.175, 22.5)
+    signal_via(board, nets["UART_RX_ESP"], 41.67, 12.5)
+    route(board, nets["UART_RX_ESP"], ((26.175, 21.0), (26.175, 22.5)), 0.20)
+    route(board, nets["UART_RX_ESP"], ((26.175, 22.5), (41.67, 22.5),
+                                        (41.67, 12.5)), 0.20, pcbnew.B_Cu)
+    route(board, nets["UART_RX_ESP"], ((41.67, 12.5), (41.67, 14.25)), 0.20)
+
+    signal_via(board, nets["LED_STATUS"], 33.175, 8.0)
+    signal_via(board, nets["LED_STATUS"], 56.0, 17.285)
+    route(board, nets["LED_STATUS"], ((33.175, 10.0), (33.175, 8.0)), 0.20)
+    route(board, nets["LED_STATUS"], ((33.175, 8.0), (56.0, 8.0),
+                                       (56.0, 17.285)), 0.20, pcbnew.B_Cu)
+    route(board, nets["LED_STATUS"], ((56.0, 17.285), (54.35, 17.285)), 0.20)
+
     # Status LED: a short top-layer run connects the series resistor to D1
     # without entering either the USB or radio-frequency routing corridors.
     led_a = nets["LED_A"]
