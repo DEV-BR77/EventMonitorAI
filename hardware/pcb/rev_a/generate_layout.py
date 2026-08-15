@@ -339,6 +339,11 @@ def make() -> Path:
           0.20, pcbnew.B_Cu)
     route(board, boot, ((36.175, 34.0), (36.175, 35.0)), 0.20)
 
+    # CP2102N reset: one guarded top-layer path to the pull-up resistor.
+    route(board, nets["U2_RST"], ((19.75, 21.95), (19.75, 23.5),
+                                   (24.5, 23.5), (24.5, 14.0),
+                                   (24.175, 14.0)), 0.20)
+
     # Status LED: a short top-layer run connects the series resistor to D1
     # without entering either the USB or radio-frequency routing corridors.
     led_a = nets["LED_A"]
