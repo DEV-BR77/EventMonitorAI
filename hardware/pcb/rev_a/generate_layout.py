@@ -398,6 +398,11 @@ def make() -> Path:
                                        (56.0, 17.285)), 0.20, pcbnew.B_Cu)
     route(board, nets["LED_STATUS"], ((56.0, 17.285), (54.35, 17.285)), 0.20)
 
+    # Tie the USB-C receptacle signal grounds to the adjacent shield tabs.
+    # The plane then provides the low-impedance return path for all grounds.
+    route(board, nets["GND"], ((1.655, 28.25), (2.57, 29.32)), 0.30)
+    route(board, nets["GND"], ((1.655, 21.75), (2.57, 20.68)), 0.30)
+
     # Status LED: a short top-layer run connects the series resistor to D1
     # without entering either the USB or radio-frequency routing corridors.
     led_a = nets["LED_A"]
