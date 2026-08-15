@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="975" height="750" viewBox="0 0 975 750">
+  <style>
+    text{font-family:Arial,sans-serif;fill:#dbe8e2} .label{font-size:18px;font-weight:bold}.small{font-size:14px;fill:#b1c8be}
+    .board{fill:#12352a;stroke:#72dfb1;stroke-width:4}.zone{fill:none;stroke:#7ea696;stroke-width:2;stroke-dasharray:8 6}
+    .usb{fill:#3477c9}.digital{fill:#8369d9}.power{fill:#e2a54c}.audio{fill:#d85f92}.button{fill:#4e9d80}.hole{fill:#0b1e18;stroke:#a7c9ba;stroke-width:3}
+  </style>
+  <rect width="975" height="750" fill="#071711"/>
+  <text x="45" y="50" class="label" font-size="26">EventMonitor Audio Node – Rev-A Platzierung, 65 × 50 mm</text>
+  <rect x="120" y="100" width="650" height="500" rx="12" class="board"/>
+  <text x="390" y="635" class="small">USB-Kante / Gehäuseausschnitt</text>
+  <circle cx="150" cy="130" r="14" class="hole"/><circle cx="740" cy="130" r="14" class="hole"/><circle cx="150" cy="570" r="14" class="hole"/><circle cx="740" cy="570" r="14" class="hole"/>
+  <text x="131" y="135" class="small">H1</text><text x="721" y="135" class="small">H2</text><text x="131" y="575" class="small">H3</text><text x="721" y="575" class="small">H4</text>
+  <rect x="120" y="265" width="68" height="170" class="usb"/><text x="130" y="345" class="label">J1</text><text x="126" y="367" class="small">USB-C</text>
+  <rect x="205" y="175" width="120" height="90" rx="8" class="digital"/><text x="239" y="216" class="label">U4 + U2</text><text x="220" y="238" class="small">ESD / CP2102N</text>
+  <rect x="205" y="385" width="145" height="105" rx="8" class="power"/><text x="241" y="428" class="label">U3</text><text x="222" y="450" class="small">AMS1117 + C1/C2</text><text x="222" y="470" class="small">Kühlfläche / Vias</text>
+  <rect x="395" y="150" width="235" height="260" rx="10" class="digital"/><text x="445" y="260" class="label" font-size="30">U1</text><text x="425" y="286" class="small">ESP32-S3-WROOM-1U</text><text x="430" y="308" class="small">U.FL-Pigtail nach oben</text>
+  <path d="M555 150 L585 115 L665 115" fill="none" stroke="#e9d16e" stroke-width="5"/><text x="670" y="120" class="small">RP-SMA-Kabel</text>
+  <rect x="640" y="390" width="100" height="85" rx="8" class="audio"/><text x="672" y="427" class="label">U5</text><text x="650" y="449" class="small">I²S-Mikrofon</text>
+  <circle cx="690" cy="505" r="42" class="zone"/><text x="645" y="562" class="small">Akustiköffnung</text>
+  <rect x="420" y="490" width="90" height="45" rx="8" class="button"/><rect x="525" y="490" width="90" height="45" rx="8" class="button"/>
+  <text x="435" y="518" class="small">BOOT</text><text x="538" y="518" class="small">RESET</text>
+  <circle cx="510" cy="125" r="13" fill="#5de2a8"/><text x="530" y="130" class="small">D1 Status-LED</text>
+  <path d="M360 275 L625 445" stroke="#c36bc0" stroke-width="3" stroke-dasharray="8 5"/><text x="392" y="370" class="small">I²S: kurz, getrennt von USB</text>
+  <text x="800" y="190" class="label">Legende</text><rect x="800" y="210" width="20" height="20" class="usb"/><text x="830" y="226" class="small">USB</text><rect x="800" y="242" width="20" height="20" class="digital"/><text x="830" y="258" class="small">Digital</text><rect x="800" y="274" width="20" height="20" class="power"/><text x="830" y="290" class="small">Strom</text><rect x="800" y="306" width="20" height="20" class="audio"/><text x="830" y="322" class="small">Audio</text>
+</svg>
