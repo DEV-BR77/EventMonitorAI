@@ -28,7 +28,7 @@ were spaced apart before routing starts.
 The current design-rule report intentionally remains non-zero because this is
 still the controlled-routing phase. The 3V3 power backbone, its local
 decoupling connections and the top-layer GND pour have been added, reducing
-open electrical connections from 85 to 54 without any shorts or clearance
+open electrical connections from 85 to 52 without any shorts or clearance
 errors.
 
 - The project design rule is explicitly set to a 0.20 mm plated through-hole,
@@ -38,7 +38,7 @@ capability](https://jlcpcb.com/blog/complete-pcb-layout-guide).
 - The remaining warnings are one microphone ground thermal connection and
   silkscreen cleanup; they are expected until the final routing, copper pours,
   reference cleanup and keepouts are complete.
-- 54 electrical connections are still unrouted. Gerber, BOM and CPL
+- 52 electrical connections are still unrouted. Gerber, BOM and CPL
   export are therefore blocked.
 
 ## Release gate

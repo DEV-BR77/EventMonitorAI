@@ -97,6 +97,18 @@ def power_via(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM,
     board.Add(item)
 
 
+def signal_via(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM,
+               x: float, y: float) -> None:
+    """0.50/0.25 mm F.Cu-to-B.Cu transition for a low-speed signal."""
+    item = pcbnew.PCB_VIA(board)
+    item.SetPosition(mm(x, y))
+    item.SetWidth(pcbnew.FromMM(0.50))
+    item.SetDrill(pcbnew.FromMM(0.25))
+    item.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+    item.SetNet(signal)
+    board.Add(item)
+
+
 def make() -> Path:
     board = pcbnew.BOARD()
     board.SetCopperLayerCount(4)
@@ -169,8 +181,9 @@ def make() -> Path:
             selected.SetNet(nets[name])
 
     # USB-C receptacle and ESD array (USBLC6-2SC6 pin pairs 1/6 and 3/4).
-    for pad in ("A1", "A12", "B1", "B12", "SH"):
+    for pad in ("A1", "A12", "B1", "B12"):
         connect("J1", pad, "GND")
+    connect_all("J1", "SH", "GND")
     for pad in ("A4", "A9", "B4", "B9"):
         connect("J1", pad, "USB_5V")
     for pad, name in (("A5", "USB_CC1"), ("B5", "USB_CC2"), ("A6", "USB_D+_ESD"),
@@ -255,6 +268,17 @@ def make() -> Path:
     route(board, p3, ((50.225, 44.0), (49.0, 44.0), (49.0, 40.4)), 0.25)
     route(board, p3, ((54.1, 40.458), (53.0, 40.458), (53.0, 40.1),
                       (50.225, 40.1), (50.225, 41.0)), 0.20)
+
+    # USB-C CC sink resistors. These low-speed lines are intentionally kept
+    # separate from the D+/D- corridor used later for the differential pair.
+    signal_via(board, nets["USB_CC1"], 3.5, 26.25)
+    signal_via(board, nets["USB_CC1"], 8.175, 9.0)
+    route(board, nets["USB_CC1"], ((1.655, 26.25), (3.5, 26.25)), 0.20)
+    route(board, nets["USB_CC1"], ((3.5, 26.25), (8.5, 26.25),
+                                   (8.5, 9.0), (8.175, 9.0)), 0.20, pcbnew.B_Cu)
+    route(board, nets["USB_CC1"], ((8.175, 9.0), (8.175, 11.0)), 0.20)
+    route(board, nets["USB_CC2"], ((1.655, 23.25), (4.0, 23.25),
+                                   (4.0, 14.0), (8.175, 14.0)), 0.20)
 
     # Four-layer stackup: inner one is uninterrupted GND, inner two distributes
     # 3V3. Bottom GND is added for return-current continuity and stitching.
