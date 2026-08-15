@@ -270,13 +270,13 @@ def make() -> Path:
                       (50.225, 40.1), (50.225, 41.0)), 0.20)
     # Local plane drops around the CP2102N and the reset/boot pull-ups.
     # Each is deliberately a short, single-net connection to In2.Cu.
-    for x, y in ((16.0, 20.4), (16.0, 21.6), (18.75, 23.0),
+    for x, y in ((16.0, 20.4), (16.0, 21.6), (18.0, 23.0),
                  (17.5, 14.0), (21.0, 10.0), (27.0, 14.0),
                  (30.0, 12.0), (31.0, 36.0), (39.0, 35.0)):
         power_via(board, p3, x, y)
     route(board, p3, ((18.05, 20.75), (16.0, 20.75), (16.0, 20.4)), 0.20)
     route(board, p3, ((18.05, 21.25), (16.0, 21.25), (16.0, 21.6)), 0.20)
-    route(board, p3, ((18.75, 21.95), (18.75, 23.0)), 0.20)
+    route(board, p3, ((18.75, 21.95), (18.0, 21.95), (18.0, 23.0)), 0.20)
     route(board, p3, ((19.05, 14.0), (17.5, 14.0)), 0.25)
     route(board, p3, ((23.225, 10.0), (21.0, 10.0)), 0.20)
     route(board, p3, ((25.825, 14.0), (27.0, 14.0)), 0.20)
@@ -294,6 +294,26 @@ def make() -> Path:
     route(board, nets["USB_CC1"], ((8.175, 9.0), (8.175, 11.0)), 0.20)
     route(board, nets["USB_CC2"], ((1.655, 23.25), (4.0, 23.25),
                                    (4.0, 14.0), (8.175, 14.0)), 0.20)
+
+    # CP2102N DTR/RTS auto-program control. These slow control nets use B.Cu
+    # so they cannot interfere with the later top-layer USB pair.
+    dtr = nets["AUTO_DTR"]
+    for x, y in ((19.25, 16.5), (19.25, 31.0), (28.0, 28.0)):
+        signal_via(board, dtr, x, y)
+    route(board, dtr, ((19.25, 18.05), (19.25, 16.5)), 0.20)
+    route(board, dtr, ((19.25, 31.0), (20.175, 31.0)), 0.20)
+    route(board, dtr, ((28.0, 28.0), (28.0, 27.95), (30.0625, 27.95)), 0.20)
+    route(board, dtr, ((19.25, 16.5), (19.25, 31.0), (28.0, 31.0),
+                        (28.0, 28.0)), 0.20, pcbnew.B_Cu)
+
+    rts = nets["AUTO_RTS"]
+    for x, y in ((21.25, 16.5), (23.5, 28.0), (27.0, 30.0)):
+        signal_via(board, rts, x, y)
+    route(board, rts, ((21.25, 18.05), (21.25, 16.5)), 0.20)
+    route(board, rts, ((23.5, 28.0), (23.5, 27.95), (25.0625, 27.95)), 0.20)
+    route(board, rts, ((27.0, 30.0), (28.175, 31.0)), 0.20)
+    route(board, rts, ((21.25, 16.5), (23.5, 16.5), (23.5, 28.0),
+                        (27.0, 28.0), (27.0, 30.0)), 0.20, pcbnew.B_Cu)
 
     # Four-layer stackup: inner one is uninterrupted GND, inner two distributes
     # 3V3. Bottom GND is added for return-current continuity and stitching.
