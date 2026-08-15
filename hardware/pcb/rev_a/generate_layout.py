@@ -325,6 +325,14 @@ def make() -> Path:
                                     (29.5, 26.05),
                                     (30.0625, 26.05)), 0.20)
 
+    # Manual BOOT control: join the duplicated switch pad and its pull-up.
+    # The ESP32 and transistor portions remain intentionally separate until
+    # their longer, reviewed routes are added.
+    boot = nets["BOOT"]
+    route(board, boot, ((31.0, 41.125), (37.0, 41.125)), 0.20)
+    route(board, boot, ((36.175, 35.0), (37.0, 35.0), (37.0, 41.125)),
+          0.20)
+
     # Status LED: a short top-layer run connects the series resistor to D1
     # without entering either the USB or radio-frequency routing corridors.
     led_a = nets["LED_A"]
