@@ -11,8 +11,10 @@ schematic and layout; it is not a manufacturing release.
 * USB-C receptacle in USB 2.0 device mode, 5 V input only, with separate 5.1 kΩ
   pull-down resistors from CC1 and CC2 to GND.
 * USBLC6-2SC6 (or electrically equivalent, validated JLC basic/extended part)
-  directly behind the receptacle. USB D+/D- are routed as a 90-ohm differential
-  pair to a CP2102N USB-UART bridge.
+  directly behind the receptacle. USB D+/D- are routed as a compact,
+  length-balanced pair to a CP2102N USB-UART bridge. The final trace
+  width/spacing for 90-ohm differential impedance must be calculated from the
+  stackup selected in the JLCPCB order and confirmed before fabrication.
 * **CP2102N-A02-GQFN24R** (LCSC `C969151`) connects to U0RXD/GPIO44 and
   U0TXD/GPIO43. Its DTR/RTS drive the standard
   two-transistor auto-program circuit for EN and GPIO0. Manual BOOT and RESET
@@ -45,8 +47,9 @@ part may press against or kink the U.FL pigtail.
 1. Select available LCSC part numbers and validate each package against its
    datasheet.
 2. Create and review the KiCad schematic; run ERC.
-3. Route from that netlist using the selected JLC 4-layer impedance stackup;
-   run DRC with zero errors.
+3. Confirm the routed board against the schematic netlist, select the JLCPCB
+   4-layer impedance stackup and tune USB width/spacing from its field solver.
+   Run ERC and DRC with zero errors after that review.
 4. Check USB-C polarity, auto-program timing and I²S clock/data orientation.
 5. Assemble one first article, flash it through USB, run Wi-Fi thermal testing,
    microphone noise-floor testing and antenna range testing.

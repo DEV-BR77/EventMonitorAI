@@ -1,8 +1,8 @@
-"""Create the KiCad Rev-A placement board from the reviewed placement plan.
+"""Create the routed KiCad Rev-A board from the reviewed design baseline.
 
-This script deliberately stops after footprint placement and board stackup.  It
-is the controlled starting point for routing; fabrication export is forbidden
-until the schematic-net import and DRC zero-error gate are complete.
+The generated native source includes the four-layer stackup, placement, copper
+planes and reviewed routing. Fabrication release remains gated by schematic/ERC,
+manufacturer stackup/impedance review and validated production part numbers.
 """
 from __future__ import annotations
 
@@ -109,12 +109,39 @@ def signal_via(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM,
     board.Add(item)
 
 
+def usb_via(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM,
+            x: float, y: float) -> None:
+    """0.40/0.20 mm transition for the tightly spaced USB-C escape."""
+    item = pcbnew.PCB_VIA(board)
+    item.SetPosition(mm(x, y))
+    item.SetWidth(pcbnew.FromMM(0.40))
+    item.SetDrill(pcbnew.FromMM(0.20))
+    item.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+    item.SetNet(signal)
+    board.Add(item)
+
+
+def through_power_via(board: pcbnew.BOARD, signal: pcbnew.NETINFO_ITEM,
+                      x: float, y: float) -> None:
+    """0.60/0.30 mm F.Cu-to-B.Cu transition for routed supply rails."""
+    item = pcbnew.PCB_VIA(board)
+    item.SetPosition(mm(x, y))
+    item.SetWidth(pcbnew.FromMM(0.60))
+    item.SetDrill(pcbnew.FromMM(0.30))
+    item.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+    item.SetNet(signal)
+    board.Add(item)
+
+
 def make() -> Path:
     board = pcbnew.BOARD()
     board.SetCopperLayerCount(4)
     # JLCPCB's published 4-layer capability recommends a 0.20 mm PTH drill.
     # The ESP32 module footprint uses 0.20 mm thermal-ground drills.
     board.GetDesignSettings().m_MinThroughDrill = pcbnew.FromMM(0.20)
+    board.GetDesignSettings().m_TrackMinWidth = pcbnew.FromMM(0.15)
+    board.GetDesignSettings().m_ViasMinSize = pcbnew.FromMM(0.40)
+    board.GetDesignSettings().m_ViasMinAnnularWidth = pcbnew.FromMM(0.10)
     edge(board, 65, 50)
     nets = {}
     for name in ("GND", "+3V3", "USB_5V", "USB_D+", "USB_D-", "USB_D+_ESD", "USB_D-_ESD", "USB_CC1", "USB_CC2",
@@ -128,7 +155,7 @@ def make() -> Path:
     parts = (
         # Keep the physical connector pads well inside the board outline.
         ("Connector_USB", "USB_C_Receptacle_HRO_TYPE-C-31-M-12", "J1", "USB-C USB2.0", 5.7, 25, 90),
-        ("Package_TO_SOT_SMD", "SOT-23-6", "U4", "USBLC6-2SC6", 12.5, 19, 0),
+        ("Package_TO_SOT_SMD", "SOT-23-6", "U4", "USBLC6-2SC6", 12.5, 25, 0),
         ("Package_DFN_QFN", "QFN-24-1EP_4x4mm_P0.5mm_EP2.65x2.65mm", "U2", "CP2102N-A02-GQFN24R", 20, 20, 0),
         ("Package_TO_SOT_SMD", "SOT-223-3_TabPin2", "U3", "AMS1117-3.3", 18, 38, 0),
         ("RF_Module", "ESP32-S3-WROOM-1U", "U1", "ESP32-S3-WROOM-1U-N16R8", 45, 23, 90),
@@ -144,8 +171,8 @@ def make() -> Path:
     passive = (
         ("R1", "5.1k", 9, 11), ("R2", "5.1k", 9, 14),
         ("R3", "10k EN", 30, 35), ("R4", "10k BOOT", 37, 35),
-        ("R5", "1k LED", 34, 10), ("R6", "22R D+", 14, 22),
-        ("R7", "22R D-", 14, 25), ("R8", "499R TX", 27, 18),
+        ("R5", "1k LED", 34, 10), ("R6", "22R D+", 16.5, 24.05),
+        ("R7", "22R D-", 16.5, 25.95), ("R8", "499R TX", 27, 18),
         ("R9", "499R RX", 27, 21), ("R10", "1k U2 RST", 25, 14),
         ("R11", "10k DTR", 21, 31), ("R12", "10k RTS", 29, 31),
     )
@@ -164,6 +191,11 @@ def make() -> Path:
         load(board, "Package_TO_SOT_SMD", "SOT-23", ref, "BC847B", x, y)
     for ref, x, y in (("H1", 4, 4), ("H2", 61, 4), ("H3", 4, 46), ("H4", 61, 46)):
         load(board, "MountingHole", "MountingHole_2.7mm_M2.5_DIN965_Pad", ref, "M2.5", x, y)
+
+    # These references collide with the connector edge or tightly packed
+    # passives. Their identity remains available in fabrication/assembly data.
+    for ref in ("J1", "C4", "R7"):
+        board.FindFootprintByReference(ref).Reference().SetVisible(False)
 
     def connect(ref: str, pad: str, name: str) -> None:
         footprint = board.FindFootprintByReference(ref)
@@ -270,13 +302,14 @@ def make() -> Path:
                       (50.225, 40.1), (50.225, 41.0)), 0.20)
     # Local plane drops around the CP2102N and the reset/boot pull-ups.
     # Each is deliberately a short, single-net connection to In2.Cu.
-    for x, y in ((16.0, 20.4), (16.0, 21.6), (18.0, 23.0),
+    for x, y in ((14.0, 20.4), (14.0, 21.6),
                  (17.5, 14.0), (21.0, 10.0), (27.0, 14.0),
                  (30.0, 12.0), (31.0, 36.0), (39.0, 35.0)):
         power_via(board, p3, x, y)
-    route(board, p3, ((18.05, 20.75), (16.0, 20.75), (16.0, 20.4)), 0.20)
-    route(board, p3, ((18.05, 21.25), (16.0, 21.25), (16.0, 21.6)), 0.20)
-    route(board, p3, ((18.75, 21.95), (18.0, 21.95), (18.0, 23.0)), 0.20)
+    route(board, p3, ((18.05, 20.75), (14.0, 20.75), (14.0, 20.4)), 0.20)
+    route(board, p3, ((18.05, 21.25), (14.0, 21.25), (14.0, 21.6)), 0.20)
+    route(board, p3, ((18.75, 21.95), (14.5, 21.95),
+                       (14.5, 21.6), (14.0, 21.6)), 0.20)
     route(board, p3, ((19.05, 14.0), (17.5, 14.0)), 0.25)
     route(board, p3, ((23.225, 10.0), (21.0, 10.0)), 0.20)
     route(board, p3, ((25.825, 14.0), (27.0, 14.0)), 0.20)
@@ -286,33 +319,41 @@ def make() -> Path:
 
     # USB-C CC sink resistors. These low-speed lines are intentionally kept
     # separate from the D+/D- corridor used later for the differential pair.
-    signal_via(board, nets["USB_CC1"], 3.5, 26.25)
-    signal_via(board, nets["USB_CC1"], 8.175, 9.0)
-    route(board, nets["USB_CC1"], ((1.655, 26.25), (3.5, 26.25)), 0.20)
-    route(board, nets["USB_CC1"], ((3.5, 26.25), (8.5, 26.25),
-                                   (8.5, 9.0), (8.175, 9.0)), 0.20, pcbnew.B_Cu)
-    route(board, nets["USB_CC1"], ((8.175, 9.0), (8.175, 11.0)), 0.20)
-    route(board, nets["USB_CC2"], ((1.655, 23.25), (4.0, 23.25),
-                                   (4.0, 14.0), (8.175, 14.0)), 0.20)
+    signal_via(board, nets["USB_CC1"], 9.5, 27.5)
+    signal_via(board, nets["USB_CC1"], 8.175, 10.0)
+    route(board, nets["USB_CC1"], ((1.655, 26.25), (9.5, 26.25),
+                                   (9.5, 27.5)), 0.20)
+    route(board, nets["USB_CC1"], ((9.5, 27.5), (12.0, 27.5),
+                                   (12.0, 10.0), (8.175, 10.0)),
+          0.20, pcbnew.B_Cu)
+    route(board, nets["USB_CC1"], ((8.175, 10.0), (8.175, 11.0)), 0.20)
+    signal_via(board, nets["USB_CC2"], 8.0, 22.5)
+    signal_via(board, nets["USB_CC2"], 8.175, 14.0)
+    route(board, nets["USB_CC2"], ((1.655, 23.25), (8.0, 23.25),
+                                   (8.0, 22.5)), 0.20)
+    route(board, nets["USB_CC2"], ((8.0, 22.5), (8.175, 14.0)),
+          0.20, pcbnew.B_Cu)
 
     # CP2102N DTR/RTS auto-program control. These slow control nets use B.Cu
     # so they cannot interfere with the later top-layer USB pair.
     dtr = nets["AUTO_DTR"]
-    for x, y in ((19.25, 16.5), (19.25, 31.0), (28.0, 28.0)):
+    for x, y in ((19.25, 16.5), (20.0, 31.0), (28.0, 28.0)):
         signal_via(board, dtr, x, y)
     route(board, dtr, ((19.25, 18.05), (19.25, 16.5)), 0.20)
-    route(board, dtr, ((19.25, 31.0), (20.175, 31.0)), 0.20)
+    route(board, dtr, ((20.0, 31.0), (20.175, 31.0)), 0.20)
     route(board, dtr, ((28.0, 28.0), (28.0, 27.95), (30.0625, 27.95)), 0.20)
-    route(board, dtr, ((19.25, 16.5), (19.25, 31.0), (28.0, 31.0),
+    route(board, dtr, ((19.25, 16.5), (20.0, 16.5), (20.0, 31.0),
+                        (28.0, 31.0),
                         (28.0, 28.0)), 0.20, pcbnew.B_Cu)
 
     rts = nets["AUTO_RTS"]
-    for x, y in ((21.25, 16.5), (23.5, 28.0), (27.0, 30.0)):
+    for x, y in ((22.0, 16.5), (23.5, 28.0), (27.0, 30.0)):
         signal_via(board, rts, x, y)
-    route(board, rts, ((21.25, 18.05), (21.25, 16.5)), 0.20)
+    route(board, rts, ((21.25, 18.05), (22.0, 18.05),
+                        (22.0, 16.5)), 0.20)
     route(board, rts, ((23.5, 28.0), (23.5, 27.95), (25.0625, 27.95)), 0.20)
     route(board, rts, ((27.0, 30.0), (28.175, 31.0)), 0.20)
-    route(board, rts, ((21.25, 16.5), (23.5, 16.5), (23.5, 28.0),
+    route(board, rts, ((22.0, 16.5), (23.5, 16.5), (23.5, 28.0),
                         (27.0, 28.0), (27.0, 30.0)), 0.20, pcbnew.B_Cu)
 
     # The base-resistor runs are short, isolated top-layer connections to the
@@ -403,6 +444,134 @@ def make() -> Path:
     route(board, nets["GND"], ((1.655, 28.25), (2.57, 29.32)), 0.30)
     route(board, nets["GND"], ((1.655, 21.75), (2.57, 20.68)), 0.30)
 
+    # USB data pair routing is added here after the CC corridor has been
+    # moved out of the USB escape area.
+    d_plus_esd = nets["USB_D+_ESD"]
+    for x, y in ((3.0, 24.25), (3.0, 25.25), (10.5, 24.05)):
+        usb_via(board, d_plus_esd, x, y)
+    route(board, d_plus_esd, ((1.655, 24.25), (3.0, 24.25)), 0.15)
+    route(board, d_plus_esd, ((1.655, 25.25), (3.0, 25.25)), 0.15)
+    route(board, d_plus_esd, ((3.0, 24.25), (3.0, 23.5),
+                              (10.5, 23.5), (10.5, 24.05)),
+          0.15, pcbnew.B_Cu)
+    route(board, d_plus_esd, ((3.0, 25.25), (3.0, 24.25)),
+          0.15, pcbnew.B_Cu)
+    route(board, d_plus_esd, ((10.5, 24.05), (11.3625, 24.05)), 0.15)
+
+    d_minus_esd = nets["USB_D-_ESD"]
+    for x, y in ((5.5, 24.75), (5.5, 25.75), (10.5, 25.95)):
+        usb_via(board, d_minus_esd, x, y)
+    route(board, d_minus_esd, ((1.655, 24.75), (5.5, 24.75)), 0.15)
+    route(board, d_minus_esd, ((1.655, 25.75), (5.5, 25.75)), 0.15)
+    route(board, d_minus_esd, ((5.5, 24.75), (5.5, 25.75),
+                               (5.5, 26.5), (10.5, 26.5),
+                               (10.5, 25.95)), 0.15, pcbnew.B_Cu)
+    route(board, d_minus_esd, ((10.5, 25.95), (11.3625, 25.95)), 0.15)
+
+    route(board, d_plus_esd, ((11.3625, 24.05), (13.6375, 24.05),
+                              (15.675, 24.05)), 0.15)
+    route(board, d_minus_esd, ((11.3625, 25.95), (13.6375, 25.95),
+                               (15.675, 25.95)), 0.15)
+    for x, y in ((17.325, 24.05), (16.8, 19.75)):
+        usb_via(board, nets["USB_D+"], x, y)
+    route(board, nets["USB_D+"], ((17.325, 24.05), (16.4, 24.05),
+                                   (16.4, 19.75), (16.8, 19.75)),
+          0.15, pcbnew.B_Cu)
+    route(board, nets["USB_D+"], ((16.8, 19.75), (18.05, 19.75)), 0.15)
+    for x, y in ((18.0, 25.95), (17.25, 20.25)):
+        usb_via(board, nets["USB_D-"], x, y)
+    route(board, nets["USB_D-"], ((17.325, 25.95), (18.0, 25.95)), 0.15)
+    route(board, nets["USB_D-"], ((18.0, 25.95), (18.0, 22.5),
+                                   (17.25, 20.25)),
+          0.15, pcbnew.B_Cu)
+    route(board, nets["USB_D-"], ((17.25, 20.25), (18.05, 20.25)), 0.15)
+
+    # USB 5 V distribution. Both receptacle power pads leave towards the
+    # board edge and use separate vias before joining on B.Cu. This avoids
+    # routing through the connector's shield holes and keeps unfilled vias
+    # out of the SMD contact pads. A 0.60 mm trunk feeds the regulator input,
+    # its bulk capacitor, the ESD array and the USB-UART bridge.
+    usb_5v = nets["USB_5V"]
+    for x, y in ((0.80, 22.55), (0.80, 27.45), (8.0, 34.0),
+                 (13.5, 35.7), (16.8, 25.0)):
+        through_power_via(board, usb_5v, x, y)
+    route(board, usb_5v, ((1.655, 22.55), (0.80, 22.55)), 0.30)
+    route(board, usb_5v, ((1.655, 27.45), (0.80, 27.45)), 0.30)
+    route(board, usb_5v, ((0.80, 22.55), (0.80, 31.0),
+                           (8.0, 31.0), (8.0, 34.0)),
+          0.60, pcbnew.B_Cu)
+    route(board, usb_5v, ((8.0, 34.0), (13.5, 34.0),
+                           (13.5, 35.7)),
+          0.60, pcbnew.B_Cu)
+    route(board, usb_5v, ((8.0, 34.0), (9.05, 34.0)), 0.50)
+    route(board, usb_5v, ((13.5, 35.7), (14.85, 35.7)), 0.50)
+    route(board, usb_5v, ((16.8, 25.0), (15.8, 25.0), (15.8, 28.0),
+                           (13.5, 28.0), (13.5, 34.0)),
+          0.50, pcbnew.B_Cu)
+    route(board, usb_5v, ((19.25, 21.95), (19.25, 23.75),
+                           (18.8, 23.75), (18.8, 24.7), (16.8, 25.0),
+                           (13.6375, 25.0)), 0.30)
+
+    # CP2102N UART bridge. Fine QFN escapes change to B.Cu immediately;
+    # the two corridors remain independent of USB D+/D- and DTR/RTS.
+    uart_rx_cp = nets["UART_RX_CP"]
+    for x, y in ((20.75, 16.0), (27.825, 14.8)):
+        usb_via(board, uart_rx_cp, x, y)
+    route(board, uart_rx_cp, ((20.75, 18.05), (20.75, 16.0)), 0.15)
+    route(board, uart_rx_cp, ((20.75, 16.0), (20.75, 14.8),
+                              (27.825, 14.8)),
+          0.15, pcbnew.B_Cu)
+    route(board, uart_rx_cp, ((27.825, 14.8), (27.825, 18.0)), 0.15)
+
+    uart_tx_cp = nets["UART_TX_CP"]
+    for x, y in ((20.25, 15.5), (29.0, 13.0)):
+        usb_via(board, uart_tx_cp, x, y)
+    route(board, uart_tx_cp, ((20.25, 18.05), (20.25, 15.5)), 0.15)
+    route(board, uart_tx_cp, ((20.25, 15.5), (20.25, 13.0),
+                              (29.0, 13.0)),
+          0.15, pcbnew.B_Cu)
+    route(board, uart_tx_cp, ((29.0, 13.0), (29.0, 21.0),
+                              (27.825, 21.0)), 0.15)
+
+    # EN/reset is routed as one continuous low-speed net. The transistor,
+    # pull-up, two capacitors, reset button and ESP32 pin all remain clear of
+    # the USB, UART and I2S corridors.
+    en = nets["EN"]
+    signal_via(board, en, 27.5, 26.0)
+    signal_via(board, en, 29.175, 34.0)
+    route(board, en, ((26.9375, 27.0), (27.5, 27.0), (27.5, 26.0)), 0.20)
+    route(board, en, ((27.5, 26.0), (30.0, 26.0), (30.0, 34.0),
+                       (29.175, 34.0)), 0.20, pcbnew.B_Cu)
+    route(board, en, ((29.175, 34.0), (29.175, 35.0)), 0.20)
+    signal_via(board, en, 29.225, 39.2)
+    signal_via(board, en, 33.225, 39.2)
+    route(board, en, ((29.175, 35.0), (29.175, 38.0),
+                       (29.225, 38.0), (29.225, 39.2)), 0.20)
+    route(board, en, ((29.225, 39.2), (33.225, 39.2)),
+          0.20, pcbnew.B_Cu)
+    route(board, en, ((33.225, 39.2), (33.225, 38.0)), 0.20)
+    signal_via(board, en, 32.0, 40.0)
+    signal_via(board, en, 40.0, 40.0)
+    route(board, en, ((33.225, 38.0), (32.0, 38.0), (32.0, 40.0)), 0.20)
+    route(board, en, ((32.0, 40.0), (40.0, 40.0)),
+          0.20, pcbnew.B_Cu)
+    route(board, en, ((40.0, 40.0), (40.0, 41.125),
+                       (46.0, 41.125)), 0.20)
+    signal_via(board, en, 39.13, 34.0)
+    signal_via(board, en, 32.0, 36.5)
+    route(board, en, ((39.13, 31.75), (39.13, 34.0)), 0.20)
+    route(board, en, ((39.13, 34.0), (41.0, 34.0), (41.0, 36.5),
+                       (32.0, 36.5)), 0.20, pcbnew.B_Cu)
+    route(board, en, ((32.0, 36.5), (32.0, 38.0),
+                       (33.225, 38.0)), 0.20)
+
+    # Give the microphone's second ground pad a direct plated connection to
+    # the bottom ground plane; this also guarantees two independent returns.
+    signal_via(board, nets["GND"], 55.0, 38.5)
+    route(board, nets["GND"], ((55.0, 39.636), (55.0, 38.5)), 0.30)
+    signal_via(board, nets["GND"], 10.5, 25.0)
+    route(board, nets["GND"], ((11.3625, 25.0), (10.5, 25.0)), 0.30)
+
     # Status LED: a short top-layer run connects the series resistor to D1
     # without entering either the USB or radio-frequency routing corridors.
     led_a = nets["LED_A"]
@@ -418,7 +587,7 @@ def make() -> Path:
     pcbnew.ZONE_FILLER(board).Fill(board.Zones())
 
     text(board, "EventMonitor Audio Node", 32.5, 2.5, 1.5)
-    text(board, "REV-A / 4L / POWER PLANES - UNROUTED", 32.5, 47.5, 1.0)
+    text(board, "REV-A / 4L / ROUTED", 32.5, 47.5, 1.0)
     # This is the native, version-controlled KiCad source. Renderings and
     # DRC reports remain in generated/, but the editable board itself does not.
     target = HERE / "eventmonitor_audio_node_rev_a.kicad_pcb"

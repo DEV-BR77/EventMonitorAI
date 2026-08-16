@@ -1,56 +1,55 @@
-# Rev-A Layout Status
+# Rev-A layout status
 
-Updated: 15 August 2026
+Updated: 16 August 2026
 
-## What is in the native KiCad source
+## Native KiCad source
 
 `eventmonitor_audio_node_rev_a.kicad_pcb` is the native, version-controlled
-65 x 50 mm, four-layer KiCad source. `generate_layout.py` creates or refreshes
-this controlled baseline, with real footprints for the USB-C receptacle,
-CP2102N-A02-GQFN24R,
-ESP32-S3-WROOM-1U-N16R8, AMS1117-3.3, ICS-43434, ESD protection, automatic
-boot/reset circuit, controls, LED and four M2.5 mounting holes.
+65 x 50 mm four-layer board. `generate_layout.py` recreates the reviewed
+placement, copper planes and routing for the USB-C receptacle,
+USBLC6-2SC6 ESD protection, CP2102N-A02-GQFN24R programming bridge,
+ESP32-S3-WROOM-1U-N16R8, AMS1117-3.3, ICS-43434 microphone, automatic
+boot/reset circuit, buttons, status LED and four M2.5 mounting holes.
 
-The USB data pair is deliberately split into connector-side and protected-side
-nets. It is connected as follows:
+## Completed routing gate
 
-`USB-C D+/- -> USBLC6-2SC6 input -> USBLC6-2SC6 output -> 22 ohm series
-option -> CP2102N D+/-`.
+The complete board now passes KiCad's native DRC:
 
-The USBLC6-2SC6's VBUS pin is tied to USB 5 V and its ground pin is tied to
-the ground plane. This follows the device's two pass-through I/O channels;
-the final routed board must keep these paths short and symmetric.
+- **0 DRC violations**
+- **0 unconnected pads**
+- **0 footprint errors**
 
-## Verified placement gate
+The rebuilt USB/programming area contains:
 
-The generated board has no component courtyard overlaps. The USB-C footprint
-was moved inside the board edge and the power, EN and auto-program components
-were spaced apart before routing starts.
+- separate 5.1 kOhm CC1/CC2 pull-down paths;
+- connector-side D+/D- into USBLC6-2SC6 before downstream circuitry;
+- protected D+/D- through 22 ohm series resistors to CP2102N;
+- protected-side USB tracks balanced to 6.875 mm (D+) and 7.297 mm (D-);
+- a dedicated, wider USB 5 V trunk to the ESD array, CP2102N supply,
+  AMS1117 input and 10 uF input capacitor;
+- CP2102N UART, DTR/RTS auto-programming, EN, BOOT and RESET routing;
+- direct ground returns for the ESD array, USB shield and microphone.
 
-The current design-rule report intentionally remains non-zero because this is
-still the controlled-routing phase. The 3V3 power backbone, its local
-decoupling connections and the top-layer GND pour have been added. The
-CP2102N auto-program control paths, the two transistor base-resistor paths
-the manual BOOT switch/pull-up/transistor path and the status LED path are
-routed. The CP2102N reset pull-up path, the three I2S lines and the long
-ESP32 BOOT/UART/LED paths and the USB-C ground tabs are also routed, reducing
-open electrical connections from 85 to 23 without any shorts
-or clearance errors.
+USB-C power exits toward the board edge before changing layers. The routing
+therefore avoids the connector shield holes, and no unfilled via is placed
+inside a USB-C SMD contact pad. Fine USB/QFN transitions use 0.40/0.20 mm vias;
+routed supply transitions use 0.60/0.30 mm vias.
 
-- The project design rule is explicitly set to a 0.20 mm plated through-hole,
-matching the thermal-ground drills embedded in KiCad's ESP32-S3-WROOM-1U
-footprint and [JLCPCB's published recommended 4-layer
-capability](https://jlcpcb.com/blog/complete-pcb-layout-guide).
-- The remaining warnings are one microphone ground thermal connection and
-  silkscreen cleanup; they are expected until the final routing, copper pours,
-  reference cleanup and keepouts are complete.
-- 23 electrical connections are still unrouted. Gerber, BOM and CPL
-  export are therefore blocked.
+## Fabrication release gate
 
-## Release gate
+The clean DRC makes this a routed engineering board, but it is **not yet an
+unconditional production release**. Before ordering assembled boards:
 
-This source is **not order-ready**. The next required steps are: route USB as
-a controlled 90-ohm differential pair, route power and remaining signals,
-add antenna/microphone copper keepouts and stitching vias, set the board
-manufacturer constraints, run a clean DRC, then export and visually inspect
-Gerber, BOM and CPL. Only that clean export may be uploaded to JLCPCB.
+1. create/review the matching KiCad schematic and pass ERC;
+2. select the actual JLCPCB four-layer stackup, calculate the 90-ohm USB
+   width/spacing for that stackup and re-run DRC after any tuning;
+3. add and mechanically verify the microphone acoustic opening/keepout against
+   the enclosure;
+4. assign and stock-check every remaining LCSC part number and verify each
+   footprint against the manufacturer's datasheet;
+5. export and visually inspect Gerber/drill, BOM and CPL, then perform a
+   first-article USB programming, Wi-Fi thermal, microphone noise-floor and
+   antenna range test.
+
+Generated DRC reports, renders and fabrication outputs remain untracked and
+must not be committed as source or mistaken for an approved production release.

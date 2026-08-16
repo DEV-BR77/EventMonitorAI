@@ -82,6 +82,7 @@ firmware/**/.vscode/
 # KiCad local editor state. The Rev-A .kicad_pcb file itself is source.
 *.kicad_prl
 hardware/pcb/rev_a/*.kicad_pro
+hardware/pcb/**/generated/
 
 # Keep credential templates
 !**/secrets.example.h
