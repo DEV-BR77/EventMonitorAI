@@ -45,6 +45,17 @@ def test_dashboard_exposes_global_measurement_status() -> None:
     assert "await loadTelemetry().catch(() => {});" in javascript
 
 
+def test_live_calibration_refreshes_each_device_without_replacing_inputs() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="live-calibration-devices"' in html
+    assert 'container.dataset.signature !== signature' in javascript
+    assert 'activeView() === "live") loadTelemetry()' in javascript
+    assert '"/api/device-calibrations/direct"' in javascript
+    assert "Frühere und neue Messwerte wurden angepasst." in javascript
+
+
 def test_postgres_pool_supports_parallel_dashboard_requests() -> None:
     session_module = (ROOT / "backend" / "app" / "database" / "session.py").read_text(
         encoding="utf-8"

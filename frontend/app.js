@@ -3,7 +3,7 @@ function loadListenedEvents() {
   try { return new Set(JSON.parse(localStorage.getItem("em_listened_events") || "[]").map(String)); }
   catch (_) { return new Set(); }
 }
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents() };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], telemetryLoading: false, people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents() };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const localDate = (value) => value.toLocaleDateString("sv-SE");
@@ -99,7 +99,7 @@ async function loadView(view) {
     kpis: [loadKpis],
     "sound-map": [loadSoundMap],
     audio: [loadLiveAudioDevices],
-    live: [loadLiveLevels, loadEvents],
+    live: [loadLiveLevels, loadEvents, loadCalibrations],
     rules: [loadRules],
     support: [loadSupport],
     account: [loadAccount],
@@ -187,15 +187,20 @@ function renderSystemStatus(error = null) {
 }
 
 async function loadTelemetry() {
+  if (state.telemetryLoading) return;
+  state.telemetryLoading = true;
   let telemetry;
   try {
     telemetry = await api("/api/device-telemetry");
   } catch (error) {
     renderSystemStatus(error);
     throw error;
+  } finally {
+    state.telemetryLoading = false;
   }
   state.telemetry = telemetry;
   renderSystemStatus();
+  renderLiveCalibration();
   const now = Date.now();
   $("#device-health").innerHTML = telemetry.length ? telemetry.map((item) => {
     const configured = state.devices.find((device) => device.device_id === item.device_id);
@@ -212,10 +217,41 @@ async function loadTelemetry() {
 
 async function loadCalibrations() {
   const calibrations = await api("/api/device-calibrations");
+  state.calibrations = calibrations;
+  renderLiveCalibration();
   const value = (reference, measured) => reference == null ? "–" : `${measured.toFixed(1)} / ${reference.toFixed(1)} dB`;
   $("#calibration-list").innerHTML = calibrations.length ? calibrations.map((item) =>
     `<div class="calibration-row"><strong>${escapeHtml(item.device_id)}</strong><span>Leise: ${value(item.low_reference_db, item.low_measured_db)}</span><span>Mittel: ${value(item.medium_reference_db, item.medium_measured_db)}</span><span>Laut: ${value(item.high_reference_db, item.high_measured_db)}</span><b>Aktiv: ${item.applied_offset_db >= 0 ? "+" : ""}${item.applied_offset_db.toFixed(2)} dB<br>Empfohlen: ${item.recommended_offset_db >= 0 ? "+" : ""}${item.recommended_offset_db.toFixed(2)} dB${item.reference_points ? `<br>${item.reference_points} Vergleiche · MAE ${item.reference_mae_db.toFixed(2)} dB` : ""}</b></div>`
   ).join("") : "<p>Noch keine Referenzmessung erfasst.</p>";
+}
+
+function renderLiveCalibration() {
+  const container = $("#live-calibration-devices");
+  if (!container) return;
+  const enabled = state.devices.filter((item) => item.enabled);
+  const editable = state.role === "admin";
+  const signature = `${editable}:${enabled.map((item) => item.device_id).join("|")}`;
+  if (container.dataset.signature !== signature) {
+    container.dataset.signature = signature;
+    container.innerHTML = enabled.length ? enabled.map((item) => `<form class="live-calibration-card" data-device-id="${escapeHtml(item.device_id)}">
+      <div class="live-calibration-heading"><i class="status-dot"></i><div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.location || item.device_id)}</small></div></div>
+      <div class="live-db-value" data-live-db>–</div>
+      <div class="live-db-meta"><span data-live-age>Noch kein Messwert</span><span data-live-offset>Offset wird geladen …</span></div>
+      ${editable ? `<div class="live-calibration-controls"><label>Messbereich<select name="level"><option value="low">Leise</option><option value="medium" selected>Mittel</option><option value="high">Laut</option></select></label><label>Klasse-2-Referenz (dB)<input name="reference_db" type="number" min="0" max="140" step="0.1" inputmode="decimal" required></label><button type="submit">Erfassen und anwenden</button></div><small class="live-calibration-status">Korrigiert neue und bereits gespeicherte Messwerte dieses Mikrofons.</small>` : "<small class=\"live-calibration-status\">Nur Administratoren können den Offset ändern.</small>"}
+    </form>`).join("") : "<p>Keine aktiven Mikrofone eingerichtet.</p>";
+  }
+  const now = Date.now();
+  const telemetry = new Map(state.telemetry.map((item) => [item.device_id, item]));
+  const calibrations = new Map(state.calibrations.map((item) => [item.device_id, item]));
+  container.querySelectorAll(".live-calibration-card").forEach((card) => {
+    const item = telemetry.get(card.dataset.deviceId);
+    const calibration = calibrations.get(card.dataset.deviceId);
+    const age = item ? Math.max(0, Math.round((now - new Date(item.last_seen).valueOf()) / 1000)) : null;
+    card.querySelector(".status-dot").classList.toggle("online", age != null && age < 10);
+    card.querySelector("[data-live-db]").textContent = item ? `${item.db_level.toFixed(1)} dB(A)` : "–";
+    card.querySelector("[data-live-age]").textContent = age == null ? "Noch kein Messwert" : age < 2 ? "Gerade aktualisiert" : `Vor ${age} Sekunden aktualisiert`;
+    card.querySelector("[data-live-offset]").textContent = calibration ? `Aktiver Offset: ${calibration.applied_offset_db >= 0 ? "+" : ""}${calibration.applied_offset_db.toFixed(2)} dB` : "Aktiver Offset: 0,00 dB";
+  });
 }
 
 async function loadCalibrationReferenceRuns() {
@@ -1634,6 +1670,29 @@ $("#rule-list").addEventListener("click", async (e) => {
   const id = e.target.dataset.delete;
   if (id) { await api(`/api/notification-rules/${id}`, { method: "DELETE" }); await loadRules(); }
 });
+$("#live-calibration-devices").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target.closest(".live-calibration-card");
+  if (!form) return;
+  const button = form.querySelector('button[type="submit"]');
+  const status = form.querySelector(".live-calibration-status");
+  const referenceDb = Number(form.elements.reference_db.value);
+  if (!Number.isFinite(referenceDb) || referenceDb < 0 || referenceDb > 140) {
+    status.textContent = "Bitte den abgelesenen Wert zwischen 0 und 140 dB eintragen.";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "Aktueller Messwert wird erfasst und rückwirkend angewendet …";
+  try {
+    const calibration = await api("/api/device-calibrations/direct", { method: "POST", body: JSON.stringify({ device_id: form.dataset.deviceId, level: form.elements.level.value, reference_db: referenceDb }) });
+    status.textContent = `Gespeichert: aktiver Offset ${calibration.applied_offset_db >= 0 ? "+" : ""}${calibration.applied_offset_db.toFixed(2)} dB. Frühere und neue Messwerte wurden angepasst.`;
+    await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveLevels()]);
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
 $("#calibration-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const enabledIds = new Set(state.devices.filter((item) => item.enabled).map((item) => item.device_id));
@@ -1715,5 +1774,6 @@ $("#system-status").addEventListener("click", () => {
   if (state.role === "admin" && devicesNavigation) devicesNavigation.click();
 });
 setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
+setInterval(() => { if (state.token && activeView() === "live") loadTelemetry().catch(() => {}); }, 2000);
 setInterval(() => { if (state.token && activeView() === "live") loadLiveLevels().catch(() => {}); }, 5000);
 window.addEventListener("resize", () => { if (state.token) renderSoundMap(); });

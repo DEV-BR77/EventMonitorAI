@@ -51,6 +51,7 @@ from app.schemas.dashboard import (
     CalibrationReferenceResultRead,
     CalibrationReferenceRunRead,
     DeviceCalibrationRead,
+    DirectCalibrationCapture,
     DeviceCreate,
     DeviceLevelPoint,
     DeviceRead,
@@ -926,6 +927,42 @@ def sound_map(
 @router.get("/device-calibrations", response_model=list[DeviceCalibrationRead])
 def list_device_calibrations(db: DatabaseSession, _: CurrentUser) -> list[DeviceCalibration]:
     return list(db.scalars(select(DeviceCalibration).order_by(DeviceCalibration.device_id)).all())
+
+
+@router.post("/device-calibrations/direct", response_model=DeviceCalibrationRead)
+def apply_direct_device_calibration(
+    data: DirectCalibrationCapture,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin"))],
+) -> DeviceCalibration:
+    telemetry = db.scalar(
+        select(DeviceTelemetry).where(DeviceTelemetry.device_id == data.device_id)
+    )
+    if telemetry is None:
+        raise HTTPException(status_code=409, detail="Für dieses Mikrofon liegt kein Messwert vor")
+    last_seen = datetime.fromisoformat(telemetry.last_seen.replace("Z", "+00:00"))
+    if last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=UTC)
+    if datetime.now(UTC) - last_seen.astimezone(UTC) > timedelta(seconds=15):
+        raise HTTPException(status_code=409, detail="Der Mikrofonwert ist älter als 15 Sekunden")
+    calibration = db.scalar(
+        select(DeviceCalibration).where(DeviceCalibration.device_id == data.device_id)
+    )
+    if calibration is None:
+        calibration = DeviceCalibration(device_id=data.device_id)
+        db.add(calibration)
+    measured_db = telemetry.db_level
+    setattr(calibration, f"{data.level}_reference_db", data.reference_db)
+    setattr(calibration, f"{data.level}_measured_db", measured_db)
+    calibration.recommended_offset_db = round(
+        max(-30.0, min(30.0, calibration.applied_offset_db + data.reference_db - measured_db)),
+        2,
+    )
+    calibration.updated_at = datetime.now(UTC).isoformat()
+    db.flush()
+    return apply_calibration_offsets(
+        CalibrationOffsetApply(device_ids=[data.device_id]), db, user
+    )[0]
 
 
 @router.post("/device-calibrations/capture", response_model=list[DeviceCalibrationRead])

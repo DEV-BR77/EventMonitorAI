@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.9.5-system-status">
+  <link rel="stylesheet" href="/styles.css?v=0.9.6-live-calibration">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -118,6 +118,11 @@
       </section>
 
       <section id="live" class="view hidden">
+        <article class="panel live-calibration-panel">
+          <div class="panel-head"><h2>Live-Pegel und Direktkalibrierung</h2><span>Aktualisierung alle 2 Sekunden</span></div>
+          <p class="management-help">Klasse-2-Messgerät direkt neben dem jeweiligen Mikrofon platzieren, den angezeigten Referenzwert eintragen und nur dieses Mikrofon abgleichen. Die Differenz wird für neue Werte und rückwirkend für dessen gespeicherte Ereignisse und Messverläufe angewendet; Audioaufnahmen bleiben unverändert.</p>
+          <div id="live-calibration-devices" class="live-calibration-devices"></div>
+        </article>
         <article class="panel live-level-panel">
           <div class="panel-head"><h2 id="level-chart-title">Lautstärkepegel – letzte 10 Minuten</h2><label class="level-window">Zeitraum<select id="level-minutes"><option value="5">5 Minuten</option><option value="10" selected>10 Minuten</option><option value="30">30 Minuten</option><option value="60">60 Minuten</option></select></label></div>
           <div id="level-chart" class="level-chart"></div>
@@ -383,6 +388,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.9.5-system-status"></script>
+  <script src="/app.js?v=0.9.6-live-calibration"></script>
 </body>
 </html>

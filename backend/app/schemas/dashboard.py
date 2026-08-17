@@ -214,6 +214,12 @@ class CalibrationCapture(BaseModel):
     device_ids: list[str] = Field(min_length=1)
 
 
+class DirectCalibrationCapture(BaseModel):
+    device_id: str = Field(min_length=1, max_length=120)
+    level: Literal["low", "medium", "high"]
+    reference_db: float = Field(ge=0, le=140)
+
+
 class DeviceCalibrationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     device_id: str
