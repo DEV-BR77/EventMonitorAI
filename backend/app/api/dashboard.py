@@ -9,7 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -1168,21 +1168,39 @@ def apply_calibration_offsets(
             2,
         )
         if offset_delta:
-            events = db.scalars(select(Event).where(Event.device == calibration.device_id)).all()
-            for event in events:
-                event.db_level = round(max(0.0, event.db_level + offset_delta), 2)
-                if event.avg_db_level is not None:
-                    event.avg_db_level = round(
-                        max(0.0, event.avg_db_level + offset_delta),
-                        2,
-                    )
-            samples = db.scalars(
-                select(DeviceLevelSample).where(
-                    DeviceLevelSample.device_id == calibration.device_id
+            tenant_id = db.info.get("tenant_id", 1)
+            event_level = Event.db_level + offset_delta
+            event_average = Event.avg_db_level + offset_delta
+            sample_level = DeviceLevelSample.db_level + offset_delta
+            db.execute(
+                update(Event)
+                .where(Event.tenant_id == tenant_id, Event.device == calibration.device_id)
+                .values(
+                    db_level=case(
+                        (event_level < 0, 0.0), else_=func.round(event_level, 2)
+                    ),
+                    avg_db_level=case(
+                        (Event.avg_db_level.is_(None), None),
+                        (event_average < 0, 0.0),
+                        else_=func.round(event_average, 2),
+                    ),
                 )
-            ).all()
-            for sample in samples:
-                sample.db_level = round(max(0.0, sample.db_level + offset_delta), 2)
+                .execution_options(synchronize_session=False)
+            )
+            db.execute(
+                update(DeviceLevelSample)
+                .where(
+                    DeviceLevelSample.tenant_id == tenant_id,
+                    DeviceLevelSample.device_id == calibration.device_id,
+                )
+                .values(
+                    db_level=case(
+                        (sample_level < 0, 0.0), else_=func.round(sample_level, 2)
+                    )
+                )
+                .execution_options(synchronize_session=False)
+            )
+            db.expire_all()
             telemetry = db.scalar(
                 select(DeviceTelemetry).where(DeviceTelemetry.device_id == calibration.device_id)
             )
