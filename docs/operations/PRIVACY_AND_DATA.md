@@ -24,9 +24,10 @@ EventMonitorAI verarbeitet potenziell sensible Audio- und Ereignisdaten. Die Arc
   Medienverzeichnis und sind über das Dashboard ausschließlich für Administratoren
   abrufbar. Ein Videoimport oder Profilbild muss bewusst ausgelöst werden.
 - Live-Audio wird für die Wiedergabe flüchtig übertragen. Das Backend hält pro Mikrofon einen
-  flüchtigen Fünf-Sekunden-Ringpuffer und persistiert daraus nur bei einem Ereignis einen
-  geschützten Clip. Sichtbar und abrufbar ist Live-Audio ausschließlich für vom Administrator
-  pro Mikrofon freigegebene Benutzer.
+  flüchtigen 20-Sekunden-Ringpuffer und persistiert daraus nur bei einem Ereignis einen
+  höchstens zehn Sekunden langen, um den lautesten Ausschlag ausgerichteten geschützten Clip.
+  Sichtbar und abrufbar ist Live-Audio ausschließlich für vom Administrator pro Mikrofon
+  freigegebene Benutzer.
 - Als **Kein Lärm** verworfene Ereignisse und ihre Clips werden gelöscht. Für das automatische
   Verwerfen bleibt nur das normalisierte Modelllabel mit einem Bestätigungszähler erhalten;
   Uhrzeit, Pegel, Gerät und Audio werden nicht in diesem Lernmuster gespeichert.

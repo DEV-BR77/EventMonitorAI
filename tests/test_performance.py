@@ -97,4 +97,4 @@ def test_live_audio_ring_buffer_stays_bounded_during_soak_simulation() -> None:
 
     snapshot = hub.wav_snapshot("mic")
     assert snapshot is not None
-    assert len(snapshot) == 160_044
+    assert len(snapshot) == 320_044

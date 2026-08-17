@@ -1,6 +1,7 @@
 import asyncio
 import io
 import wave
+from datetime import timedelta
 from types import SimpleNamespace
 
 from app.api.dashboard import live_audio_devices, update_live_audio_permission
@@ -163,16 +164,36 @@ def test_live_audio_hub_disconnects_blocked_client() -> None:
     assert asyncio.run(exercise()) == (0, False)
 
 
-def test_live_audio_hub_keeps_five_second_wav_ring_buffer() -> None:
+def test_live_audio_hub_keeps_twenty_second_wav_ring_buffer() -> None:
     hub = LiveAudioHub()
-    asyncio.run(hub.broadcast("mic", b"\x01\x00" * 16_000 * 6))
+    asyncio.run(hub.broadcast("mic", b"\x01\x00" * 16_000 * 21))
 
     snapshot = hub.wav_snapshot("mic")
 
     assert snapshot is not None
     with wave.open(io.BytesIO(snapshot), "rb") as audio:
         assert audio.getframerate() == 16_000
-        assert audio.getnframes() == 16_000 * 5
+        assert audio.getnframes() == 16_000 * 10
+
+
+def test_event_snapshot_keeps_loud_peak_from_long_event() -> None:
+    hub = LiveAudioHub()
+    quiet = b"\x01\x00" * 16_000
+    peak = b"\xff\x7f" * 16_000
+    asyncio.run(hub.broadcast("mic", quiet * 6 + peak + quiet * 8))
+    buffer_end = hub._last_received_at["mic"]
+
+    snapshot = hub.wav_snapshot(
+        "mic",
+        event_start=buffer_end - timedelta(seconds=14),
+        event_end=buffer_end - timedelta(seconds=2),
+    )
+
+    assert snapshot is not None
+    with wave.open(io.BytesIO(snapshot), "rb") as audio:
+        payload = audio.readframes(audio.getnframes())
+        assert audio.getnframes() == 16_000 * 10
+        assert b"\xff\x7f" in payload
 
 
 def test_new_event_receives_server_ring_buffer_clip(tmp_path) -> None:

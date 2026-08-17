@@ -7,7 +7,8 @@ Die Testsuite enthält zwei reproduzierbare Regressionstests:
 - 20.000 Ereignisse werden in einer Dashboard-Statistik unter fünf Sekunden
   ausgewertet.
 - Eine Stunde Audioübertragung in 100-ms-Paketen wird ohne unbeschränktes
-  Speicherwachstum simuliert; der Ringpuffer bleibt exakt fünf Sekunden groß.
+  Speicherwachstum simuliert; der Ringpuffer bleibt auf 20 Sekunden begrenzt
+  und ausgegebene Ereignisclips auf zehn Sekunden.
 
 Der HTTP-Lasttester kann gegen Health- oder geschützte Endpunkte laufen:
 
