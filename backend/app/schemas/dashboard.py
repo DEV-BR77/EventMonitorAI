@@ -220,6 +220,11 @@ class DirectCalibrationCapture(BaseModel):
     reference_db: float = Field(ge=0, le=140)
 
 
+class CalibrationOffsetSet(BaseModel):
+    device_id: str = Field(min_length=1, max_length=120)
+    target_offset_db: float = Field(ge=-30, le=30)
+
+
 class DeviceCalibrationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     device_id: str

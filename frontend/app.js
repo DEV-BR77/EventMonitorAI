@@ -3,7 +3,7 @@ function loadListenedEvents() {
   try { return new Set(JSON.parse(localStorage.getItem("em_listened_events") || "[]").map(String)); }
   catch (_) { return new Set(); }
 }
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], telemetryLoading: false, people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents() };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], calibrationDrafts: new Map(), telemetryLoading: false, people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents() };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const localDate = (value) => value.toLocaleDateString("sv-SE");
@@ -237,7 +237,7 @@ function renderLiveCalibration() {
       <div class="live-calibration-heading"><i class="status-dot"></i><div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.location || item.device_id)}</small></div></div>
       <div class="live-db-value" data-live-db>–</div>
       <div class="live-db-meta"><span data-live-age>Noch kein Messwert</span><span data-live-offset>Offset wird geladen …</span></div>
-      ${editable ? `<div class="live-calibration-controls"><label>Messbereich<select name="level"><option value="low">Leise</option><option value="medium" selected>Mittel</option><option value="high">Laut</option></select></label><label>Klasse-2-Referenz (dB)<input name="reference_db" type="number" min="0" max="140" step="0.1" inputmode="decimal" required></label><button type="submit">Erfassen und anwenden</button></div><small class="live-calibration-status">Korrigiert neue und bereits gespeicherte Messwerte dieses Mikrofons.</small>` : "<small class=\"live-calibration-status\">Nur Administratoren können den Offset ändern.</small>"}
+      ${editable ? `<div class="live-calibration-controls"><div class="offset-preview" aria-label="Korrektur einstellen"><button type="button" data-offset-adjust="-1" aria-label="Korrektur verringern">−</button><strong data-offset-draft>0,00 dB</strong><button type="button" data-offset-adjust="1" aria-label="Korrektur erhöhen">+</button></div><label>Schrittweite<select name="offset_step"><option value="0.1">0,1 dB</option><option value="0.5" selected>0,5 dB</option><option value="1">1,0 dB</option></select></label><button type="submit">Korrektur übernehmen</button><button type="button" class="secondary" data-offset-reset>Vorschau verwerfen</button></div><small class="live-calibration-status">Plus/Minus verändert nur die Vorschau. Erst „Korrektur übernehmen“ speichert die Änderung.</small>` : "<small class=\"live-calibration-status\">Nur Administratoren können den Offset ändern.</small>"}
     </form>`).join("") : "<p>Keine aktiven Mikrofone eingerichtet.</p>";
   }
   const now = Date.now();
@@ -246,11 +246,21 @@ function renderLiveCalibration() {
   container.querySelectorAll(".live-calibration-card").forEach((card) => {
     const item = telemetry.get(card.dataset.deviceId);
     const calibration = calibrations.get(card.dataset.deviceId);
+    const appliedOffset = calibration?.applied_offset_db || 0;
+    let draft = state.calibrationDrafts.get(card.dataset.deviceId);
+    if (!draft || !draft.dirty) {
+      draft = { value: appliedOffset, dirty: false };
+      state.calibrationDrafts.set(card.dataset.deviceId, draft);
+    }
+    const previewDb = item ? Math.max(0, item.db_level + draft.value - appliedOffset) : null;
     const age = item ? Math.max(0, Math.round((now - new Date(item.last_seen).valueOf()) / 1000)) : null;
     card.querySelector(".status-dot").classList.toggle("online", age != null && age < 10);
-    card.querySelector("[data-live-db]").textContent = item ? `${item.db_level.toFixed(1)} dB(A)` : "–";
+    card.querySelector("[data-live-db]").textContent = previewDb == null ? "–" : `${previewDb.toFixed(1)} dB(A)`;
     card.querySelector("[data-live-age]").textContent = age == null ? "Noch kein Messwert" : age < 2 ? "Gerade aktualisiert" : `Vor ${age} Sekunden aktualisiert`;
-    card.querySelector("[data-live-offset]").textContent = calibration ? `Aktiver Offset: ${calibration.applied_offset_db >= 0 ? "+" : ""}${calibration.applied_offset_db.toFixed(2)} dB` : "Aktiver Offset: 0,00 dB";
+    card.querySelector("[data-live-offset]").textContent = draft.dirty ? `Vorschau · gemeldet ${item ? item.db_level.toFixed(1) : "–"} dB(A)` : `Aktiver Offset: ${appliedOffset >= 0 ? "+" : ""}${appliedOffset.toFixed(2)} dB`;
+    const draftLabel = card.querySelector("[data-offset-draft]");
+    if (draftLabel) draftLabel.textContent = `${draft.value >= 0 ? "+" : ""}${draft.value.toFixed(2)} dB`;
+    card.classList.toggle("previewing", draft.dirty);
   });
 }
 
@@ -1676,15 +1686,13 @@ $("#live-calibration-devices").addEventListener("submit", async (e) => {
   if (!form) return;
   const button = form.querySelector('button[type="submit"]');
   const status = form.querySelector(".live-calibration-status");
-  const referenceDb = Number(form.elements.reference_db.value);
-  if (!Number.isFinite(referenceDb) || referenceDb < 0 || referenceDb > 140) {
-    status.textContent = "Bitte den abgelesenen Wert zwischen 0 und 140 dB eintragen.";
-    return;
-  }
+  const draft = state.calibrationDrafts.get(form.dataset.deviceId);
+  const targetOffset = draft?.value ?? 0;
   button.disabled = true;
-  status.textContent = "Aktueller Messwert wird erfasst und rückwirkend angewendet …";
+  status.textContent = "Korrektur wird gespeichert und auf frühere Messwerte angewendet …";
   try {
-    const calibration = await api("/api/device-calibrations/direct", { method: "POST", body: JSON.stringify({ device_id: form.dataset.deviceId, level: form.elements.level.value, reference_db: referenceDb }) });
+    const calibration = await api("/api/device-calibrations/set-offset", { method: "POST", body: JSON.stringify({ device_id: form.dataset.deviceId, target_offset_db: targetOffset }) });
+    state.calibrationDrafts.set(form.dataset.deviceId, { value: calibration.applied_offset_db, dirty: false });
     status.textContent = `Gespeichert: aktiver Offset ${calibration.applied_offset_db >= 0 ? "+" : ""}${calibration.applied_offset_db.toFixed(2)} dB. Frühere und neue Messwerte wurden angepasst.`;
     await Promise.all([loadTelemetry(), loadCalibrations(), loadLiveLevels()]);
   } catch (error) {
@@ -1692,6 +1700,27 @@ $("#live-calibration-devices").addEventListener("submit", async (e) => {
   } finally {
     button.disabled = false;
   }
+});
+$("#live-calibration-devices").addEventListener("click", (e) => {
+  const form = e.target.closest(".live-calibration-card");
+  if (!form) return;
+  const calibration = state.calibrations.find((item) => item.device_id === form.dataset.deviceId);
+  const appliedOffset = calibration?.applied_offset_db || 0;
+  if (e.target.closest("[data-offset-reset]")) {
+    state.calibrationDrafts.set(form.dataset.deviceId, { value: appliedOffset, dirty: false });
+    form.querySelector(".live-calibration-status").textContent = "Vorschau verworfen. Die gespeicherte Korrektur bleibt unverändert.";
+    renderLiveCalibration();
+    return;
+  }
+  const adjust = e.target.closest("[data-offset-adjust]");
+  if (!adjust) return;
+  const direction = Number(adjust.dataset.offsetAdjust);
+  const step = Number(form.elements.offset_step.value);
+  const current = state.calibrationDrafts.get(form.dataset.deviceId)?.value ?? appliedOffset;
+  const value = Math.max(-30, Math.min(30, Math.round((current + direction * step) * 100) / 100));
+  state.calibrationDrafts.set(form.dataset.deviceId, { value, dirty: value !== appliedOffset });
+  form.querySelector(".live-calibration-status").textContent = value === appliedOffset ? "Die Vorschau entspricht wieder der gespeicherten Korrektur." : "Vorschau aktiv. Beobachten Sie den Live-Wert; gespeichert ist noch nichts.";
+  renderLiveCalibration();
 });
 $("#calibration-form").addEventListener("submit", async (e) => {
   e.preventDefault();

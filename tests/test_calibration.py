@@ -6,6 +6,7 @@ from app.api.dashboard import (
     apply_calibration_offsets,
     apply_direct_device_calibration,
     import_calibration_reference,
+    set_device_calibration_offset,
 )
 from app.database.base import Base
 from app.models.dashboard import (
@@ -18,6 +19,7 @@ from app.models.dashboard import (
 from app.models.event import Event
 from app.schemas.dashboard import (
     CalibrationOffsetApply,
+    CalibrationOffsetSet,
     CalibrationReferenceImport,
     DirectCalibrationCapture,
 )
@@ -193,3 +195,46 @@ def test_direct_calibration_updates_live_and_historical_values() -> None:
         assert event.db_level == 62.0
         assert event.avg_db_level == 60.0
         assert sample.db_level == 58.0
+
+
+def test_manual_offset_sets_absolute_target_and_applies_only_delta() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    user = User(username="admin", password_hash="x", role="admin")
+    with Session(engine) as db:
+        calibration = DeviceCalibration(
+            device_id="mic", recommended_offset_db=8.0, applied_offset_db=8.0
+        )
+        telemetry = DeviceTelemetry(device_id="mic", db_level=60.0)
+        sample = DeviceLevelSample(
+            device_id="mic", timestamp=datetime.now(UTC).isoformat(), db_level=61.0
+        )
+        event = Event(
+            timestamp=datetime.now(UTC).isoformat(),
+            event_type="AUDIO",
+            label="Test",
+            label_de="Test",
+            category="OTHER",
+            confidence=0.8,
+            db_level=65.0,
+            avg_db_level=63.0,
+            device="mic",
+        )
+        db.add_all([calibration, telemetry, sample, event])
+        db.commit()
+
+        result = set_device_calibration_offset(
+            CalibrationOffsetSet(device_id="mic", target_offset_db=5.5), db, user
+        )
+
+        assert result.applied_offset_db == 5.5
+        assert result.recommended_offset_db == 5.5
+        assert telemetry.db_level == 57.5
+        assert event.db_level == 62.5
+        assert event.avg_db_level == 60.5
+        assert sample.db_level == 58.5
+
+        set_device_calibration_offset(
+            CalibrationOffsetSet(device_id="mic", target_offset_db=5.5), db, user
+        )
+        assert event.db_level == 62.5

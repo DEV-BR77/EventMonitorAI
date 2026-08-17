@@ -47,6 +47,7 @@ from app.schemas.dashboard import (
     AssessmentConfigWrite,
     CalibrationCapture,
     CalibrationOffsetApply,
+    CalibrationOffsetSet,
     CalibrationReferenceImport,
     CalibrationReferenceResultRead,
     CalibrationReferenceRunRead,
@@ -958,6 +959,26 @@ def apply_direct_device_calibration(
         max(-30.0, min(30.0, calibration.applied_offset_db + data.reference_db - measured_db)),
         2,
     )
+    calibration.updated_at = datetime.now(UTC).isoformat()
+    db.flush()
+    return apply_calibration_offsets(
+        CalibrationOffsetApply(device_ids=[data.device_id]), db, user
+    )[0]
+
+
+@router.post("/device-calibrations/set-offset", response_model=DeviceCalibrationRead)
+def set_device_calibration_offset(
+    data: CalibrationOffsetSet,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin"))],
+) -> DeviceCalibration:
+    calibration = db.scalar(
+        select(DeviceCalibration).where(DeviceCalibration.device_id == data.device_id)
+    )
+    if calibration is None:
+        calibration = DeviceCalibration(device_id=data.device_id)
+        db.add(calibration)
+    calibration.recommended_offset_db = round(data.target_offset_db, 2)
     calibration.updated_at = datetime.now(UTC).isoformat()
     db.flush()
     return apply_calibration_offsets(

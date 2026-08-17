@@ -52,7 +52,10 @@ def test_live_calibration_refreshes_each_device_without_replacing_inputs() -> No
     assert 'id="live-calibration-devices"' in html
     assert 'container.dataset.signature !== signature' in javascript
     assert 'activeView() === "live") loadTelemetry()' in javascript
-    assert '"/api/device-calibrations/direct"' in javascript
+    assert '"/api/device-calibrations/set-offset"' in javascript
+    assert 'data-offset-adjust="-1"' in javascript
+    assert "calibrationDrafts: new Map()" in javascript
+    assert "Vorschau aktiv" in javascript
     assert "Frühere und neue Messwerte wurden angepasst." in javascript
 
 

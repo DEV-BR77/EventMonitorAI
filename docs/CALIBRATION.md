@@ -22,20 +22,25 @@ keine nicht vorhandene Linearität vor.
 Die Funktion dient der nachvollziehbaren Vergleichskalibrierung. Sie ersetzt
 keine zertifizierte oder behördlich anerkannte Schallpegelmessung.
 
-## Direktvergleich mit Display-Messgerät
+## Live-Abgleich mit Display-Messgerät
 
-In **Live-Ereignisse → Live-Pegel und Direktkalibrierung** werden alle aktiven
+In **Live-Ereignisse → Live-Pegel und Kalibrierung** werden alle aktiven
 Mikrofone getrennt mit ihrem aktuellen dB(A)-Wert angezeigt. Der Raspberry Pi
-meldet den Pegel alle zwei Sekunden. Für ein Klasse-2-Messgerät ohne Export wird
-der am Display abgelesene Wert direkt beim betreffenden Mikrofon eingetragen.
-**Erfassen und anwenden** berechnet den neuen Offset aus dem gleichzeitig
-vorliegenden Mikrofonwert und aktiviert ihn sofort.
+meldet den Pegel alle zwei Sekunden. Mit **Plus** und **Minus** wird der Offset
+des betreffenden Mikrofons in Schritten von 0,1, 0,5 oder 1,0 dB verändert. Die
+große Pegelanzeige zeigt diese Korrektur sofort als Vorschau. So kann der Verlauf
+mehrere Sekunden lang mit einem Klasse-2-Displaymessgerät verglichen werden,
+ohne einen zeitversetzten Einzelwert miteinander zu verrechnen.
+
+Die Vorschau verändert noch keine gespeicherten Daten. **Korrektur übernehmen**
+speichert den angezeigten Ziel-Offset; **Vorschau verwerfen** stellt die bereits
+gespeicherte Korrektur wieder her. Der Offset ist auf ±30 dB begrenzt.
 
 Die Änderung gilt für alle danach eintreffenden Werte. Zusätzlich werden die
 bereits gespeicherten Ereignispegel, Durchschnittspegel und Zeitreihen dieses
 Mikrofons um genau die Änderung zwischen vorherigem und neuem Offset korrigiert.
-Audioclips werden nicht verändert. Der Direktabgleich ist auf ±30 dB begrenzt
-und wird abgelehnt, wenn der letzte Mikrofonwert älter als 15 Sekunden ist.
+Audioclips werden nicht verändert. Mehrfaches Übernehmen desselben Zielwerts
+ändert historische Messwerte kein weiteres Mal.
 
 ## Zeitreihe aus einem Referenzmessgerät
 
