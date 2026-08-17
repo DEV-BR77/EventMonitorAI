@@ -22,7 +22,7 @@ def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
     assert "if (error?.status === 401) logout();" in javascript
     assert "requestToken === state.token" in javascript
     assert "async function loadView(view)" in javascript
-    assert 'activeView() === "devices"' in javascript
+    assert 'if (state.token) loadTelemetry()' in javascript
     assert 'activeView() === "live"' in javascript
     assert "loadAccount(), loadLiveAudioDevices(), loadSoundMap()" not in javascript
     assert "function eventFilterKey(event)" in javascript
@@ -32,6 +32,17 @@ def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
     assert "function updateLiveFilterOptions()" in javascript
     assert 'localStorage.setItem("em_event_filter"' in javascript
     assert 'localStorage.setItem("em_category_filter"' in javascript
+
+
+def test_dashboard_exposes_global_measurement_status() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="system-status"' in html
+    assert 'label = `Messung ausgefallen · 0/${enabled.length} online`' in javascript
+    assert 'label = `Messung gestört · ${online.length}/${enabled.length} online`' in javascript
+    assert 'label = "Dashboard-API nicht erreichbar"' in javascript
+    assert "await loadTelemetry().catch(() => {});" in javascript
 
 
 def test_postgres_pool_supports_parallel_dashboard_requests() -> None:

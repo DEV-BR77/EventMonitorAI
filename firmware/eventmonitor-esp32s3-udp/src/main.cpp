@@ -25,7 +25,7 @@ constexpr size_t SAMPLES_PER_PACKET = 640;
 constexpr uint8_t AUDIO_PROTOCOL_VERSION = 1;
 
 // Raspberry Pi
-const IPAddress UDP_TARGET_IP(192, 168, 178, 64);
+const IPAddress UDP_TARGET_IP(192, 168, 178, 194);
 constexpr uint16_t UDP_TARGET_PORT = 12345;
 constexpr uint16_t CLIP_TARGET_PORT = 12346;
 

@@ -134,6 +134,7 @@ async function start() {
     if (!$("#date-from-filter").value) $("#date-from-filter").value = today;
     if (!$("#date-to-filter").value) $("#date-to-filter").value = today;
     await loadDevices();
+    await loadTelemetry().catch(() => {});
     await loadEventClasses();
     if (me.role !== "viewer") await loadPeople();
     if (me.role !== "admin" && document.querySelector(".nav.active")?.closest("#admin-navigation")) {
@@ -148,9 +149,53 @@ async function start() {
   }
 }
 
+function renderSystemStatus(error = null) {
+  const indicator = $("#system-status");
+  const enabled = state.devices.filter((item) => item.enabled);
+  const now = Date.now();
+  const telemetryByDevice = new Map(state.telemetry.map((item) => [item.device_id, item]));
+  const online = enabled.filter((item) => {
+    const seen = telemetryByDevice.get(item.device_id)?.last_seen;
+    return seen && now - new Date(seen).valueOf() < 90000;
+  });
+  let kind = "ok";
+  let label = `${online.length}/${enabled.length} Mikrofone online`;
+  let detail = enabled.map((item) => {
+    const seen = telemetryByDevice.get(item.device_id)?.last_seen;
+    if (!seen) return `${item.name}: noch kein Signal`;
+    const age = Math.max(0, Math.round((now - new Date(seen).valueOf()) / 1000));
+    return `${item.name}: ${age} s seit letztem Signal`;
+  }).join(" · ");
+  if (error) {
+    kind = "error";
+    label = "Dashboard-API nicht erreichbar";
+    detail = error.message || "Statusabfrage fehlgeschlagen";
+  } else if (!enabled.length) {
+    kind = "warning";
+    label = "Keine Mikrofone aktiviert";
+    detail = "In der Mikrofonverwaltung ist kein Gerät aktiv.";
+  } else if (!online.length) {
+    kind = "error";
+    label = `Messung ausgefallen · 0/${enabled.length} online`;
+  } else if (online.length < enabled.length) {
+    kind = "warning";
+    label = `Messung gestört · ${online.length}/${enabled.length} online`;
+  }
+  indicator.className = `system-status ${kind}`;
+  indicator.querySelector("span").textContent = label;
+  indicator.title = detail || label;
+}
+
 async function loadTelemetry() {
-  const telemetry = await api("/api/device-telemetry");
+  let telemetry;
+  try {
+    telemetry = await api("/api/device-telemetry");
+  } catch (error) {
+    renderSystemStatus(error);
+    throw error;
+  }
   state.telemetry = telemetry;
+  renderSystemStatus();
   const now = Date.now();
   $("#device-health").innerHTML = telemetry.length ? telemetry.map((item) => {
     const configured = state.devices.find((device) => device.device_id === item.device_id);
@@ -1665,6 +1710,10 @@ const verificationResult = new URLSearchParams(location.search).get("verificatio
 if (verificationResult) $("#auth-error").textContent = verificationResult === "success" ? "E-Mail bestätigt. Sie können sich jetzt anmelden." : "Der Bestätigungslink ist ungültig oder abgelaufen.";
 if (new URLSearchParams(location.search).get("register") === "1") $("#show-register").click();
 window.addEventListener("resize", () => requestAnimationFrame(renderSoundMap));
-setInterval(() => { if (state.token && activeView() === "devices") loadTelemetry().catch(() => {}); }, 30000);
+$("#system-status").addEventListener("click", () => {
+  const devicesNavigation = document.querySelector('.nav[data-view="devices"]');
+  if (state.role === "admin" && devicesNavigation) devicesNavigation.click();
+});
+setInterval(() => { if (state.token) loadTelemetry().catch(() => {}); }, 30000);
 setInterval(() => { if (state.token && activeView() === "live") loadLiveLevels().catch(() => {}); }, 5000);
 window.addEventListener("resize", () => { if (state.token) renderSoundMap(); });

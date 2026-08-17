@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.9.0-multisource">
+  <link rel="stylesheet" href="/styles.css?v=0.9.5-system-status">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -58,6 +58,7 @@
     <main>
       <header>
         <div><p class="eyebrow">AKUSTISCHE LAGE</p><h1 id="title">Übersicht</h1></div>
+        <button id="system-status" class="system-status checking" type="button" title="Messkette wird geprüft"><i></i><span>System wird geprüft…</span></button>
         <div id="admin-notification-center" class="notification-center hidden"><button id="notification-toggle" type="button" class="ghost">🔔 <b id="notification-count">0</b></button><div id="notification-list" class="notification-popover hidden"></div></div>
         <div class="filters">
           <select id="device-filter"><option value="">Alle Geräte</option></select>
@@ -382,6 +383,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.9.4-noise-rules"></script>
+  <script src="/app.js?v=0.9.5-system-status"></script>
 </body>
 </html>

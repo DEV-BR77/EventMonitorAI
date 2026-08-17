@@ -36,7 +36,7 @@ Generate the shared clip-upload token and optionally provision it on the Pi with
 printing the secret:
 
 ```powershell
-python ..\..\scripts\provision_clip_token.py --ssh-target admin@192.168.178.64
+python ..\..\scripts\provision_clip_token.py --ssh-target admin@192.168.178.194
 ```
 
 ## Build and flash
@@ -53,8 +53,12 @@ Replace `COM3` if `device list` reports another port. The project no longer hard
 a workstation-specific serial port.
 
 The firmware streams signed 16-bit mono PCM at 16 kHz via UDP port 12345. It targets
-`192.168.178.64` and reports status every two seconds on the UART serial output at
+`192.168.178.194` and reports status every two seconds on the UART serial output at
 115200 baud.
+
+Existing devices that still target the former address `192.168.178.64` remain
+compatible through a persistent secondary address on the receiver. New firmware
+must use the canonical receiver address `.194`.
 
 ## PSRAM event clips
 
