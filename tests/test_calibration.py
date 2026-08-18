@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 from app.api.dashboard import (
+    _rounded_db,
     apply_calibration_offsets,
     apply_direct_device_calibration,
     import_calibration_reference,
@@ -29,6 +30,7 @@ from app.services.calibration import (
     parse_reference_csv,
 )
 from sqlalchemy import create_engine, select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
 
@@ -238,3 +240,14 @@ def test_manual_offset_sets_absolute_target_and_applies_only_delta() -> None:
             CalibrationOffsetSet(device_id="mic", target_offset_db=5.5), db, user
         )
         assert event.db_level == 62.5
+
+
+def test_postgres_rounds_float_offsets_through_numeric_cast() -> None:
+    from sqlalchemy import update
+
+    adjusted = Event.db_level - 17.5
+    statement = update(Event).values(db_level=_rounded_db(adjusted))
+
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "round(CAST(events.db_level" in sql
+    assert "AS NUMERIC)" in sql

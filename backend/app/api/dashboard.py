@@ -9,15 +9,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
-from sqlalchemy import case, delete, func, select, update
+from sqlalchemy import Float, Numeric, case, cast, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import CurrentUser, hash_password, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
-    AssessmentConfig,
     AdminNotification,
+    AssessmentConfig,
     AudioClip,
     CalibrationReferenceResult,
     CalibrationReferenceRun,
@@ -42,8 +42,8 @@ from app.models.dashboard import (
 )
 from app.models.event import Event
 from app.schemas.dashboard import (
-    AssessmentConfigRead,
     AdminNotificationRead,
+    AssessmentConfigRead,
     AssessmentConfigWrite,
     CalibrationCapture,
     CalibrationOffsetApply,
@@ -52,27 +52,27 @@ from app.schemas.dashboard import (
     CalibrationReferenceResultRead,
     CalibrationReferenceRunRead,
     DeviceCalibrationRead,
-    DirectCalibrationCapture,
     DeviceCreate,
     DeviceLevelPoint,
     DeviceRead,
     DeviceTelemetryRead,
     DeviceUpdate,
+    DirectCalibrationCapture,
     EventClassRead,
     EventClassUpdate,
     EventClassWrite,
     LiveAudioPermissionRead,
     LiveAudioPermissionUpdate,
-    PersonRead,
     PersonMediaUpload,
+    PersonRead,
     PersonUpdate,
     PersonWrite,
     RuleCreate,
     RuleRead,
     SoundMapPoint,
-    SpeakerSampleReview,
     SpeakerAnalysisRunRead,
     SpeakerClusterUpdate,
+    SpeakerSampleReview,
     TenantCreate,
 )
 from app.services.calibration import (
@@ -1165,6 +1165,10 @@ def import_calibration_reference(
     return _reference_run_read(run, results)
 
 
+def _rounded_db(expression):
+    return cast(func.round(cast(expression, Numeric), 2), Float)
+
+
 @router.post(
     "/device-calibrations/apply-offsets",
     response_model=list[DeviceCalibrationRead],
@@ -1193,17 +1197,20 @@ def apply_calibration_offsets(
             event_level = Event.db_level + offset_delta
             event_average = Event.avg_db_level + offset_delta
             sample_level = DeviceLevelSample.db_level + offset_delta
+            rounded_event_level = _rounded_db(event_level)
+            rounded_event_average = _rounded_db(event_average)
+            rounded_sample_level = _rounded_db(sample_level)
             db.execute(
                 update(Event)
                 .where(Event.tenant_id == tenant_id, Event.device == calibration.device_id)
                 .values(
                     db_level=case(
-                        (event_level < 0, 0.0), else_=func.round(event_level, 2)
+                        (event_level < 0, 0.0), else_=rounded_event_level
                     ),
                     avg_db_level=case(
                         (Event.avg_db_level.is_(None), None),
                         (event_average < 0, 0.0),
-                        else_=func.round(event_average, 2),
+                        else_=rounded_event_average,
                     ),
                 )
                 .execution_options(synchronize_session=False)
@@ -1216,7 +1223,7 @@ def apply_calibration_offsets(
                 )
                 .values(
                     db_level=case(
-                        (sample_level < 0, 0.0), else_=func.round(sample_level, 2)
+                        (sample_level < 0, 0.0), else_=rounded_sample_level
                     )
                 )
                 .execution_options(synchronize_session=False)
