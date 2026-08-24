@@ -45,6 +45,21 @@ def test_dashboard_exposes_global_measurement_status() -> None:
     assert "await loadTelemetry().catch(() => {});" in javascript
 
 
+def test_live_audio_navigation_is_initialized_after_login() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    startup = javascript[
+        javascript.index("async function start()") : javascript.index(
+            "async function loadTelemetry()"
+        )
+    ]
+
+    assert "await loadDevices();" in startup
+    assert "await loadLiveAudioDevices();" in startup
+    assert startup.index("await loadDevices();") < startup.index(
+        "await loadLiveAudioDevices();"
+    )
+
+
 def test_live_calibration_refreshes_each_device_without_replacing_inputs() -> None:
     javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
     html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")

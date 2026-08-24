@@ -134,6 +134,7 @@ async function start() {
     if (!$("#date-from-filter").value) $("#date-from-filter").value = today;
     if (!$("#date-to-filter").value) $("#date-to-filter").value = today;
     await loadDevices();
+    await loadLiveAudioDevices();
     await loadTelemetry().catch(() => {});
     await loadEventClasses();
     if (me.role !== "viewer") await loadPeople();
