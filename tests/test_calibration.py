@@ -2,7 +2,13 @@ import base64
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
-from app.api.dashboard import apply_calibration_offsets, import_calibration_reference
+from app.api.dashboard import (
+    _rounded_db,
+    apply_calibration_offsets,
+    apply_direct_device_calibration,
+    import_calibration_reference,
+    set_device_calibration_offset,
+)
 from app.database.base import Base
 from app.models.dashboard import (
     Device,
@@ -12,13 +18,19 @@ from app.models.dashboard import (
     User,
 )
 from app.models.event import Event
-from app.schemas.dashboard import CalibrationOffsetApply, CalibrationReferenceImport
+from app.schemas.dashboard import (
+    CalibrationOffsetApply,
+    CalibrationOffsetSet,
+    CalibrationReferenceImport,
+    DirectCalibrationCapture,
+)
 from app.services.calibration import (
     calculate_recommended_offset,
     compare_reference_points,
     parse_reference_csv,
 )
 from sqlalchemy import create_engine, select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
 
@@ -142,3 +154,100 @@ def test_reference_import_persists_comparison_and_applies_offset() -> None:
 
         apply_calibration_offsets(CalibrationOffsetApply(device_ids=["mic"]), db, user)
         assert event.db_level == 50.0
+
+
+def test_direct_calibration_updates_live_and_historical_values() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    user = User(username="admin", password_hash="x", role="admin")
+    with Session(engine) as db:
+        calibration = DeviceCalibration(device_id="mic", applied_offset_db=2.0)
+        telemetry = DeviceTelemetry(
+            device_id="mic", db_level=50.0, last_seen=datetime.now(UTC).isoformat()
+        )
+        sample = DeviceLevelSample(
+            device_id="mic", timestamp=datetime.now(UTC).isoformat(), db_level=51.0
+        )
+        event = Event(
+            timestamp=datetime.now(UTC).isoformat(),
+            event_type="AUDIO",
+            label="Test",
+            label_de="Test",
+            category="OTHER",
+            confidence=0.8,
+            db_level=55.0,
+            avg_db_level=53.0,
+            device="mic",
+        )
+        db.add_all([calibration, telemetry, sample, event])
+        db.commit()
+
+        result = apply_direct_device_calibration(
+            DirectCalibrationCapture(
+                device_id="mic", level="medium", reference_db=57.0
+            ),
+            db,
+            user,
+        )
+
+        assert result.applied_offset_db == 9.0
+        assert result.medium_measured_db == 50.0
+        assert result.medium_reference_db == 57.0
+        assert telemetry.db_level == 57.0
+        assert event.db_level == 62.0
+        assert event.avg_db_level == 60.0
+        assert sample.db_level == 58.0
+
+
+def test_manual_offset_sets_absolute_target_and_applies_only_delta() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    user = User(username="admin", password_hash="x", role="admin")
+    with Session(engine) as db:
+        calibration = DeviceCalibration(
+            device_id="mic", recommended_offset_db=8.0, applied_offset_db=8.0
+        )
+        telemetry = DeviceTelemetry(device_id="mic", db_level=60.0)
+        sample = DeviceLevelSample(
+            device_id="mic", timestamp=datetime.now(UTC).isoformat(), db_level=61.0
+        )
+        event = Event(
+            timestamp=datetime.now(UTC).isoformat(),
+            event_type="AUDIO",
+            label="Test",
+            label_de="Test",
+            category="OTHER",
+            confidence=0.8,
+            db_level=65.0,
+            avg_db_level=63.0,
+            device="mic",
+        )
+        db.add_all([calibration, telemetry, sample, event])
+        db.commit()
+
+        result = set_device_calibration_offset(
+            CalibrationOffsetSet(device_id="mic", target_offset_db=5.5), db, user
+        )
+
+        assert result.applied_offset_db == 5.5
+        assert result.recommended_offset_db == 5.5
+        assert telemetry.db_level == 57.5
+        assert event.db_level == 62.5
+        assert event.avg_db_level == 60.5
+        assert sample.db_level == 58.5
+
+        set_device_calibration_offset(
+            CalibrationOffsetSet(device_id="mic", target_offset_db=5.5), db, user
+        )
+        assert event.db_level == 62.5
+
+
+def test_postgres_rounds_float_offsets_through_numeric_cast() -> None:
+    from sqlalchemy import update
+
+    adjusted = Event.db_level - 17.5
+    statement = update(Event).values(db_level=_rounded_db(adjusted))
+
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    assert "round(CAST(events.db_level" in sql
+    assert "AS NUMERIC)" in sql

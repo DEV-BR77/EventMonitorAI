@@ -20,8 +20,17 @@ DEFAULT_EVENT_CLASSES = (
     ("SIREN", "Sirene", "base", None, False, True),
     ("BIRDS", "Vögel", "base", None, False, True),
     ("MACHINERY", "Maschinen", "base", None, False, True),
+    ("HOUSEHOLD", "Haushalt/Alltag", "base", None, False, True),
     ("VEHICLE", "Fahrzeuge", "base", None, False, True),
+    ("CAR", "Pkw", "fine", "VEHICLE", False, True),
+    ("MOTORCYCLE", "Motorrad", "fine", "VEHICLE", False, True),
+    ("BICYCLE", "Fahrrad", "fine", "VEHICLE", False, True),
+    ("BICYCLE_BRAKE_SQUEAL", "Bremsen / Reifenquietschen", "fine", "VEHICLE", False, True),
     ("AIRCRAFT", "Flugzeug/Fluglärm", "fine", "VEHICLE", False, True),
+    ("FOOTSTEPS", "Schritte / Fußtritte", "fine", "HOUSEHOLD", False, True),
+    ("DISHES", "Geschirr", "fine", "HOUSEHOLD", False, True),
+    ("SHOPPING_CART", "Einkaufswagen / Rollen und Scheppern", "fine", "HOUSEHOLD", False, True),
+    ("DOOR_SLAM", "Wohnungstür zuschlagen", "fine", "HOUSEHOLD", False, True),
     ("BALL_CONCRETE", "Fußball gegen Beton", "fine", "IMPACT", False, True),
     ("BALL_METAL", "Fußball gegen Metall", "fine", "IMPACT", False, True),
     ("HIT_LAMPPOST", "Schlagen gegen Laterne", "fine", "IMPACT", False, True),
@@ -67,12 +76,16 @@ def seed_event_classes(db: Session) -> None:
         elif code in {
             "NO_NOISE", "WIND", "AMBIENT", "TECHNICAL",
             "VOICE_CONTEXT", "OWN_ACTIVITY_CONTEXT",
+            "HOUSEHOLD",
+            "VEHICLE",
         }:
             event_class = db.scalar(select(EventClass).where(EventClass.code == code))
             if event_class is not None:
                 event_class.hidden_by_default = hidden_by_default
                 event_class.trainable = trainable
                 event_class.name = name
+                event_class.level = level
+                event_class.parent_code = parent_code
         elif code == "IMPACT":
             event_class = db.scalar(select(EventClass).where(EventClass.code == code))
             if event_class is not None:
@@ -115,6 +128,8 @@ def base_class_for_detection(label: str, category: str) -> str | None:
         return "DOG"
     if category == "VEHICLE":
         return "VEHICLE"
+    if category == "HOUSEHOLD":
+        return "HOUSEHOLD"
     if "siren" in normalized or "sirene" in normalized:
         return "SIREN"
     if "bird" in normalized or "vogel" in normalized:

@@ -49,3 +49,11 @@ Der Pi akzeptiert ausschließlich authentifizierte 16-Bit-Mono-WAVs mit 16 kHz u
 einer Dauer zwischen einer und zehn Sekunden. Erfolgreiche Uploads werden atomar
 unter `/var/lib/eventmonitor/clips` abgelegt. Eine JSON-Sidecar-Datei dokumentiert
 Gerät, Ereignis, Quell-IP, Empfangszeit, Audioformat und SHA-256-Prüfsumme.
+
+Als ausfallsichere zweite Quelle hält das Backend je Gerät 20 Sekunden des laufenden
+PCM-Stroms ausschließlich im Arbeitsspeicher. Liegt beim Eintreffen eines Ereignisses
+noch kein ESP32-Clip vor, schneidet es den tatsächlichen Ereigniszeitraum mit je einer
+Sekunde Vor- und Nachlauf aus diesem Puffer. Dauert der Ausschnitt länger als zehn
+Sekunden, wird das Fenster um den stärksten Sample-Ausschlag positioniert. Dadurch
+bleiben insbesondere kurze Schläge und der laute Beginn eines Schreis hörbar, obwohl
+der Pi ein Ereignis erst nach drei Sekunden Ruhe abschließt.

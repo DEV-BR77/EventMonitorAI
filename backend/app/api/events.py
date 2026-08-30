@@ -411,7 +411,11 @@ async def create_event(
     db.refresh(event)
     linked_clip = associate_nearest_clip(db, event)
     if linked_clip is None:
-        snapshot = live_audio_hub.wav_snapshot(event.device)
+        snapshot = live_audio_hub.wav_snapshot(
+            event.device,
+            event_start=normalized_utc(event.timestamp),
+            event_end=normalized_utc(event.end_timestamp or event.timestamp),
+        )
         if snapshot is not None:
             try:
                 linked_clip = store_training_clip(

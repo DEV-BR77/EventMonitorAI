@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.9.0-multisource">
+  <link rel="stylesheet" href="/styles.css?v=0.9.7-offset-preview">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -58,6 +58,7 @@
     <main>
       <header>
         <div><p class="eyebrow">AKUSTISCHE LAGE</p><h1 id="title">Übersicht</h1></div>
+        <button id="system-status" class="system-status checking" type="button" title="Messkette wird geprüft"><i></i><span>System wird geprüft…</span></button>
         <div id="admin-notification-center" class="notification-center hidden"><button id="notification-toggle" type="button" class="ghost">🔔 <b id="notification-count">0</b></button><div id="notification-list" class="notification-popover hidden"></div></div>
         <div class="filters">
           <select id="device-filter"><option value="">Alle Geräte</option></select>
@@ -117,6 +118,11 @@
       </section>
 
       <section id="live" class="view hidden">
+        <article class="panel live-calibration-panel">
+          <div class="panel-head"><h2>Live-Pegel und Kalibrierung</h2><span>Aktualisierung alle 2 Sekunden</span></div>
+          <p class="management-help">Klasse-2-Messgerät direkt neben dem jeweiligen Mikrofon platzieren und den Offset mit Plus/Minus als Vorschau einstellen. Den Verlauf mehrere Sekunden vergleichen und erst danach übernehmen. Gespeicherte Ereignisse und Messverläufe werden dann einmalig um die tatsächliche Offset-Differenz korrigiert; Audioaufnahmen bleiben unverändert.</p>
+          <div id="live-calibration-devices" class="live-calibration-devices"></div>
+        </article>
         <article class="panel live-level-panel">
           <div class="panel-head"><h2 id="level-chart-title">Lautstärkepegel – letzte 10 Minuten</h2><label class="level-window">Zeitraum<select id="level-minutes"><option value="5">5 Minuten</option><option value="10" selected>10 Minuten</option><option value="30">30 Minuten</option><option value="60">60 Minuten</option></select></label></div>
           <div id="level-chart" class="level-chart"></div>
@@ -382,6 +388,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.9.4-noise-rules"></script>
+  <script src="/app.js?v=0.9.7-offset-preview"></script>
 </body>
 </html>

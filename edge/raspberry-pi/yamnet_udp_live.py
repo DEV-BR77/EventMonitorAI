@@ -29,10 +29,16 @@ DEFAULT_DEVICE_NAMES = {
 SCORE_THRESHOLD = 0.20
 MIN_DB_LEVEL = 45.0
 CALIBRATION_OFFSET_DB = 100.0
+# A clear speech detection is more meaningful for the event's primary class
+# than a higher-scoring incidental YAMNet label such as ``Animal`` or ``Cat``.
+# The generic model is still useful as a secondary clue, but it must not hide
+# audible speech in the dashboard.
+VOICE_LABELS = {"Speech"}
+VOICE_PRIORITY_THRESHOLD = 0.30
 
 # Ein Ereignis endet nach drei Sekunden ohne relevantes Geräusch.
 EVENT_END_SILENCE_SECONDS = 3.0
-TELEMETRY_INTERVAL_SECONDS = 5.0
+TELEMETRY_INTERVAL_SECONDS = 2.0
 LIVE_AUDIO_CHUNK_SAMPLES = SAMPLE_RATE // 2
 
 IGNORED_LABELS = {
@@ -93,6 +99,7 @@ def start_event(
         "max_db_level": db_level,
         "db_sum": db_level,
         "window_count": 1,
+        "best_voice_confidence": confidence if label in VOICE_LABELS else 0.0,
     }
 
 
@@ -113,6 +120,9 @@ def update_event(
     if confidence > event["best_confidence"]:
         event["best_label"] = label
         event["best_confidence"] = confidence
+
+    if label in VOICE_LABELS:
+        event["best_voice_confidence"] = max(event["best_voice_confidence"], confidence)
 
 
 def load_device_names() -> dict[str, str]:
@@ -141,17 +151,23 @@ def finish_event(event: dict, device_name: str) -> bool:
 
     avg_db_level = event["db_sum"] / event["window_count"]
 
+    primary_label = (
+        "Speech"
+        if event["best_voice_confidence"] >= VOICE_PRIORITY_THRESHOLD
+        else event["best_label"]
+    )
+
     print(
         f"■ Ereignis abgeschlossen: "
-        f"{event['best_label']} "
+        f"{primary_label} "
         f"| Dauer={duration_seconds:.1f}s "
         f"| Max={event['max_db_level']:.1f} dB "
         f"| Mittel={avg_db_level:.1f} dB"
     )
 
     return send_event(
-        label=event["best_label"],
-        confidence=event["best_confidence"],
+        label=primary_label,
+        confidence=max(event["best_confidence"], event["best_voice_confidence"]),
         db_level=event["max_db_level"],
         avg_db_level=round(avg_db_level, 1),
         device=device_name,

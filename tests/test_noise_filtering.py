@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import date
 from types import SimpleNamespace
 
 from app.api.dashboard import statistics
@@ -74,7 +75,7 @@ def test_tenant_assessment_rules_filter_statistics_with_fine_override() -> None:
         )
         db.commit()
 
-        result = statistics(db, SimpleNamespace(), 1)
+        result = statistics(db, SimpleNamespace(), 1, date=date(2026, 8, 12))
 
         assert result["total"] == 1
         assert result["max_db"] == 75

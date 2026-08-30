@@ -43,6 +43,13 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
         assert next(item for item in classes if item.code == "ARGUMENT").parent_code == "VOICE_LOUD"
         assert next(item for item in classes if item.code == "TRAIN_HORN").parent_code == "HORN"
         assert next(item for item in classes if item.code == "AIRCRAFT").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "CAR").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "MOTORCYCLE").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "BICYCLE").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "BICYCLE_BRAKE_SQUEAL").parent_code == "VEHICLE"
+        assert next(item for item in classes if item.code == "FOOTSTEPS").parent_code == "HOUSEHOLD"
+        assert next(item for item in classes if item.code == "SHOPPING_CART").parent_code == "HOUSEHOLD"
+        assert next(item for item in classes if item.code == "DOOR_SLAM").parent_code == "HOUSEHOLD"
 
         legacy_event = Event(
             timestamp="2026-08-10T20:00:00+00:00",
@@ -61,6 +68,33 @@ def test_backend_seeds_two_level_roadmap_taxonomy() -> None:
         db.commit()
         seed_event_classes(db)
         assert legacy_event.subclass_code == "LOUD_CALLING"
+
+
+def test_seed_event_classes_backfills_vehicle_children() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add(
+            EventClass(
+                code="VEHICLE",
+                name="Fahrzeuge",
+                level="base",
+                parent_code=None,
+                hidden_by_default=False,
+                trainable=True,
+                sort_order=1,
+            )
+        )
+        db.commit()
+        seed_event_classes(db)
+        classes = {item.code: item for item in db.scalars(select(EventClass))}
+
+    assert classes["CAR"].parent_code == "VEHICLE"
+    assert classes["MOTORCYCLE"].parent_code == "VEHICLE"
+    assert classes["BICYCLE"].parent_code == "VEHICLE"
+    assert classes["BICYCLE_BRAKE_SQUEAL"].parent_code == "VEHICLE"
+    assert classes["FOOTSTEPS"].parent_code == "HOUSEHOLD"
+    assert classes["DISHES"].parent_code == "HOUSEHOLD"
 
 
 def test_dashboard_rejects_fine_class_with_unknown_parent() -> None:

@@ -22,7 +22,7 @@ def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
     assert "if (error?.status === 401) logout();" in javascript
     assert "requestToken === state.token" in javascript
     assert "async function loadView(view)" in javascript
-    assert 'activeView() === "devices"' in javascript
+    assert 'if (state.token) loadTelemetry()' in javascript
     assert 'activeView() === "live"' in javascript
     assert "loadAccount(), loadLiveAudioDevices(), loadSoundMap()" not in javascript
     assert "function eventFilterKey(event)" in javascript
@@ -32,6 +32,46 @@ def test_dashboard_keeps_session_on_partial_loading_failures() -> None:
     assert "function updateLiveFilterOptions()" in javascript
     assert 'localStorage.setItem("em_event_filter"' in javascript
     assert 'localStorage.setItem("em_category_filter"' in javascript
+
+
+def test_dashboard_exposes_global_measurement_status() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="system-status"' in html
+    assert 'label = `Messung ausgefallen · 0/${enabled.length} online`' in javascript
+    assert 'label = `Messung gestört · ${online.length}/${enabled.length} online`' in javascript
+    assert 'label = "Dashboard-API nicht erreichbar"' in javascript
+    assert "await loadTelemetry().catch(() => {});" in javascript
+
+
+def test_live_audio_navigation_is_initialized_after_login() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    startup = javascript[
+        javascript.index("async function start()") : javascript.index(
+            "async function loadTelemetry()"
+        )
+    ]
+
+    assert "await loadDevices();" in startup
+    assert "await loadLiveAudioDevices();" in startup
+    assert startup.index("await loadDevices();") < startup.index(
+        "await loadLiveAudioDevices();"
+    )
+
+
+def test_live_calibration_refreshes_each_device_without_replacing_inputs() -> None:
+    javascript = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="live-calibration-devices"' in html
+    assert 'container.dataset.signature !== signature' in javascript
+    assert 'activeView() === "live") loadTelemetry()' in javascript
+    assert '"/api/device-calibrations/set-offset"' in javascript
+    assert 'data-offset-adjust="-1"' in javascript
+    assert "calibrationDrafts: new Map()" in javascript
+    assert "Vorschau aktiv" in javascript
+    assert "Frühere und neue Messwerte wurden angepasst." in javascript
 
 
 def test_postgres_pool_supports_parallel_dashboard_requests() -> None:
@@ -86,4 +126,4 @@ def test_live_audio_ring_buffer_stays_bounded_during_soak_simulation() -> None:
 
     snapshot = hub.wav_snapshot("mic")
     assert snapshot is not None
-    assert len(snapshot) == 160_044
+    assert len(snapshot) == 320_044

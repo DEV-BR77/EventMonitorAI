@@ -9,7 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import Float, Numeric, case, cast, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -47,6 +47,7 @@ from app.schemas.dashboard import (
     AssessmentConfigWrite,
     CalibrationCapture,
     CalibrationOffsetApply,
+    CalibrationOffsetSet,
     CalibrationReferenceImport,
     CalibrationReferenceResultRead,
     CalibrationReferenceRunRead,
@@ -56,21 +57,22 @@ from app.schemas.dashboard import (
     DeviceRead,
     DeviceTelemetryRead,
     DeviceUpdate,
+    DirectCalibrationCapture,
     EventClassRead,
     EventClassUpdate,
     EventClassWrite,
     LiveAudioPermissionRead,
     LiveAudioPermissionUpdate,
-    PersonRead,
     PersonMediaUpload,
+    PersonRead,
     PersonUpdate,
     PersonWrite,
     RuleCreate,
     RuleRead,
     SoundMapPoint,
-    SpeakerSampleReview,
     SpeakerAnalysisRunRead,
     SpeakerClusterUpdate,
+    SpeakerSampleReview,
     TenantCreate,
 )
 from app.services.calibration import (
@@ -928,6 +930,62 @@ def list_device_calibrations(db: DatabaseSession, _: CurrentUser) -> list[Device
     return list(db.scalars(select(DeviceCalibration).order_by(DeviceCalibration.device_id)).all())
 
 
+@router.post("/device-calibrations/direct", response_model=DeviceCalibrationRead)
+def apply_direct_device_calibration(
+    data: DirectCalibrationCapture,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin"))],
+) -> DeviceCalibration:
+    telemetry = db.scalar(
+        select(DeviceTelemetry).where(DeviceTelemetry.device_id == data.device_id)
+    )
+    if telemetry is None:
+        raise HTTPException(status_code=409, detail="Für dieses Mikrofon liegt kein Messwert vor")
+    last_seen = datetime.fromisoformat(telemetry.last_seen.replace("Z", "+00:00"))
+    if last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=UTC)
+    if datetime.now(UTC) - last_seen.astimezone(UTC) > timedelta(seconds=15):
+        raise HTTPException(status_code=409, detail="Der Mikrofonwert ist älter als 15 Sekunden")
+    calibration = db.scalar(
+        select(DeviceCalibration).where(DeviceCalibration.device_id == data.device_id)
+    )
+    if calibration is None:
+        calibration = DeviceCalibration(device_id=data.device_id)
+        db.add(calibration)
+    measured_db = telemetry.db_level
+    setattr(calibration, f"{data.level}_reference_db", data.reference_db)
+    setattr(calibration, f"{data.level}_measured_db", measured_db)
+    calibration.recommended_offset_db = round(
+        max(-30.0, min(30.0, calibration.applied_offset_db + data.reference_db - measured_db)),
+        2,
+    )
+    calibration.updated_at = datetime.now(UTC).isoformat()
+    db.flush()
+    return apply_calibration_offsets(
+        CalibrationOffsetApply(device_ids=[data.device_id]), db, user
+    )[0]
+
+
+@router.post("/device-calibrations/set-offset", response_model=DeviceCalibrationRead)
+def set_device_calibration_offset(
+    data: CalibrationOffsetSet,
+    db: DatabaseSession,
+    user: Annotated[User, Depends(require_roles("admin"))],
+) -> DeviceCalibration:
+    calibration = db.scalar(
+        select(DeviceCalibration).where(DeviceCalibration.device_id == data.device_id)
+    )
+    if calibration is None:
+        calibration = DeviceCalibration(device_id=data.device_id)
+        db.add(calibration)
+    calibration.recommended_offset_db = round(data.target_offset_db, 2)
+    calibration.updated_at = datetime.now(UTC).isoformat()
+    db.flush()
+    return apply_calibration_offsets(
+        CalibrationOffsetApply(device_ids=[data.device_id]), db, user
+    )[0]
+
+
 @router.post("/device-calibrations/capture", response_model=list[DeviceCalibrationRead])
 def capture_device_calibration(
     data: CalibrationCapture,
@@ -1107,6 +1165,10 @@ def import_calibration_reference(
     return _reference_run_read(run, results)
 
 
+def _rounded_db(expression):
+    return cast(func.round(cast(expression, Numeric), 2), Float)
+
+
 @router.post(
     "/device-calibrations/apply-offsets",
     response_model=list[DeviceCalibrationRead],
@@ -1131,21 +1193,42 @@ def apply_calibration_offsets(
             2,
         )
         if offset_delta:
-            events = db.scalars(select(Event).where(Event.device == calibration.device_id)).all()
-            for event in events:
-                event.db_level = round(max(0.0, event.db_level + offset_delta), 2)
-                if event.avg_db_level is not None:
-                    event.avg_db_level = round(
-                        max(0.0, event.avg_db_level + offset_delta),
-                        2,
-                    )
-            samples = db.scalars(
-                select(DeviceLevelSample).where(
-                    DeviceLevelSample.device_id == calibration.device_id
+            tenant_id = db.info.get("tenant_id", 1)
+            event_level = Event.db_level + offset_delta
+            event_average = Event.avg_db_level + offset_delta
+            sample_level = DeviceLevelSample.db_level + offset_delta
+            rounded_event_level = _rounded_db(event_level)
+            rounded_event_average = _rounded_db(event_average)
+            rounded_sample_level = _rounded_db(sample_level)
+            db.execute(
+                update(Event)
+                .where(Event.tenant_id == tenant_id, Event.device == calibration.device_id)
+                .values(
+                    db_level=case(
+                        (event_level < 0, 0.0), else_=rounded_event_level
+                    ),
+                    avg_db_level=case(
+                        (Event.avg_db_level.is_(None), None),
+                        (event_average < 0, 0.0),
+                        else_=rounded_event_average,
+                    ),
                 )
-            ).all()
-            for sample in samples:
-                sample.db_level = round(max(0.0, sample.db_level + offset_delta), 2)
+                .execution_options(synchronize_session=False)
+            )
+            db.execute(
+                update(DeviceLevelSample)
+                .where(
+                    DeviceLevelSample.tenant_id == tenant_id,
+                    DeviceLevelSample.device_id == calibration.device_id,
+                )
+                .values(
+                    db_level=case(
+                        (sample_level < 0, 0.0), else_=rounded_sample_level
+                    )
+                )
+                .execution_options(synchronize_session=False)
+            )
+            db.expire_all()
             telemetry = db.scalar(
                 select(DeviceTelemetry).where(DeviceTelemetry.device_id == calibration.device_id)
             )
