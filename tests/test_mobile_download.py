@@ -1,6 +1,6 @@
 import re
+import subprocess
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DOWNLOAD_PAGE = ROOT / "website" / "public" / "android-download.html"
@@ -24,4 +24,7 @@ def test_public_site_links_to_android_preview_instead_of_embedding_apk() -> None
     assert "Eigenes Handy verwenden" in smartphone_card
     assert "Android Beta-Version herunterladen" in smartphone_card
     assert 'href="/android-download.html"' in smartphone_card
-    assert not list((ROOT / "website").rglob("*.apk"))
+    tracked_apks = subprocess.check_output(
+        ["git", "ls-files", "*.apk"], cwd=ROOT, text=True
+    ).strip()
+    assert not tracked_apks
