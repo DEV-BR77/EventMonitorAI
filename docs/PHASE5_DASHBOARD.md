@@ -33,6 +33,22 @@ blau. Neue Ereignisse bleiben neutral, bestätigte Ereignisse sind beim optional
 Einblenden grün. Die Farbe übersteht Listenaktualisierungen und erleichtert das
 anschließende stapelweise Bestätigen.
 
+Die KPI-Seite besitzt zusätzlich eine unabhängige Detailauswahl. Voreinstellungen für
+einen Tag, drei Tage, eine Woche und einen Monat können durch einen beliebigen
+Von-bis-Zeitraum ersetzt werden. Ein tägliches Stundenfenster darf auch über Mitternacht
+reichen; Kategorie und das global gewählte Mikrofon werden gemeinsam angewendet. Alle
+Stunden werden in `Europe/Berlin` ausgewertet, unabhängig davon, mit welchem UTC-Offset
+das Ereignis gespeichert wurde.
+
+Die Detailansicht zeigt stündlichen Mittelpegel, Spitzenpegel, Ereigniszahl,
+Überschreitungen, stündlichen Anteil am Gesamtaufkommen, Tagesverlauf, Lärmarten und
+Gerätevergleich. Der Mittelpegel verwendet `avg_db_level`, sofern dieser Messwert am
+Ereignis vorliegt, und fällt nur bei historischen Datensätzen auf den Spitzenpegel zurück.
+CSV exportiert die selektierten Einzelereignisse als UTF-8 mit Semikolontrennung. Der
+Excel-Export ist eine native `.xlsx`-Datei mit den Tabellenblättern **Stundenanalyse** und
+**Ereignisse**. Beide Exporte wenden Zeitraum, Stundenfenster, Kategorie, Mikrofon,
+Mandantenisolation und die konfigurierten Ausschlussregeln identisch zur Anzeige an.
+
 Im KI-Klassenkatalog bilden Basisklassen die Hauptkategorien und Feinzuordnungen deren
 Unterarten. `Aktiv` steuert die Verfügbarkeit in Auswahlfeldern, `Trainierbar` die
 Verwendung bestätigter Beispiele für das Modelltraining und `Ausblenden` die

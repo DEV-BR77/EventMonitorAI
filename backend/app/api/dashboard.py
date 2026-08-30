@@ -1,14 +1,17 @@
 import base64
+import csv
 import hashlib
+import io
 import json
 import secrets
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import Float, Numeric, case, cast, delete, func, select, update
 from sqlalchemy.orm import Session
 
@@ -16,8 +19,8 @@ from app.core.config import settings
 from app.core.security import CurrentUser, hash_password, require_roles
 from app.database.session import get_db
 from app.models.dashboard import (
-    AssessmentConfig,
     AdminNotification,
+    AssessmentConfig,
     AudioClip,
     CalibrationReferenceResult,
     CalibrationReferenceRun,
@@ -42,8 +45,8 @@ from app.models.dashboard import (
 )
 from app.models.event import Event
 from app.schemas.dashboard import (
-    AssessmentConfigRead,
     AdminNotificationRead,
+    AssessmentConfigRead,
     AssessmentConfigWrite,
     CalibrationCapture,
     CalibrationOffsetApply,
@@ -80,6 +83,7 @@ from app.services.calibration import (
     compare_reference_points,
     parse_reference_csv,
 )
+from app.services.kpi_export import create_kpi_workbook
 from app.services.noise_assessment import assessment_for
 from app.services.person_media import store_photo, store_video_and_compare
 from app.services.speaker_clustering import (
@@ -90,6 +94,7 @@ from app.services.speaker_clustering import (
 
 router = APIRouter(prefix="/api", tags=["Dashboard"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
+BERLIN = ZoneInfo("Europe/Berlin")
 
 
 @router.get("/admin-notifications", response_model=list[AdminNotificationRead])
@@ -393,6 +398,103 @@ def calendar(
     ]
 
 
+def _event_local_time(event: Event) -> datetime | None:
+    try:
+        value = datetime.fromisoformat(event.timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=BERLIN)
+    return value.astimezone(BERLIN)
+
+
+def _selected_hours(start_hour: int, end_hour: int) -> list[int]:
+    if start_hour == end_hour:
+        return list(range(24))
+    if start_hour < end_hour:
+        return list(range(start_hour, end_hour))
+    return list(range(start_hour, 24)) + list(range(end_hour))
+
+
+def _filter_kpi_events(
+    events: list[Event], start_hour: int, end_hour: int, category: str | None
+) -> list[Event]:
+    hours = set(_selected_hours(start_hour, end_hour))
+    return [
+        event
+        for event in events
+        if (category is None or event.category == category)
+        and (local := _event_local_time(event)) is not None
+        and local.hour in hours
+    ]
+
+
+def _event_mean_level(event: Event) -> float:
+    return event.avg_db_level if event.avg_db_level is not None else event.db_level
+
+
+def _kpi_analysis(events: list[Event], config: AssessmentConfig, hours: list[int]) -> dict[str, object]:
+    exceeded_ids = {
+        event.id
+        for event in events
+        if assessment_for(event.timestamp, event.db_level, config.sensitive_surcharge_db, config.apply_to_live)["exceeded"]
+    }
+    levels = sorted(event.db_level for event in events)
+    percentile_index = (
+        max(0, min(len(levels) - 1, round((len(levels) - 1) * 0.95))) if levels else 0
+    )
+    daily: dict[str, list[Event]] = defaultdict(list)
+    hourly_events: dict[int, list[Event]] = defaultdict(list)
+    timeline_events: dict[str, list[Event]] = defaultdict(list)
+    for event in events:
+        local = _event_local_time(event)
+        if local is None:
+            continue
+        daily[local.date().isoformat()].append(event)
+        hourly_events[local.hour].append(event)
+        timeline_events[local.strftime("%Y-%m-%dT%H:00:00")].append(event)
+    top_hour = max(hours, key=lambda hour: len(hourly_events[hour])) if events else None
+
+    def aggregate(bucket: list[Event]) -> dict[str, object]:
+        mean_levels = [_event_mean_level(event) for event in bucket]
+        return {
+            "count": len(bucket),
+            "exceeded": sum(event.id in exceeded_ids for event in bucket),
+            "average_db": round(sum(mean_levels) / len(mean_levels), 1) if mean_levels else 0,
+            "maximum_db": round(max((event.db_level for event in bucket), default=0), 1),
+            "duration_seconds": round(sum(event.duration_seconds for event in bucket), 1),
+            "share": round(len(bucket) / len(events), 4) if events else 0,
+        }
+
+    return {
+        "total": len(events),
+        "exceeded": len(exceeded_ids),
+        "exceeded_rate": round(len(exceeded_ids) / len(events), 4) if events else 0,
+        "average_db": round(sum(_event_mean_level(event) for event in events) / len(events), 1) if events else 0,
+        "maximum_db": round(max(levels), 1) if levels else 0,
+        "p95_db": round(levels[percentile_index], 1) if levels else 0,
+        "total_duration_seconds": round(sum(event.duration_seconds for event in events), 1),
+        "top_hour": top_hour,
+        "top_hour_events": len(hourly_events[top_hour]) if top_hour is not None else 0,
+        "categories": dict(Counter(event.category for event in events).most_common(10)),
+        "labels": dict(Counter(event.label_de or event.label for event in events).most_common(10)),
+        "devices": dict(Counter(event.device for event in events)),
+        "hours": [{"hour": hour, **aggregate(hourly_events[hour])} for hour in hours],
+        "hourly_timeline": [
+            {"timestamp": timestamp, **aggregate(values)}
+            for timestamp, values in sorted(timeline_events.items())
+        ],
+        "daily": [
+            {
+                "date": day,
+                "total": len(values),
+                **aggregate(values),
+            }
+            for day, values in sorted(daily.items())
+        ],
+    }
+
+
 @router.get("/kpis")
 def noise_kpis(
     db: DatabaseSession,
@@ -401,57 +503,120 @@ def noise_kpis(
     device: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    start_hour: int = Query(default=0, ge=0, le=23),
+    end_hour: int = Query(default=0, ge=0, le=23),
+    category: str | None = None,
 ) -> dict[str, object]:
-    events = _events_since(db, days, device, None, date_from, date_to)
-    config = _assessment_config(db)
-    exceeded = [
-        event
-        for event in events
-        if assessment_for(
-            event.timestamp,
-            event.db_level,
-            config.sensitive_surcharge_db,
-            config.apply_to_live,
-        )["exceeded"]
+    base_events = _events_since(db, days, device, None, date_from, date_to)
+    categories = Counter(event.category for event in base_events)
+    events = _filter_kpi_events(base_events, start_hour, end_hour, category)
+    result = _kpi_analysis(events, _assessment_config(db), _selected_hours(start_hour, end_hour))
+    result["available_categories"] = [
+        {"code": code, "count": count} for code, count in sorted(categories.items())
     ]
-    levels = sorted(event.db_level for event in events)
-    percentile_index = (
-        max(0, min(len(levels) - 1, round((len(levels) - 1) * 0.95))) if levels else 0
-    )
-    daily: dict[str, list[Event]] = defaultdict(list)
-    hourly = Counter()
-    for event in events:
-        daily[event.timestamp[:10]].append(event)
-        try:
-            hourly[datetime.fromisoformat(event.timestamp.replace("Z", "+00:00")).hour] += 1
-        except ValueError:
-            pass
-    top_hour = hourly.most_common(1)[0] if hourly else (None, 0)
-    return {
-        "total": len(events),
-        "exceeded": len(exceeded),
-        "exceeded_rate": round(len(exceeded) / len(events), 4) if events else 0,
-        "average_db": round(sum(levels) / len(levels), 1) if levels else 0,
-        "maximum_db": round(max(levels), 1) if levels else 0,
-        "p95_db": round(levels[percentile_index], 1) if levels else 0,
-        "total_duration_seconds": round(sum(event.duration_seconds for event in events), 1),
-        "top_hour": top_hour[0],
-        "top_hour_events": top_hour[1],
-        "categories": dict(Counter(event.category for event in events).most_common(10)),
-        "labels": dict(Counter(event.label_de or event.label for event in events).most_common(10)),
-        "devices": dict(Counter(event.device for event in events)),
-        "hours": [{"hour": hour, "count": hourly[hour]} for hour in range(24)],
-        "daily": [
-            {
-                "date": day,
-                "total": len(values),
-                "exceeded": sum(value in exceeded for value in values),
-                "average_db": round(sum(value.db_level for value in values) / len(values), 1),
-                "maximum_db": round(max(value.db_level for value in values), 1),
-            }
-            for day, values in sorted(daily.items())
-        ],
+    result["filters"] = {
+        "date_from": date_from.isoformat() if date_from else None,
+        "date_to": date_to.isoformat() if date_to else None,
+        "start_hour": start_hour,
+        "end_hour": end_hour,
+        "category": category,
+        "device": device,
     }
+    return result
+
+
+def _event_export_row(event: Event, config: AssessmentConfig) -> list[object]:
+    local = _event_local_time(event)
+    assessment = assessment_for(
+        event.timestamp,
+        event.db_level,
+        config.sensitive_surcharge_db,
+        config.apply_to_live,
+    )
+    return [
+        event.id,
+        local.isoformat() if local else event.timestamp,
+        event.device,
+        event.category,
+        event.primary_class_code or "",
+        event.subclass_code or "",
+        event.label_de or event.label,
+        round(_event_mean_level(event), 1),
+        round(event.db_level, 1),
+        round(event.duration_seconds, 1),
+        "Ja" if assessment["exceeded"] else "Nein",
+        event.classification_status,
+    ]
+
+
+@router.get("/kpis/export")
+def export_kpis(
+    db: DatabaseSession,
+    _: CurrentUser,
+    file_format: str = Query(alias="format", pattern="^(csv|xlsx)$"),
+    days: int = Query(default=30, ge=1, le=366),
+    device: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    start_hour: int = Query(default=0, ge=0, le=23),
+    end_hour: int = Query(default=0, ge=0, le=23),
+    category: str | None = None,
+) -> Response:
+    base_events = _events_since(db, days, device, None, date_from, date_to)
+    hours = _selected_hours(start_hour, end_hour)
+    events = _filter_kpi_events(base_events, start_hour, end_hour, category)
+    config = _assessment_config(db)
+    analysis = _kpi_analysis(events, config, hours)
+    event_header = [
+        "Ereignis-ID",
+        "Zeitpunkt (Europe/Berlin)",
+        "Mikrofon",
+        "Kategorie",
+        "Hauptklasse",
+        "Feinklasse",
+        "Ereignis",
+        "Durchschnitt dB(A)",
+        "Maximum dB(A)",
+        "Dauer Sekunden",
+        "Überschreitung",
+        "Klassifizierungsstatus",
+    ]
+    event_rows = [event_header, *[_event_export_row(event, config) for event in events]]
+    filename_range = f"{date_from or 'bis'}_{date_to or 'heute'}"
+    if file_format == "csv":
+        stream = io.StringIO()
+        writer = csv.writer(stream, delimiter=";", lineterminator="\n")
+        writer.writerows(event_rows)
+        return Response(
+            content="\ufeff" + stream.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="eventmonitor-kpis-{filename_range}.csv"'},
+        )
+
+    hour_rows: list[list[object]] = [[
+        "Stunde",
+        "Anzahl Ereignisse",
+        "Anteil Prozent",
+        "Durchschnitt dB(A)",
+        "Maximum dB(A)",
+        "Überschreitungen",
+        "Lärmdauer Sekunden",
+    ]]
+    hour_rows.extend([
+        f"{int(item['hour']):02d}:00",
+        item["count"],
+        round(float(item["share"]) * 100, 2),
+        item["average_db"],
+        item["maximum_db"],
+        item["exceeded"],
+        item["duration_seconds"],
+    ] for item in analysis["hours"])
+    workbook = create_kpi_workbook(hour_rows, event_rows)
+    return Response(
+        content=workbook,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="eventmonitor-kpis-{filename_range}.xlsx"'},
+    )
 
 
 @router.get("/assessment-config", response_model=AssessmentConfigRead)

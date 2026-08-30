@@ -3,14 +3,14 @@ function loadListenedEvents() {
   try { return new Set(JSON.parse(localStorage.getItem("em_listened_events") || "[]").map(String)); }
   catch (_) { return new Set(); }
 }
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], calibrationDrafts: new Map(), telemetryLoading: false, people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents() };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], calibrationDrafts: new Map(), telemetryLoading: false, people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents(), kpiInitialized: false };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const localDate = (value) => value.toLocaleDateString("sv-SE");
 function selectedRange() {
   const today = new Date(); today.setHours(12, 0, 0, 0);
   let from = new Date(today), to = new Date(today);
-  if (["7", "30", "90"].includes(days())) from.setDate(from.getDate() - Number(days()) + 1);
+  if (["3", "7", "30", "90"].includes(days())) from.setDate(from.getDate() - Number(days()) + 1);
   if (days() === "single") {
     const chosen = $("#date-from-filter").value || localDate(today);
     return { from: chosen, to: chosen, days: 1 };
@@ -38,7 +38,7 @@ function rangeLabel() {
   const range = selectedRange();
   return range.from === range.to ? new Date(`${range.from}T12:00:00`).toLocaleDateString("de-DE") : `${new Date(`${range.from}T12:00:00`).toLocaleDateString("de-DE")}–${new Date(`${range.to}T12:00:00`).toLocaleDateString("de-DE")}`;
 }
-const categoryNames = { DEVICE: "Geräuschquelle", VOCALIZATION: "Lautäußerung", VOICE: "Stimme", HUMAN_SOUND: "Menschliches Geräusch", HOUSEHOLD: "Haushalt", ANIMAL: "Tier", AMBIENT: "Umgebung", MUSIC: "Musik", VEHICLE: "Fahrzeug", IMPACT: "Schlag/Aufprall", OTHER: "Sonstiges" };
+const categoryNames = { DEVICE: "Geräuschquelle", VOCALIZATION: "Lautäußerung", VOICE: "Stimme", HUMAN_SOUND: "Menschliches Geräusch", HOUSEHOLD: "Haushalt/Alltag", ANIMAL: "Tier", AMBIENT: "Umgebung", MUSIC: "Musik", VEHICLE: "Fahrzeug", IMPACT: "Schlag/Aufprall", OTHER: "Sonstiges" };
 
 function markEventListened(eventId, button) {
   const key = String(eventId);
@@ -639,21 +639,106 @@ function renderRanked(target, values, translate = false) {
   $(target).innerHTML = entries.length ? entries.map(([name, count]) => `<div class="category"><span>${escapeHtml(translate ? (categoryNames[name] || name) : name)}</span><b>${count}</b><div class="category-track"><div class="category-fill" style="width:${count / maximum * 100}%"></div></div></div>`).join("") : "<p>Keine Daten im Zeitraum.</p>";
 }
 
+function syncKpiDatesFromGlobal() {
+  const range = selectedRange();
+  $("#kpi-date-from").value = range.from;
+  $("#kpi-date-to").value = range.to;
+  state.kpiInitialized = true;
+}
+
+function initializeKpiFilters() {
+  if (!$("#kpi-hour-from").options.length) {
+    $("#kpi-hour-from").innerHTML = Array.from({ length: 24 }, (_, hour) => `<option value="${hour}">${String(hour).padStart(2, "0")}:00</option>`).join("");
+    $("#kpi-hour-to").innerHTML = Array.from({ length: 24 }, (_, hour) => `<option value="${hour}">${hour === 0 ? "24:00" : `${String(hour).padStart(2, "0")}:00`}</option>`).join("");
+  }
+  if (!state.kpiInitialized) syncKpiDatesFromGlobal();
+}
+
+function kpiQuery() {
+  initializeKpiFilters();
+  const from = $("#kpi-date-from").value;
+  const to = $("#kpi-date-to").value || from;
+  const ordered = from <= to ? [from, to] : [to, from];
+  const dayCount = Math.floor((new Date(`${ordered[1]}T12:00:00`) - new Date(`${ordered[0]}T12:00:00`)) / 86400000) + 1;
+  const query = new URLSearchParams({
+    days: String(Math.min(366, dayCount)), date_from: ordered[0], date_to: ordered[1],
+    start_hour: $("#kpi-hour-from").value, end_hour: $("#kpi-hour-to").value,
+  });
+  if (device()) query.set("device", device());
+  if ($("#kpi-category").value) query.set("category", $("#kpi-category").value);
+  return query;
+}
+
+function renderKpiChart(target, data, series, mode = "line", suffix = "") {
+  const element = $(target);
+  if (!data.length) { element.innerHTML = "<p>Keine Daten für diese Auswahl.</p>"; return; }
+  const width = 840, height = 250, left = 48, right = 16, top = 18, bottom = 34;
+  const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const values = data.flatMap((item) => series.map((entry) => Number(item[entry.key] ?? 0)));
+  const maximum = Math.max(1, ...values);
+  const x = (index) => left + (data.length === 1 ? plotWidth / 2 : index / (data.length - 1) * plotWidth);
+  const y = (value) => top + plotHeight - Number(value || 0) / maximum * plotHeight;
+  const labelIndexes = new Set(Array.from({ length: Math.min(6, data.length) }, (_, index) => Math.round(index * (data.length - 1) / Math.max(1, Math.min(6, data.length) - 1))));
+  const grid = [0, .25, .5, .75, 1].map((ratio) => `<line class="chart-grid" x1="${left}" y1="${top + ratio * plotHeight}" x2="${left + plotWidth}" y2="${top + ratio * plotHeight}"/><text class="chart-axis" x="2" y="${top + ratio * plotHeight + 4}">${(maximum * (1 - ratio)).toFixed(maximum < 10 ? 1 : 0)}</text>`).join("");
+  let graphics = "";
+  if (mode === "bar") {
+    const groupWidth = Math.max(1.5, Math.min(24, plotWidth / data.length * .72));
+    const barWidth = groupWidth / series.length;
+    graphics = data.map((item, index) => series.map((entry, seriesIndex) => {
+      const value = Number(item[entry.key] || 0); const barHeight = Math.max(value ? 2 : 0, plotHeight - (y(value) - top));
+      return `<rect x="${x(index) - groupWidth / 2 + seriesIndex * barWidth}" y="${top + plotHeight - barHeight}" width="${Math.max(1, barWidth - 1)}" height="${barHeight}" rx="2" fill="${entry.color}"><title>${escapeHtml(item.tooltip || item.label)}: ${entry.name} ${value}${suffix}</title></rect>`;
+    }).join("")).join("");
+  } else {
+    graphics = series.map((entry) => {
+      const points = data.map((item, index) => `${x(index).toFixed(1)},${y(item[entry.key]).toFixed(1)}`).join(" ");
+      return `<polyline class="kpi-line" style="stroke:${entry.color}" points="${points}"/>${data.map((item, index) => `<circle cx="${x(index)}" cy="${y(item[entry.key])}" r="2.5" fill="${entry.color}"><title>${escapeHtml(item.tooltip || item.label)}: ${entry.name} ${item[entry.key]}${suffix}</title></circle>`).join("")}`;
+    }).join("");
+  }
+  const labels = data.map((item, index) => labelIndexes.has(index) ? `<text class="chart-axis" text-anchor="${index === 0 ? "start" : index === data.length - 1 ? "end" : "middle"}" x="${x(index)}" y="${height - 8}">${escapeHtml(item.label)}</text>` : "").join("");
+  const legend = series.map((entry, index) => `<g transform="translate(${left + index * 170},4)"><circle cx="4" cy="4" r="4" fill="${entry.color}"/><text class="chart-axis" x="13" y="8">${escapeHtml(entry.name)}</text></g>`).join("");
+  element.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img">${grid}${graphics}${labels}${legend}</svg>`;
+}
+
+function updateKpiCategories(items) {
+  const select = $("#kpi-category"); const selected = select.value;
+  select.innerHTML = `<option value="">Alle Kategorien</option>${items.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(categoryNames[item.code] || item.code)} (${item.count})</option>`).join("")}`;
+  if ([...select.options].some((option) => option.value === selected)) select.value = selected;
+}
+
 async function loadKpis() {
-  const data = await api(`/api/kpis?${rangeQuery()}`);
+  initializeKpiFilters();
+  const data = await api(`/api/kpis?${kpiQuery()}`);
+  updateKpiCategories(data.available_categories);
   $("#k-total").textContent = data.total.toLocaleString("de-DE");
   $("#k-exceeded").textContent = data.exceeded.toLocaleString("de-DE");
   $("#k-exceeded-rate").textContent = `${Math.round(data.exceeded_rate * 100)} % der Ereignisse`;
+  $("#k-average").textContent = `${data.average_db.toFixed(1)} dB`;
+  $("#k-maximum").textContent = `${data.maximum_db.toFixed(1)} dB`;
   $("#k-p95").textContent = `${data.p95_db.toFixed(1)} dB`;
   $("#k-duration").textContent = data.total_duration_seconds >= 3600 ? `${(data.total_duration_seconds / 3600).toFixed(1)} h` : `${Math.round(data.total_duration_seconds / 60)} min`;
+  $("#kpi-selection-label").textContent = `${new Date(`${data.filters.date_from}T12:00:00`).toLocaleDateString("de-DE")} – ${new Date(`${data.filters.date_to}T12:00:00`).toLocaleDateString("de-DE")} · ${String(data.filters.start_hour).padStart(2, "0")}:00–${data.filters.end_hour === 0 ? "24:00" : `${String(data.filters.end_hour).padStart(2, "0")}:00`}`;
   renderRanked("#kpi-labels", data.labels);
   renderRanked("#kpi-categories", data.categories, true);
   renderRanked("#kpi-devices", data.devices);
-  $("#kpi-top-hour").textContent = data.top_hour == null ? "keine Daten" : `Spitze ${String(data.top_hour).padStart(2, "0")}:00 Uhr · ${data.top_hour_events} Ereignisse`;
-  const hourMax = Math.max(1, ...data.hours.map((item) => item.count));
-  $("#kpi-hours").innerHTML = data.hours.map((item) => `<div title="${String(item.hour).padStart(2, "0")}:00 Uhr: ${item.count}"><i style="height:${Math.max(2, item.count / hourMax * 100)}%"></i><small>${item.hour}</small></div>`).join("");
+  $("#kpi-top-hour").textContent = data.top_hour == null ? "keine Daten" : `Spitze ${String(data.top_hour).padStart(2, "0")}:00 · ${data.top_hour_events}`;
+  const hours = data.hours.map((item) => ({ ...item, label: String(item.hour).padStart(2, "0"), tooltip: `${String(item.hour).padStart(2, "0")}:00 Uhr` }));
+  const timeline = data.hourly_timeline.map((item) => ({ ...item, label: new Date(item.timestamp).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit" }), tooltip: new Date(item.timestamp).toLocaleString("de-DE") }));
+  renderKpiChart("#kpi-level-timeline", timeline, [{ key: "average_db", name: "Ø dB(A)", color: "#70e0ae" }], "line", " dB");
+  renderKpiChart("#kpi-hours", hours, [{ key: "count", name: "Ereignisse", color: "#72a7ff" }], "bar");
+  renderKpiChart("#kpi-event-timeline", timeline, [{ key: "count", name: "Ereignisse", color: "#72a7ff" }, { key: "exceeded", name: "Überschreitungen", color: "#ee6c67" }], "bar");
+  renderKpiChart("#kpi-hour-share", hours.map((item) => ({ ...item, share_percent: Math.round(item.share * 1000) / 10 })), [{ key: "share_percent", name: "Anteil", color: "#f6bd60" }], "bar", " %");
   const dailyMax = Math.max(1, ...data.daily.map((item) => item.total));
   $("#kpi-daily").innerHTML = data.daily.length ? `<div class="daily-bars">${data.daily.map((item) => `<div title="${new Date(`${item.date}T12:00:00`).toLocaleDateString("de-DE")}: ${item.total} Ereignisse, ${item.exceeded} Überschreitungen, Ø ${item.average_db} dB"><span style="height:${Math.max(2, item.total / dailyMax * 100)}%"><i style="height:${item.total ? item.exceeded / item.total * 100 : 0}%"></i></span><small>${item.date.slice(5)}</small></div>`).join("")}</div>` : "<p>Keine Daten im Zeitraum.</p>";
+}
+
+async function downloadKpiExport(format) {
+  const response = await fetch(`/api/kpis/export?format=${format}&${kpiQuery()}`, { headers: { Authorization: `Bearer ${state.token}` } });
+  if (!response.ok) throw new Error(`Export fehlgeschlagen (HTTP ${response.status})`);
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] || `eventmonitor-kpis.${format}`;
+  const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = filename; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 }
 
 function renderTimeline(data) {
@@ -1233,6 +1318,21 @@ $("#notification-list").addEventListener("click", async (event) => {
 });
 $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
+$("#kpi-filter-form").addEventListener("submit", (event) => { event.preventDefault(); loadKpis().catch((error) => { $("#kpi-selection-label").textContent = error.message; }); });
+document.querySelectorAll("[data-kpi-days]").forEach((button) => button.addEventListener("click", () => {
+  const to = new Date(); to.setHours(12, 0, 0, 0); const from = new Date(to);
+  from.setDate(from.getDate() - Number(button.dataset.kpiDays) + 1);
+  $("#kpi-date-from").value = localDate(from); $("#kpi-date-to").value = localDate(to);
+  document.querySelectorAll("[data-kpi-days]").forEach((item) => item.classList.toggle("active", item === button));
+  loadKpis().catch((error) => { $("#kpi-selection-label").textContent = error.message; });
+}));
+for (const [selector, format] of [["#kpi-export-csv", "csv"], ["#kpi-export-xlsx", "xlsx"]]) {
+  $(selector).addEventListener("click", async (event) => {
+    const button = event.currentTarget; const label = button.textContent; button.disabled = true; button.textContent = "Export wird erstellt…";
+    try { await downloadKpiExport(format); } catch (error) { $("#kpi-selection-label").textContent = error.message; }
+    finally { button.disabled = false; button.textContent = label; }
+  });
+}
 async function applyGlobalFilter() {
   const custom = days() === "single" || days() === "range";
   const today = localDate(new Date());
@@ -1240,6 +1340,7 @@ async function applyGlobalFilter() {
   if (days() === "range" && !$("#date-to-filter").value) $("#date-to-filter").value = $("#date-from-filter").value;
   $("#date-from-filter").classList.toggle("hidden", !custom);
   $("#date-to-filter").classList.toggle("hidden", days() !== "range");
+  if (activeView() === "kpis") syncKpiDatesFromGlobal();
   await loadView(activeView());
 }
 

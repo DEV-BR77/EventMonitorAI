@@ -62,6 +62,10 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 - [x] Kalender, Timeline, Heatmaps und Statistiken
 - [x] globaler Filter für einzelne Kalendertage und frei wählbare Von-bis-Zeiträume
 - [x] gesonderte KPI-Seite mit Überschreitungsquote, P95-Pegel, Lärmdauer, Tageszeiten, Arten- und Gerätevergleich
+- [x] flexible KPI-Stundenanalyse mit frei wählbarem Von-bis-Zeitraum,
+      täglichem Stundenfenster, Mikrofon- und Lärmkategoriefilter, stündlichem
+      Mittelpegel, Ereignisanzahl, Verhältnis- und Überschreitungsdiagrammen sowie
+      CSV- und Excel-Export der exakt selektierten Daten
 - [x] Live-Ereignisansicht
 - [x] Home-Assistant-Integration
 - [x] Benachrichtigungsregeln

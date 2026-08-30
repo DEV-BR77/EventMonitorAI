@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.9.7-offset-preview">
+  <link rel="stylesheet" href="/styles.css?v=0.9.8-kpi-analysis">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -62,7 +62,7 @@
         <div id="admin-notification-center" class="notification-center hidden"><button id="notification-toggle" type="button" class="ghost">🔔 <b id="notification-count">0</b></button><div id="notification-list" class="notification-popover hidden"></div></div>
         <div class="filters">
           <select id="device-filter"><option value="">Alle Geräte</option></select>
-          <select id="days-filter"><option value="today" selected>Heute</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option><option value="single">Tag im Kalender wählen</option><option value="range">Zeitraum im Kalender wählen</option></select>
+          <select id="days-filter"><option value="today" selected>Heute</option><option value="3">3 Tage</option><option value="7">7 Tage</option><option value="30">30 Tage</option><option value="90">90 Tage</option><option value="single">Tag im Kalender wählen</option><option value="range">Zeitraum im Kalender wählen</option></select>
           <input id="date-from-filter" class="hidden" type="date" aria-label="Startdatum im Kalender" title="Startdatum im Kalender wählen">
           <input id="date-to-filter" class="hidden" type="date" aria-label="Enddatum im Kalender" title="Enddatum im Kalender wählen">
         </div>
@@ -85,18 +85,45 @@
       </section>
 
       <section id="kpis" class="view hidden">
+        <article class="panel kpi-filter-panel">
+          <div class="panel-head"><div><h2>Individuelle Auswertung</h2><span>Zeitraum, Tagesstunden, Mikrofon und Lärmkategorie frei kombinieren</span></div><span id="kpi-selection-label"></span></div>
+          <form id="kpi-filter-form" class="kpi-filter-form">
+            <div class="kpi-presets" aria-label="Schnellauswahl Zeitraum">
+              <button type="button" class="ghost" data-kpi-days="1">1 Tag</button>
+              <button type="button" class="ghost" data-kpi-days="3">3 Tage</button>
+              <button type="button" class="ghost" data-kpi-days="7">1 Woche</button>
+              <button type="button" class="ghost" data-kpi-days="30">1 Monat</button>
+            </div>
+            <label>Von Datum<input id="kpi-date-from" type="date" required></label>
+            <label>Bis Datum<input id="kpi-date-to" type="date" required></label>
+            <label>Täglich von<select id="kpi-hour-from"></select></label>
+            <label>Täglich bis<select id="kpi-hour-to"></select></label>
+            <label>Lärmkategorie<select id="kpi-category"><option value="">Alle Kategorien</option></select></label>
+            <button type="submit">Auswertung aktualisieren</button>
+          </form>
+          <div class="kpi-export-actions">
+            <button id="kpi-export-csv" type="button" class="ghost">CSV exportieren</button>
+            <button id="kpi-export-xlsx" type="button" class="ghost">Excel exportieren</button>
+            <small>Der Export enthält exakt die aktuell ausgewählten Daten.</small>
+          </div>
+        </article>
         <div class="metrics kpi-metrics">
           <article><span>Gesamtereignisse</span><strong id="k-total">–</strong><small>im gewählten Zeitraum</small></article>
           <article><span>Überschreitungen</span><strong id="k-exceeded">–</strong><small id="k-exceeded-rate">–</small></article>
+          <article><span>Ø Lautstärke</span><strong id="k-average">–</strong><small>dB(A) je Ereignis</small></article>
+          <article><span>Spitzenpegel</span><strong id="k-maximum">–</strong><small>dB(A) maximal</small></article>
           <article><span>95-%-Pegel</span><strong id="k-p95">–</strong><small>dB · nur 5 % lauter</small></article>
           <article><span>Lärmdauer</span><strong id="k-duration">–</strong><small>kumulierte Ereignisdauer</small></article>
         </div>
-        <div class="grid">
+        <div class="grid kpi-grid">
+          <article class="panel span2"><div class="panel-head"><h2>Ø Lautstärke pro Stunde</h2><span>stündlicher Mittelpegel im gewählten Zeitraum</span></div><div id="kpi-level-timeline" class="kpi-chart"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Ereignisse pro Tagesstunde</h2><span id="kpi-top-hour"></span></div><div id="kpi-hours" class="kpi-chart"></div></article>
+          <article class="panel span2"><div class="panel-head"><h2>Anzahl Ereignisse und Überschreitungen</h2><span>jede ausgewählte Kalenderstunde</span></div><div id="kpi-event-timeline" class="kpi-chart"></div></article>
+          <article class="panel"><div class="panel-head"><h2>Anteil am Gesamtaufkommen</h2><span>Ereignisse je Tagesstunde in Prozent</span></div><div id="kpi-hour-share" class="kpi-chart"></div></article>
           <article class="panel span2"><div class="panel-head"><h2>Belastungsverlauf</h2><span>Ereignisse und Überschreitungen je Tag</span></div><div id="kpi-daily" class="kpi-chart"></div></article>
           <article class="panel"><div class="panel-head"><h2>Top-Lärmarten</h2><span>häufigste erkannte Geräusche</span></div><div id="kpi-labels"></div></article>
           <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="kpi-categories"></div></article>
           <article class="panel"><div class="panel-head"><h2>Mikrofonvergleich</h2></div><div id="kpi-devices"></div></article>
-          <article class="panel"><div class="panel-head"><h2>Tageszeiten</h2><span id="kpi-top-hour"></span></div><div id="kpi-hours" class="hour-bars"></div></article>
         </div>
       </section>
 
@@ -388,6 +415,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.9.7-offset-preview"></script>
+  <script src="/app.js?v=0.9.8-kpi-analysis"></script>
 </body>
 </html>

@@ -14,3 +14,10 @@ exports
 logs
 tools
 tests
+.test-tmp*
+mobile/.dart_tool
+mobile/.idea
+mobile/build
+mobile/android/.gradle
+mobile/android/local.properties
+mobile/ios/Flutter/ephemeral

@@ -78,6 +78,23 @@ firmware/**/.vscode/
 ~$*
 /.pytest-*/
 /.artifact-*/
+/.test-tmp*/
+
+# Flutter-generated files may remain when the mobile source is checked out in
+# its dedicated Phase-11 worktree. They are reproducible and never source.
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/.gradle/
+**/local.properties
+**/GeneratedPluginRegistrant.java
+**/Flutter/Generated.xcconfig
+**/Flutter/ephemeral/
+**/Flutter/flutter_export_environment.sh
+**/Runner/GeneratedPluginRegistrant.*
+**/gradle-wrapper.jar
+**/gradlew
+**/gradlew.bat
+*.iml
 
 # KiCad local editor state. The Rev-A .kicad_pcb file itself is source.
 *.kicad_prl
