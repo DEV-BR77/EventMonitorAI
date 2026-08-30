@@ -52,6 +52,7 @@ def test_kpis_filter_local_hours_and_category_and_aggregate_mean_levels() -> Non
             start_hour=8,
             end_hour=10,
             category="VOICE",
+            interval_minutes=30,
         )
 
         assert result["total"] == 1
@@ -81,6 +82,12 @@ def test_kpis_filter_local_hours_and_category_and_aggregate_mean_levels() -> Non
             "VEHICLE",
             "VOICE",
         }
+        assert result["filters"]["interval_minutes"] == 30
+        assert result["time_slots"][0]["label"] == "08:00"
+        assert result["time_slots"][0]["count"] == 1
+        assert result["time_slots"][1]["label"] == "08:30"
+        assert result["time_slots"][1]["count"] == 0
+        assert result["interval_timeline"][0]["timestamp"].endswith("08:00:00+02:00")
 
 
 def test_kpi_exports_contain_only_selected_events_and_valid_xlsx() -> None:
@@ -102,6 +109,7 @@ def test_kpi_exports_contain_only_selected_events_and_valid_xlsx() -> None:
             start_hour=8,
             end_hour=9,
             category="VOICE",
+            interval_minutes=5,
         )
 
         csv_response = export_kpis(db, SimpleNamespace(), file_format="csv", **common)
@@ -116,6 +124,9 @@ def test_kpi_exports_contain_only_selected_events_and_valid_xlsx() -> None:
             assert "xl/worksheets/sheet2.xml" in workbook.namelist()
             assert "Rufen" in workbook.read("xl/worksheets/sheet2.xml").decode()
             assert "Pkw" not in workbook.read("xl/worksheets/sheet2.xml").decode()
+            assert "Intervallanalyse" in workbook.read("xl/workbook.xml").decode()
+            interval_sheet = workbook.read("xl/worksheets/sheet1.xml").decode()
+            assert "Tagesintervall (5 Minuten)" in interval_sheet
 
 
 def test_dashboard_exposes_flexible_kpi_filters_charts_and_exports() -> None:
@@ -127,6 +138,7 @@ def test_dashboard_exposes_flexible_kpi_filters_charts_and_exports() -> None:
         "kpi-date-to",
         "kpi-hour-from",
         "kpi-hour-to",
+        "kpi-interval",
         "kpi-category",
         "kpi-level-timeline",
         "kpi-event-timeline",
@@ -137,4 +149,7 @@ def test_dashboard_exposes_flexible_kpi_filters_charts_and_exports() -> None:
         assert f'id="{element_id}"' in html
     assert 'query.set("category", $("#kpi-category").value)' in javascript
     assert 'start_hour: $("#kpi-hour-from").value' in javascript
+    assert 'interval_minutes: $("#kpi-interval").value' in javascript
+    assert "initializeKpiExpanders" in javascript
+    assert "kpi-panel-expanded" in javascript
     assert "/api/kpis/export?format=${format}" in javascript

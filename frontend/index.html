@@ -98,6 +98,7 @@
             <label>Bis Datum<input id="kpi-date-to" type="date" required></label>
             <label>Täglich von<select id="kpi-hour-from"></select></label>
             <label>Täglich bis<select id="kpi-hour-to"></select></label>
+            <label>Intervall<select id="kpi-interval"><option value="1">1 Minute</option><option value="5">5 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option><option value="60" selected>1 Stunde</option></select></label>
             <label>Lärmkategorie<select id="kpi-category"><option value="">Alle Kategorien</option></select></label>
             <button type="submit">Auswertung aktualisieren</button>
           </form>
@@ -116,10 +117,10 @@
           <article><span>Lärmdauer</span><strong id="k-duration">–</strong><small>kumulierte Ereignisdauer</small></article>
         </div>
         <div class="grid kpi-grid">
-          <article class="panel span2"><div class="panel-head"><h2>Ø Lautstärke pro Stunde</h2><span>stündlicher Mittelpegel im gewählten Zeitraum</span></div><div id="kpi-level-timeline" class="kpi-chart"></div></article>
-          <article class="panel"><div class="panel-head"><h2>Ereignisse pro Tagesstunde</h2><span id="kpi-top-hour"></span></div><div id="kpi-hours" class="kpi-chart"></div></article>
-          <article class="panel span2"><div class="panel-head"><h2>Anzahl Ereignisse und Überschreitungen</h2><span>jede ausgewählte Kalenderstunde</span></div><div id="kpi-event-timeline" class="kpi-chart"></div></article>
-          <article class="panel"><div class="panel-head"><h2>Anteil am Gesamtaufkommen</h2><span>Ereignisse je Tagesstunde in Prozent</span></div><div id="kpi-hour-share" class="kpi-chart"></div></article>
+          <article class="panel span2"><div class="panel-head"><div><h2>Ø Lautstärke je Intervall</h2><span>Mittelpegel im gewählten Zeitraster</span></div></div><div id="kpi-level-timeline" class="kpi-chart"></div></article>
+          <article class="panel"><div class="panel-head"><div><h2>Ereignisse je Tagesintervall</h2><span id="kpi-top-hour"></span></div></div><div id="kpi-hours" class="kpi-chart"></div></article>
+          <article class="panel span2"><div class="panel-head"><div><h2>Anzahl Ereignisse und Überschreitungen</h2><span>jedes belegte Kalenderintervall</span></div></div><div id="kpi-event-timeline" class="kpi-chart"></div></article>
+          <article class="panel"><div class="panel-head"><div><h2>Anteil am Gesamtaufkommen</h2><span>Ereignisse je Tagesintervall in Prozent</span></div></div><div id="kpi-hour-share" class="kpi-chart"></div></article>
           <article class="panel span2"><div class="panel-head"><h2>Belastungsverlauf</h2><span>Ereignisse und Überschreitungen je Tag</span></div><div id="kpi-daily" class="kpi-chart"></div></article>
           <article class="panel"><div class="panel-head"><h2>Top-Lärmarten</h2><span>häufigste erkannte Geräusche</span></div><div id="kpi-labels"></div></article>
           <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="kpi-categories"></div></article>

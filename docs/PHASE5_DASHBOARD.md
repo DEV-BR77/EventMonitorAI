@@ -37,16 +37,20 @@ Die KPI-Seite besitzt zusätzlich eine unabhängige Detailauswahl. Voreinstellun
 einen Tag, drei Tage, eine Woche und einen Monat können durch einen beliebigen
 Von-bis-Zeitraum ersetzt werden. Ein tägliches Stundenfenster darf auch über Mitternacht
 reichen; Kategorie und das global gewählte Mikrofon werden gemeinsam angewendet. Alle
-Stunden werden in `Europe/Berlin` ausgewertet, unabhängig davon, mit welchem UTC-Offset
-das Ereignis gespeichert wurde.
+Zeiten werden in `Europe/Berlin` ausgewertet, unabhängig davon, mit welchem UTC-Offset
+das Ereignis gespeichert wurde. Das Auswertungsraster ist unabhängig vom Zeitraum auf
+1, 5, 15, 30 oder 60 Minuten einstellbar. So lässt sich beispielsweise eine einzelne
+Stunde minutengenau oder ein ganzer Tag in halbstündlichen Blöcken untersuchen.
 
-Die Detailansicht zeigt stündlichen Mittelpegel, Spitzenpegel, Ereigniszahl,
-Überschreitungen, stündlichen Anteil am Gesamtaufkommen, Tagesverlauf, Lärmarten und
-Gerätevergleich. Der Mittelpegel verwendet `avg_db_level`, sofern dieser Messwert am
+Die Detailansicht zeigt Mittelpegel, Spitzenpegel, Ereigniszahl, Überschreitungen und
+Anteil am Gesamtaufkommen im gewählten Raster sowie Tagesverlauf, Lärmarten und
+Gerätevergleich. Jede Auswertungskachel besitzt eine Großansicht; lange Zeitreihen können
+dort horizontal durchlaufen und über den Schließen-Button oder `Esc` verlassen werden.
+Der Mittelpegel verwendet `avg_db_level`, sofern dieser Messwert am
 Ereignis vorliegt, und fällt nur bei historischen Datensätzen auf den Spitzenpegel zurück.
 CSV exportiert die selektierten Einzelereignisse als UTF-8 mit Semikolontrennung. Der
-Excel-Export ist eine native `.xlsx`-Datei mit den Tabellenblättern **Stundenanalyse** und
-**Ereignisse**. Beide Exporte wenden Zeitraum, Stundenfenster, Kategorie, Mikrofon,
+Excel-Export ist eine native `.xlsx`-Datei mit den Tabellenblättern **Intervallanalyse** und
+**Ereignisse**. Beide Exporte wenden Zeitraum, Stundenfenster, Intervall, Kategorie, Mikrofon,
 Mandantenisolation und die konfigurierten Ausschlussregeln identisch zur Anzeige an.
 
 Im KI-Klassenkatalog bilden Basisklassen die Hauptkategorien und Feinzuordnungen deren

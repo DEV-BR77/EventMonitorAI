@@ -663,6 +663,7 @@ function kpiQuery() {
   const query = new URLSearchParams({
     days: String(Math.min(366, dayCount)), date_from: ordered[0], date_to: ordered[1],
     start_hour: $("#kpi-hour-from").value, end_hour: $("#kpi-hour-to").value,
+    interval_minutes: $("#kpi-interval").value,
   });
   if (device()) query.set("device", device());
   if ($("#kpi-category").value) query.set("category", $("#kpi-category").value);
@@ -672,7 +673,8 @@ function kpiQuery() {
 function renderKpiChart(target, data, series, mode = "line", suffix = "") {
   const element = $(target);
   if (!data.length) { element.innerHTML = "<p>Keine Daten für diese Auswahl.</p>"; return; }
-  const width = 840, height = 250, left = 48, right = 16, top = 18, bottom = 34;
+  const width = Math.max(840, data.length * (mode === "bar" ? 7 : 5));
+  const height = 250, left = 48, right = 16, top = 18, bottom = 34;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const values = data.flatMap((item) => series.map((entry) => Number(item[entry.key] ?? 0)));
   const maximum = Math.max(1, ...values);
@@ -696,7 +698,50 @@ function renderKpiChart(target, data, series, mode = "line", suffix = "") {
   }
   const labels = data.map((item, index) => labelIndexes.has(index) ? `<text class="chart-axis" text-anchor="${index === 0 ? "start" : index === data.length - 1 ? "end" : "middle"}" x="${x(index)}" y="${height - 8}">${escapeHtml(item.label)}</text>` : "").join("");
   const legend = series.map((entry, index) => `<g transform="translate(${left + index * 170},4)"><circle cx="4" cy="4" r="4" fill="${entry.color}"/><text class="chart-axis" x="13" y="8">${escapeHtml(entry.name)}</text></g>`).join("");
-  element.innerHTML = `<svg viewBox="0 0 ${width} ${height}" role="img">${grid}${graphics}${labels}${legend}</svg>`;
+  element.innerHTML = `<svg width="${width}" viewBox="0 0 ${width} ${height}" role="img">${grid}${graphics}${labels}${legend}</svg>`;
+}
+
+function initializeKpiExpanders() {
+  document.querySelectorAll("#kpis .kpi-grid .panel").forEach((panel) => {
+    const header = panel.querySelector(".panel-head");
+    if (!header || header.querySelector(".kpi-expand")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "ghost kpi-expand";
+    button.textContent = "⛶";
+    button.setAttribute("aria-label", "Kachel vergrößern");
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+      const expanded = !panel.classList.contains("kpi-panel-expanded");
+      document.querySelectorAll(".kpi-panel-expanded").forEach((item) => item.classList.remove("kpi-panel-expanded"));
+      document.querySelectorAll(".kpi-expand").forEach((item) => {
+        item.textContent = "⛶";
+        item.setAttribute("aria-label", "Kachel vergrößern");
+        item.setAttribute("aria-pressed", "false");
+      });
+      panel.classList.toggle("kpi-panel-expanded", expanded);
+      document.body.classList.toggle("kpi-zoom-open", expanded);
+      if (expanded) {
+        button.textContent = "✕";
+        button.setAttribute("aria-label", "Großansicht schließen");
+        button.setAttribute("aria-pressed", "true");
+      }
+    });
+    header.append(button);
+  });
+}
+
+function closeKpiExpandedPanel() {
+  const panel = document.querySelector(".kpi-panel-expanded");
+  if (!panel) return;
+  panel.classList.remove("kpi-panel-expanded");
+  document.body.classList.remove("kpi-zoom-open");
+  const button = panel.querySelector(".kpi-expand");
+  if (button) {
+    button.textContent = "⛶";
+    button.setAttribute("aria-label", "Kachel vergrößern");
+    button.setAttribute("aria-pressed", "false");
+  }
 }
 
 function updateKpiCategories(items) {
@@ -716,13 +761,14 @@ async function loadKpis() {
   $("#k-maximum").textContent = `${data.maximum_db.toFixed(1)} dB`;
   $("#k-p95").textContent = `${data.p95_db.toFixed(1)} dB`;
   $("#k-duration").textContent = data.total_duration_seconds >= 3600 ? `${(data.total_duration_seconds / 3600).toFixed(1)} h` : `${Math.round(data.total_duration_seconds / 60)} min`;
-  $("#kpi-selection-label").textContent = `${new Date(`${data.filters.date_from}T12:00:00`).toLocaleDateString("de-DE")} – ${new Date(`${data.filters.date_to}T12:00:00`).toLocaleDateString("de-DE")} · ${String(data.filters.start_hour).padStart(2, "0")}:00–${data.filters.end_hour === 0 ? "24:00" : `${String(data.filters.end_hour).padStart(2, "0")}:00`}`;
+  $("#kpi-selection-label").textContent = `${new Date(`${data.filters.date_from}T12:00:00`).toLocaleDateString("de-DE")} – ${new Date(`${data.filters.date_to}T12:00:00`).toLocaleDateString("de-DE")} · ${String(data.filters.start_hour).padStart(2, "0")}:00–${data.filters.end_hour === 0 ? "24:00" : `${String(data.filters.end_hour).padStart(2, "0")}:00`} · ${data.filters.interval_minutes}-Min.-Raster`;
   renderRanked("#kpi-labels", data.labels);
   renderRanked("#kpi-categories", data.categories, true);
   renderRanked("#kpi-devices", data.devices);
-  $("#kpi-top-hour").textContent = data.top_hour == null ? "keine Daten" : `Spitze ${String(data.top_hour).padStart(2, "0")}:00 · ${data.top_hour_events}`;
-  const hours = data.hours.map((item) => ({ ...item, label: String(item.hour).padStart(2, "0"), tooltip: `${String(item.hour).padStart(2, "0")}:00 Uhr` }));
-  const timeline = data.hourly_timeline.map((item) => ({ ...item, label: new Date(item.timestamp).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit" }), tooltip: new Date(item.timestamp).toLocaleString("de-DE") }));
+  const topSlotLabel = data.top_slot == null ? null : `${String(Math.floor(data.top_slot / 60)).padStart(2, "0")}:${String(data.top_slot % 60).padStart(2, "0")}`;
+  $("#kpi-top-hour").textContent = topSlotLabel == null ? "keine Daten" : `Spitze ${topSlotLabel} · ${data.top_slot_events}`;
+  const hours = data.time_slots.map((item) => ({ ...item, tooltip: `${item.label} Uhr` }));
+  const timeline = data.interval_timeline.map((item) => ({ ...item, label: new Date(item.timestamp).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }), tooltip: new Date(item.timestamp).toLocaleString("de-DE") }));
   renderKpiChart("#kpi-level-timeline", timeline, [{ key: "average_db", name: "Ø dB(A)", color: "#70e0ae" }], "line", " dB");
   renderKpiChart("#kpi-hours", hours, [{ key: "count", name: "Ereignisse", color: "#72a7ff" }], "bar");
   renderKpiChart("#kpi-event-timeline", timeline, [{ key: "count", name: "Ereignisse", color: "#72a7ff" }, { key: "exceeded", name: "Überschreitungen", color: "#ee6c67" }], "bar");
@@ -1319,6 +1365,8 @@ $("#notification-list").addEventListener("click", async (event) => {
 $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 $("#kpi-filter-form").addEventListener("submit", (event) => { event.preventDefault(); loadKpis().catch((error) => { $("#kpi-selection-label").textContent = error.message; }); });
+initializeKpiExpanders();
+document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeKpiExpandedPanel(); });
 document.querySelectorAll("[data-kpi-days]").forEach((button) => button.addEventListener("click", () => {
   const to = new Date(); to.setHours(12, 0, 0, 0); const from = new Date(to);
   from.setDate(from.getDate() - Number(button.dataset.kpiDays) + 1);

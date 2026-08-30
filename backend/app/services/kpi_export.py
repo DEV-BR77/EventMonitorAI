@@ -36,7 +36,7 @@ def _sheet_xml(rows: list[list[object]]) -> str:
     )
 
 
-def create_kpi_workbook(hour_rows: list[list[object]], event_rows: list[list[object]]) -> bytes:
+def create_kpi_workbook(interval_rows: list[list[object]], event_rows: list[list[object]]) -> bytes:
     output = BytesIO()
     with ZipFile(output, "w", ZIP_DEFLATED) as archive:
         archive.writestr(
@@ -63,7 +63,7 @@ def create_kpi_workbook(hour_rows: list[list[object]], event_rows: list[list[obj
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
             'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-            '<sheets><sheet name="Stundenanalyse" sheetId="1" r:id="rId1"/>'
+            '<sheets><sheet name="Intervallanalyse" sheetId="1" r:id="rId1"/>'
             '<sheet name="Ereignisse" sheetId="2" r:id="rId2"/></sheets></workbook>',
         )
         archive.writestr(
@@ -89,6 +89,6 @@ def create_kpi_workbook(hour_rows: list[list[object]], event_rows: list[list[obj
             '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1"/></cellXfs>'
             "</styleSheet>",
         )
-        archive.writestr("xl/worksheets/sheet1.xml", _sheet_xml(hour_rows))
+        archive.writestr("xl/worksheets/sheet1.xml", _sheet_xml(interval_rows))
         archive.writestr("xl/worksheets/sheet2.xml", _sheet_xml(event_rows))
     return output.getvalue()

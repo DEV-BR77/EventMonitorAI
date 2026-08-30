@@ -416,6 +416,18 @@ def _selected_hours(start_hour: int, end_hour: int) -> list[int]:
     return list(range(start_hour, 24)) + list(range(end_hour))
 
 
+KPI_INTERVALS = {1, 5, 15, 30, 60}
+
+
+def _validate_kpi_interval(interval_minutes: int) -> int:
+    if interval_minutes not in KPI_INTERVALS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Intervall muss 1, 5, 15, 30 oder 60 Minuten betragen.",
+        )
+    return interval_minutes
+
+
 def _filter_kpi_events(
     events: list[Event], start_hour: int, end_hour: int, category: str | None
 ) -> list[Event]:
@@ -433,7 +445,13 @@ def _event_mean_level(event: Event) -> float:
     return event.avg_db_level if event.avg_db_level is not None else event.db_level
 
 
-def _kpi_analysis(events: list[Event], config: AssessmentConfig, hours: list[int]) -> dict[str, object]:
+def _kpi_analysis(
+    events: list[Event],
+    config: AssessmentConfig,
+    hours: list[int],
+    interval_minutes: int = 60,
+) -> dict[str, object]:
+    interval_minutes = _validate_kpi_interval(interval_minutes)
     exceeded_ids = {
         event.id
         for event in events
@@ -446,6 +464,8 @@ def _kpi_analysis(events: list[Event], config: AssessmentConfig, hours: list[int
     daily: dict[str, list[Event]] = defaultdict(list)
     hourly_events: dict[int, list[Event]] = defaultdict(list)
     timeline_events: dict[str, list[Event]] = defaultdict(list)
+    slot_events: dict[int, list[Event]] = defaultdict(list)
+    interval_events: dict[str, list[Event]] = defaultdict(list)
     for event in events:
         local = _event_local_time(event)
         if local is None:
@@ -453,7 +473,18 @@ def _kpi_analysis(events: list[Event], config: AssessmentConfig, hours: list[int
         daily[local.date().isoformat()].append(event)
         hourly_events[local.hour].append(event)
         timeline_events[local.strftime("%Y-%m-%dT%H:00:00")].append(event)
+        bucket_minute = local.minute // interval_minutes * interval_minutes
+        minute_of_day = local.hour * 60 + bucket_minute
+        bucket_time = local.replace(minute=bucket_minute, second=0, microsecond=0)
+        slot_events[minute_of_day].append(event)
+        interval_events[bucket_time.isoformat()].append(event)
     top_hour = max(hours, key=lambda hour: len(hourly_events[hour])) if events else None
+    selected_slots = [
+        hour * 60 + minute
+        for hour in hours
+        for minute in range(0, 60, interval_minutes)
+    ]
+    top_slot = max(selected_slots, key=lambda slot: len(slot_events[slot])) if events else None
 
     def aggregate(bucket: list[Event]) -> dict[str, object]:
         mean_levels = [_event_mean_level(event) for event in bucket]
@@ -476,6 +507,9 @@ def _kpi_analysis(events: list[Event], config: AssessmentConfig, hours: list[int
         "total_duration_seconds": round(sum(event.duration_seconds for event in events), 1),
         "top_hour": top_hour,
         "top_hour_events": len(hourly_events[top_hour]) if top_hour is not None else 0,
+        "top_slot": top_slot,
+        "top_slot_events": len(slot_events[top_slot]) if top_slot is not None else 0,
+        "interval_minutes": interval_minutes,
         "categories": dict(Counter(event.category for event in events).most_common(10)),
         "labels": dict(Counter(event.label_de or event.label for event in events).most_common(10)),
         "devices": dict(Counter(event.device for event in events)),
@@ -483,6 +517,18 @@ def _kpi_analysis(events: list[Event], config: AssessmentConfig, hours: list[int
         "hourly_timeline": [
             {"timestamp": timestamp, **aggregate(values)}
             for timestamp, values in sorted(timeline_events.items())
+        ],
+        "time_slots": [
+            {
+                "minute_of_day": slot,
+                "label": f"{slot // 60:02d}:{slot % 60:02d}",
+                **aggregate(slot_events[slot]),
+            }
+            for slot in selected_slots
+        ],
+        "interval_timeline": [
+            {"timestamp": timestamp, **aggregate(values)}
+            for timestamp, values in sorted(interval_events.items())
         ],
         "daily": [
             {
@@ -506,11 +552,18 @@ def noise_kpis(
     start_hour: int = Query(default=0, ge=0, le=23),
     end_hour: int = Query(default=0, ge=0, le=23),
     category: str | None = None,
+    interval_minutes: int = Query(default=60),
 ) -> dict[str, object]:
+    interval_minutes = _validate_kpi_interval(interval_minutes)
     base_events = _events_since(db, days, device, None, date_from, date_to)
     categories = Counter(event.category for event in base_events)
     events = _filter_kpi_events(base_events, start_hour, end_hour, category)
-    result = _kpi_analysis(events, _assessment_config(db), _selected_hours(start_hour, end_hour))
+    result = _kpi_analysis(
+        events,
+        _assessment_config(db),
+        _selected_hours(start_hour, end_hour),
+        interval_minutes,
+    )
     result["available_categories"] = [
         {"code": code, "count": count} for code, count in sorted(categories.items())
     ]
@@ -521,6 +574,7 @@ def noise_kpis(
         "end_hour": end_hour,
         "category": category,
         "device": device,
+        "interval_minutes": interval_minutes,
     }
     return result
 
@@ -561,12 +615,14 @@ def export_kpis(
     start_hour: int = Query(default=0, ge=0, le=23),
     end_hour: int = Query(default=0, ge=0, le=23),
     category: str | None = None,
+    interval_minutes: int = Query(default=60),
 ) -> Response:
+    interval_minutes = _validate_kpi_interval(interval_minutes)
     base_events = _events_since(db, days, device, None, date_from, date_to)
     hours = _selected_hours(start_hour, end_hour)
     events = _filter_kpi_events(base_events, start_hour, end_hour, category)
     config = _assessment_config(db)
-    analysis = _kpi_analysis(events, config, hours)
+    analysis = _kpi_analysis(events, config, hours, interval_minutes)
     event_header = [
         "Ereignis-ID",
         "Zeitpunkt (Europe/Berlin)",
@@ -593,8 +649,8 @@ def export_kpis(
             headers={"Content-Disposition": f'attachment; filename="eventmonitor-kpis-{filename_range}.csv"'},
         )
 
-    hour_rows: list[list[object]] = [[
-        "Stunde",
+    interval_rows: list[list[object]] = [[
+        f"Tagesintervall ({interval_minutes} Minuten)",
         "Anzahl Ereignisse",
         "Anteil Prozent",
         "Durchschnitt dB(A)",
@@ -602,16 +658,16 @@ def export_kpis(
         "Überschreitungen",
         "Lärmdauer Sekunden",
     ]]
-    hour_rows.extend([
-        f"{int(item['hour']):02d}:00",
+    interval_rows.extend([
+        item["label"],
         item["count"],
         round(float(item["share"]) * 100, 2),
         item["average_db"],
         item["maximum_db"],
         item["exceeded"],
         item["duration_seconds"],
-    ] for item in analysis["hours"])
-    workbook = create_kpi_workbook(hour_rows, event_rows)
+    ] for item in analysis["time_slots"])
+    workbook = create_kpi_workbook(interval_rows, event_rows)
     return Response(
         content=workbook,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
