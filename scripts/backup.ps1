@@ -17,12 +17,15 @@ docker cp "eventmonitorai-postgres-1:/tmp/$Label.dump" (Join-Path $target "datab
 if ($LASTEXITCODE -ne 0) { throw "Datenbank-Dump konnte nicht kopiert werden." }
 docker cp "eventmonitorai-app-1:/data/clips" (Join-Path $target "clips")
 if ($LASTEXITCODE -ne 0) { throw "Clip-Backup konnte nicht kopiert werden." }
+docker cp "eventmonitorai-app-1:/data/documentation" (Join-Path $target "documentation")
+if ($LASTEXITCODE -ne 0) { throw "Dokumentations-Backup konnte nicht kopiert werden." }
 $files = Get-ChildItem -LiteralPath $target -Recurse -File
 $manifest = [ordered]@{
     format = 1
     created_at = (Get-Date).ToUniversalTime().ToString("o")
     database = "database.dump"
     clip_count = @($files | Where-Object Extension -eq ".wav").Count
+    documentation_count = @($files | Where-Object { $_.FullName.StartsWith((Join-Path $target "documentation")) }).Count
     files = @($files | ForEach-Object {
         [ordered]@{ path = $_.FullName.Substring($target.Length + 1); bytes = $_.Length; sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
     })

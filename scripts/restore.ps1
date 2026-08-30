@@ -32,6 +32,10 @@ docker run --rm -v eventmonitorai_eventmonitor_clips_data:/data/clips eventmonit
 if ($LASTEXITCODE -ne 0) { throw "Clip-Ziel konnte nicht geleert werden; Dienste bleiben angehalten." }
 if (Test-Path -LiteralPath (Join-Path $backup "clips")) { docker cp (Join-Path $backup "clips\.") "eventmonitorai-app-1:/data/clips" }
 if ($LASTEXITCODE -ne 0) { throw "Clips konnten nicht wiederhergestellt werden; Dienste bleiben angehalten." }
+docker run --rm -v eventmonitorai_eventmonitor_documentation_data:/data/documentation eventmonitorai-app sh -c "find /data/documentation -mindepth 1 -delete"
+if ($LASTEXITCODE -ne 0) { throw "Dokumentations-Ziel konnte nicht geleert werden; Dienste bleiben angehalten." }
+if (Test-Path -LiteralPath (Join-Path $backup "documentation")) { docker cp (Join-Path $backup "documentation\.") "eventmonitorai-app-1:/data/documentation" }
+if ($LASTEXITCODE -ne 0) { throw "Dokumentation konnte nicht wiederhergestellt werden; Dienste bleiben angehalten." }
 docker compose --env-file .env.docker up -d app backup
 if ($LASTEXITCODE -ne 0) { throw "Dienste konnten nach der Wiederherstellung nicht gestartet werden." }
 Write-Host "Wiederherstellung abgeschlossen: $backup"

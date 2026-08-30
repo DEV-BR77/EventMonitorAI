@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg">
   <title>EventMonitorAI Dashboard</title>
-  <link rel="stylesheet" href="/styles.css?v=0.9.8-kpi-analysis">
+  <link rel="stylesheet" href="/styles.css?v=0.9.9-navigation-documentation">
 </head>
 <body>
   <section id="auth" class="auth-shell">
@@ -36,23 +36,42 @@
   <div id="app" class="app hidden">
     <aside>
       <div class="brand"><span class="brand-mark">EM</span><strong>EventMonitorAI</strong></div>
+      <button id="sidebar-collapse" class="sidebar-collapse ghost" type="button" aria-label="Menü verkleinern" title="Menü verkleinern">‹</button>
       <nav>
-        <button class="nav active" data-view="overview">Übersicht</button>
-        <button class="nav" data-view="kpis">KPIs</button>
-        <button class="nav" data-view="sound-map">Messbereich</button>
-        <button id="audio-nav" class="nav hidden" data-view="audio">Live-Sound</button>
-        <button class="nav" data-view="live">Live-Ereignisse <i id="live-dot"></i></button>
-        <button class="nav" data-view="rules">Benachrichtigungen</button>
-        <button class="nav" data-view="support">Unterstützen</button>
-        <button class="nav" data-view="account">Mein Bereich</button>
-        <div id="admin-navigation" class="admin-navigation hidden" aria-label="Administration">
-          <span>Administration</span>
-          <button id="admin-nav" class="nav" data-view="administration">Benutzer &amp; Einstellungen</button>
-          <button id="assessment-nav" class="nav" data-view="assessment">Lärmbewertung</button>
-          <button id="devices-nav" class="nav" data-view="devices">Mikrofone</button>
-          <button id="people-nav" class="nav" data-view="people">Personen</button>
-          <button id="review-nav" class="nav" data-view="review">Audio-Lab</button>
-        </div>
+        <section class="nav-group open" data-nav-group="lage">
+          <button class="nav-group-toggle" type="button" aria-expanded="true"><span>Akustische Lage</span><i>⌄</i></button>
+          <div class="nav-group-items">
+            <button class="nav active" data-view="overview" data-short="Ü">Übersicht</button>
+            <button class="nav" data-view="kpis" data-short="K">KPIs</button>
+            <button class="nav" data-view="live" data-short="E">Live-Ereignisse <i id="live-dot"></i></button>
+            <button class="nav" data-view="rules" data-short="B">Benachrichtigungen</button>
+          </div>
+        </section>
+        <section class="nav-group open" data-nav-group="beta">
+          <button class="nav-group-toggle" type="button" aria-expanded="true"><span>Beta</span><i>⌄</i></button>
+          <div class="nav-group-items">
+            <button class="nav" data-view="sound-map" data-short="M">Messbereich</button>
+            <button id="audio-nav" class="nav hidden" data-view="audio" data-short="L">Live-Sound</button>
+            <button class="nav" data-view="support" data-short="U">Unterstützen</button>
+            <button class="nav" data-view="account" data-short="I">Mein Bereich</button>
+            <button class="nav" data-view="image-evidence" data-short="B">Bildnachweise</button>
+            <button class="nav" data-view="documents" data-short="D">Dokumente &amp; Vorlagen</button>
+          </div>
+        </section>
+        <section id="admin-navigation" class="nav-group admin-navigation hidden" data-nav-group="admin" aria-label="Administration">
+          <button class="nav-group-toggle" type="button" aria-expanded="false"><span>Administration</span><i>⌄</i></button>
+          <div class="nav-group-items">
+            <button id="admin-nav" class="nav" data-view="user-management" data-short="B">Benutzerverwaltung</button>
+            <button class="nav" data-view="live-sound-access" data-short="L">Live-Sound-Rechte</button>
+            <button id="tenant-management-nav" class="nav" data-view="tenant-management-view" data-short="K">Kundenbereiche &amp; Abos</button>
+            <button id="website-access-nav" class="nav" data-view="website-access" data-short="W">Webseiten-Zugriffe</button>
+            <button id="assessment-nav" class="nav" data-view="assessment" data-short="L">Lärmbewertung</button>
+            <button class="nav" data-view="class-management-view" data-short="K">Klassenverwaltung</button>
+            <button id="devices-nav" class="nav" data-view="devices" data-short="A">Audioeinstellungen</button>
+            <button id="people-nav" class="nav" data-view="people" data-short="P">Personen</button>
+            <button id="review-nav" class="nav" data-view="review" data-short="L">Lernregeln</button>
+          </div>
+        </section>
       </nav>
       <div class="account"><span id="identity"></span><button id="push-enable" class="ghost hidden">Push aktivieren</button><button id="logout" class="ghost">Abmelden</button></div>
     </aside>
@@ -362,7 +381,43 @@
         <article class="panel"><div class="panel-head"><h2 id="account-tenant">Mein Kundenbereich</h2><span id="account-role"></span></div><p class="management-help">Alle Dashboard-KPIs, Ereignisse, Mikrofone, Kalibrierungen, Audioaufnahmen und Lärmprotokolle werden ausschließlich diesem Kundenbereich zugeordnet. Abonnementstatus und Benutzerrolle sind getrennte Einstellungen.</p></article>
       </section>
 
+      <section id="image-evidence" class="view hidden documentation-view">
+        <article class="panel documentation-intro"><div class="panel-head"><h2>Bildnachweise</h2><span>tenant-isolierte Dokumentation</span></div><p class="management-help">Neue Bilder erscheinen zuerst. Kategorien und Zeitraum können frei gefiltert werden; Originaldatei, Aufnahmezeitpunkt und hochladender Benutzer bleiben nachvollziehbar.</p></article>
+        <form id="image-upload-form" class="panel documentation-upload">
+          <label>Titel<input id="image-title" maxlength="160" required placeholder="z. B. Müllablagerung am Stellplatz"></label>
+          <label>Kategorie<input id="image-category" list="image-category-options" maxlength="80" required placeholder="Müll, Müllplatz, Ratten …"><datalist id="image-category-options"></datalist></label>
+          <label>Aufnahmezeit<input id="image-occurred-at" type="datetime-local"></label>
+          <label>Bild<input id="image-file" type="file" accept="image/jpeg,image/png,image/webp" required></label>
+          <button type="submit">Bild anlegen</button><span id="image-upload-status"></span>
+        </form>
+        <article class="panel documentation-browser">
+          <div class="documentation-filters"><label>Kategorie<select id="image-filter-category"><option value="">Alle Kategorien</option></select></label><label>Von<input id="image-filter-from" type="date"></label><label>Bis<input id="image-filter-to" type="date"></label><button id="image-filter-reset" class="ghost" type="button">Filter zurücksetzen</button></div>
+          <div id="image-gallery" class="image-gallery"></div>
+        </article>
+      </section>
+
+      <section id="documents" class="view hidden documentation-view">
+        <article class="panel documentation-intro"><div class="panel-head"><h2>Dokumente &amp; Vorlagen</h2><span>PDF-Schriftstücke</span></div><p class="management-help">PDF-Vorlagen, ausgefüllte Schriftstücke und sonstige Nachweise werden im jeweiligen Kundenbereich abgelegt und chronologisch bereitgestellt.</p></article>
+        <form id="document-upload-form" class="panel documentation-upload">
+          <label>Titel<input id="document-title" maxlength="160" required placeholder="z. B. Anschreiben Ordnungsamt"></label>
+          <label>Kategorie<input id="document-category" list="document-category-options" maxlength="80" required placeholder="Vorlage, Schriftstück, Protokoll …"><datalist id="document-category-options"></datalist></label>
+          <label>Dokumentdatum<input id="document-occurred-at" type="datetime-local"></label>
+          <label>PDF-Datei<input id="document-file" type="file" accept="application/pdf" required></label>
+          <button type="submit">PDF anlegen</button><span id="document-upload-status"></span>
+        </form>
+        <article class="panel documentation-browser">
+          <div class="documentation-filters"><label>Kategorie<select id="document-filter-category"><option value="">Alle Kategorien</option></select></label><label>Von<input id="document-filter-from" type="date"></label><label>Bis<input id="document-filter-to" type="date"></label><button id="document-filter-reset" class="ghost" type="button">Filter zurücksetzen</button></div>
+          <div id="document-list" class="document-list"></div>
+        </article>
+      </section>
+
       <section id="assessment" class="view hidden"></section>
+
+      <section id="user-management" class="view hidden"></section>
+      <section id="live-sound-access" class="view hidden"></section>
+      <section id="tenant-management-view" class="view hidden"></section>
+      <section id="website-access" class="view hidden"></section>
+      <section id="class-management-view" class="view hidden"></section>
 
       <section id="administration" class="view hidden">
         <article id="tenant-management" class="panel hidden">
@@ -398,7 +453,7 @@
           <div id="audio-permission-list"></div>
           <span id="audio-permission-status"></span>
         </article>
-        <div class="rules-layout">
+        <div id="user-management-content" class="rules-layout">
           <form id="user-create-form" class="panel">
             <h2>Benutzer anlegen</h2>
             <label>Benutzername<input id="new-username" maxlength="80" required></label>
@@ -410,7 +465,7 @@
           </form>
           <article class="panel"><div class="panel-head"><h2>Rollen und Zugriff</h2><span>Admin · Operator · Betrachter</span></div><div id="user-list"></div><span id="user-status"></span></article>
         </div>
-        <article class="panel class-management">
+        <article id="class-management-content" class="panel class-management">
           <div class="panel-head"><h2>KI-Klassenkatalog</h2><span>Gemeinsam für Live-Analyse und AudioLab</span></div>
           <div class="class-help">
             <p><strong>Basisklasse</strong> ist die Hauptgruppe, zum Beispiel Hupen. <strong>Feinzuordnung</strong> ist die konkrete Unterart und wird über „Zugeordnet zu“ mit ihrer Basisklasse verbunden.</p>
@@ -430,6 +485,6 @@
       </section>
     </main>
   </div>
-  <script src="/app.js?v=0.9.8-kpi-analysis"></script>
+  <script src="/app.js?v=0.9.9-navigation-documentation"></script>
 </body>
 </html>

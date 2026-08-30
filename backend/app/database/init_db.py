@@ -216,6 +216,7 @@ def ensure_tenant_columns() -> None:
         "assessment_config", "person_profiles", "event_person_assignments",
         "speaker_clusters", "event_speaker_clusters", "notification_rules",
         "event_secondary_classifications", "speaker_analysis_runs",
+        "documentation_assets",
     }
     with engine.begin() as connection:
         for table in sorted(scoped_tables & set(inspector.get_table_names())):

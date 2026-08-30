@@ -350,6 +350,22 @@ class AssessmentConfig(TenantScopedMixin, Base):
     updated_at: Mapped[str] = mapped_column(String, default=utc_now)
 
 
+class DocumentationAsset(TenantScopedMixin, Base):
+    __tablename__ = "documentation_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    title: Mapped[str] = mapped_column(String(160))
+    category: Mapped[str] = mapped_column(String(80), index=True)
+    occurred_at: Mapped[str] = mapped_column(String, index=True)
+    original_filename: Mapped[str] = mapped_column(String(240))
+    stored_path: Mapped[str] = mapped_column(Text)
+    content_type: Mapped[str] = mapped_column(String(80))
+    size_bytes: Mapped[int] = mapped_column(Integer)
+    uploaded_by: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[str] = mapped_column(String, default=utc_now, index=True)
+
+
 class PersonProfile(TenantScopedMixin, Base):
     __tablename__ = "person_profiles"
     __table_args__ = (UniqueConstraint("tenant_id", "name"),)

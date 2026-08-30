@@ -3,7 +3,7 @@ function loadListenedEvents() {
   try { return new Set(JSON.parse(localStorage.getItem("em_listened_events") || "[]").map(String)); }
   catch (_) { return new Set(); }
 }
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], calibrationDrafts: new Map(), telemetryLoading: false, people: [], personMediaUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents(), kpiInitialized: false };
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], calibrationDrafts: new Map(), telemetryLoading: false, people: [], personMediaUrls: [], documentationUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents(), kpiInitialized: false };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const localDate = (value) => value.toLocaleDateString("sv-SE");
@@ -103,11 +103,18 @@ async function loadView(view) {
     rules: [loadRules],
     support: [loadSupport],
     account: [loadAccount],
-    administration: [loadUsers, loadAssessmentConfig, loadAudioPermissions, ...(state.role === "admin" ? [loadTenants, loadWebsiteAnalytics] : [])],
+    administration: [loadUsers],
+    "user-management": [loadUsers],
+    "live-sound-access": [loadAudioPermissions],
+    "tenant-management-view": [loadTenants],
+    "website-access": [loadWebsiteAnalytics],
+    "class-management-view": [loadEventClasses],
     assessment: [loadAssessmentConfig],
     devices: [loadTelemetry, loadCalibrations, loadCalibrationReferenceRuns],
     people: [loadPeople, loadSpeakerClusters, loadSpeakerAnalysisProgress],
     review: [loadReview],
+    "image-evidence": [() => loadDocumentation("image")],
+    documents: [() => loadDocumentation("document")],
   }[view] || [];
   const results = await Promise.allSettled(tasks.map((task) => task()));
   const rejected = results.filter((result) => result.status === "rejected");
@@ -129,6 +136,8 @@ async function start() {
     $("#admin-notification-center").classList.toggle("hidden", me.role !== "admin");
     $("#tenant-management").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
     $("#website-analytics").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
+    $("#tenant-management-nav").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
+    $("#website-access-nav").classList.toggle("hidden", me.role !== "admin" || me.tenant_id !== 1);
     $("#map-positioning").classList.toggle("hidden", me.role !== "admin");
     $("#map-stage").classList.toggle("positioning", me.role === "admin");
     const today = new Date().toLocaleDateString("sv-SE");
@@ -709,6 +718,101 @@ function syncKpiDatesFromGlobal() {
   $("#kpi-date-from").value = range.from;
   $("#kpi-date-to").value = range.to;
   state.kpiInitialized = true;
+}
+
+function clearDocumentationUrls() {
+  state.documentationUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.documentationUrls = [];
+}
+
+async function documentationBlob(assetId) {
+  const response = await fetch(`/api/documentation/assets/${assetId}/file`, { headers: { Authorization: `Bearer ${state.token}` } });
+  if (!response.ok) throw new Error(`Datei konnte nicht geladen werden (HTTP ${response.status})`);
+  return response.blob();
+}
+
+function documentationQuery(kind) {
+  const prefix = kind === "image" ? "image" : "document";
+  const query = new URLSearchParams({ kind });
+  const category = $(`#${prefix}-filter-category`).value;
+  const from = $(`#${prefix}-filter-from`).value;
+  const to = $(`#${prefix}-filter-to`).value;
+  if (category) query.set("category", category);
+  if (from) query.set("date_from", from);
+  if (to) query.set("date_to", to);
+  return query;
+}
+
+function updateDocumentationCategories(kind, categories) {
+  const prefix = kind === "image" ? "image" : "document";
+  const select = $(`#${prefix}-filter-category`);
+  const current = select.value;
+  categories = [...new Set(categories)].sort((a, b) => a.localeCompare(b, "de"));
+  select.innerHTML = `<option value="">Alle Kategorien</option>${categories.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}`;
+  if (categories.includes(current)) select.value = current;
+  $(`#${prefix}-category-options`).innerHTML = categories.map((item) => `<option value="${escapeHtml(item)}"></option>`).join("");
+}
+
+async function loadDocumentation(kind) {
+  const [assets, categories] = await Promise.all([
+    api(`/api/documentation/assets?${documentationQuery(kind)}`),
+    api(`/api/documentation/categories?kind=${kind}`),
+  ]);
+  updateDocumentationCategories(kind, categories);
+  if (kind === "document") {
+    $("#document-list").innerHTML = assets.length ? assets.map((item) => `
+      <article class="document-row" data-documentation-id="${item.id}">
+        <div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.original_filename)} · ${(item.size_bytes / 1024).toFixed(0)} KB</small></div>
+        <span>${escapeHtml(item.category)}</span>
+        <span>${formatTime(item.occurred_at)}<small>von ${escapeHtml(item.uploaded_by)}</small></span>
+        <div class="evidence-actions"><button type="button" data-documentation-download="${item.id}">PDF öffnen</button>${state.role === "admin" ? `<button class="ghost" type="button" data-documentation-delete="${item.id}">Löschen</button>` : ""}</div>
+      </article>`).join("") : `<p class="documentation-empty">Für diesen Filter sind noch keine PDF-Dokumente vorhanden.</p>`;
+    return;
+  }
+  clearDocumentationUrls();
+  if (!assets.length) {
+    $("#image-gallery").innerHTML = `<p class="documentation-empty">Für diesen Filter sind noch keine Bildnachweise vorhanden.</p>`;
+    return;
+  }
+  const cards = await Promise.all(assets.map(async (item) => {
+    try {
+      const url = URL.createObjectURL(await documentationBlob(item.id));
+      state.documentationUrls.push(url);
+      return `<article class="evidence-card" data-documentation-id="${item.id}"><a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${escapeHtml(item.title)}" loading="lazy"></a><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.category)} · ${formatTime(item.occurred_at)}</small><small>${escapeHtml(item.uploaded_by)} · ${(item.size_bytes / 1024).toFixed(0)} KB</small>${state.role === "admin" ? `<div class="evidence-actions"><button class="ghost" type="button" data-documentation-delete="${item.id}">Löschen</button></div>` : ""}</div></article>`;
+    } catch (error) {
+      return `<article class="evidence-card"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(error.message)}</small></div></article>`;
+    }
+  }));
+  $("#image-gallery").innerHTML = cards.join("");
+}
+
+async function uploadDocumentation(kind, form) {
+  const prefix = kind === "image" ? "image" : "document";
+  const file = $(`#${prefix}-file`).files[0];
+  if (!file) throw new Error("Bitte zuerst eine Datei auswählen.");
+  const limit = kind === "image" ? 15 * 1024 * 1024 : 25 * 1024 * 1024;
+  if (file.size > limit) throw new Error(`Die Datei ist größer als ${kind === "image" ? 15 : 25} MB.`);
+  await api("/api/documentation/assets", { method: "POST", body: JSON.stringify({
+    kind,
+    title: $(`#${prefix}-title`).value,
+    category: $(`#${prefix}-category`).value,
+    occurred_at: $(`#${prefix}-occurred-at`).value || null,
+    filename: file.name,
+    mime_type: file.type || (kind === "document" ? "application/pdf" : "application/octet-stream"),
+    content_base64: await fileAsBase64(file),
+  }) });
+  form.reset();
+  await loadDocumentation(kind);
+}
+
+async function downloadDocumentation(assetId) {
+  const url = URL.createObjectURL(await documentationBlob(assetId));
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 function initializeKpiFilters() {
@@ -1518,17 +1622,71 @@ for (const picker of [$("#date-from-filter"), $("#date-to-filter")]) picker.addE
 $("#level-minutes").addEventListener("change", loadLiveLevels);
 document.querySelectorAll(".nav").forEach((button) => button.addEventListener("click", () => {
   if (button.closest("#admin-navigation") && state.role !== "admin") return;
+  const group = button.closest(".nav-group");
+  if (group) {
+    group.classList.add("open");
+    group.querySelector(".nav-group-toggle")?.setAttribute("aria-expanded", "true");
+  }
   document.querySelectorAll(".nav").forEach((n) => n.classList.toggle("active", n === button));
   document.querySelectorAll(".view").forEach((v) => v.classList.add("hidden"));
   $(`#${button.dataset.view}`).classList.remove("hidden");
   $("#title").textContent = button.textContent.trim();
-  $(".filters").classList.toggle("hidden", button.dataset.view === "support");
+  $(".filters").classList.toggle("hidden", !["overview", "live", "sound-map"].includes(button.dataset.view));
   if (button.dataset.view === "sound-map") requestAnimationFrame(renderSoundMap);
   loadView(button.dataset.view).catch((error) => {
     if (error?.status === 401) logout();
     else console.error(`${button.dataset.view} konnte nicht geladen werden`, error);
   });
 }));
+document.querySelectorAll(".nav-group-toggle").forEach((button) => button.addEventListener("click", () => {
+  const group = button.closest(".nav-group");
+  const open = group.classList.toggle("open");
+  button.setAttribute("aria-expanded", String(open));
+  localStorage.setItem(`em_nav_${group.dataset.navGroup}`, String(open));
+}));
+document.querySelectorAll(".nav-group").forEach((group) => {
+  const stored = localStorage.getItem(`em_nav_${group.dataset.navGroup}`);
+  if (stored !== null) group.classList.toggle("open", stored === "true");
+  group.querySelector(".nav-group-toggle")?.setAttribute("aria-expanded", String(group.classList.contains("open")));
+});
+if (localStorage.getItem("em_menu_collapsed") === "true") document.body.classList.add("menu-collapsed");
+$("#sidebar-collapse").addEventListener("click", () => {
+  const collapsed = document.body.classList.toggle("menu-collapsed");
+  localStorage.setItem("em_menu_collapsed", String(collapsed));
+  $("#sidebar-collapse").title = collapsed ? "Menü vergrößern" : "Menü verkleinern";
+});
+for (const kind of ["image", "document"]) {
+  const prefix = kind === "image" ? "image" : "document";
+  $(`#${prefix}-upload-form`).addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const status = $(`#${prefix}-upload-status`);
+    status.textContent = "Datei wird sicher gespeichert …";
+    try {
+      await uploadDocumentation(kind, event.currentTarget);
+      status.textContent = "Gespeichert.";
+    } catch (error) { status.textContent = error.message; }
+  });
+  for (const filter of ["category", "from", "to"]) {
+    $(`#${prefix}-filter-${filter}`).addEventListener("change", () => loadDocumentation(kind).catch(console.error));
+  }
+  $(`#${prefix}-filter-reset`).addEventListener("click", () => {
+    for (const filter of ["category", "from", "to"]) $(`#${prefix}-filter-${filter}`).value = "";
+    loadDocumentation(kind).catch(console.error);
+  });
+}
+for (const container of [$("#image-gallery"), $("#document-list")]) {
+  container.addEventListener("click", async (event) => {
+    const download = event.target.closest("[data-documentation-download]");
+    const remove = event.target.closest("[data-documentation-delete]");
+    try {
+      if (download) await downloadDocumentation(download.dataset.documentationDownload);
+      if (remove) {
+        await api(`/api/documentation/assets/${remove.dataset.documentationDelete}`, { method: "DELETE" });
+        await loadDocumentation(container === $("#image-gallery") ? "image" : "document");
+      }
+    } catch (error) { console.error(error); }
+  });
+}
 $("#audio-toggle").addEventListener("click", () => state.audioSocket ? stopAudio() : startAudio().catch((error) => stopAudio(error.message)));
 $("#audio-test").addEventListener("click", () => playAudioTestTone().catch((error) => stopAudio(error.message)));
 $("#audio-volume").addEventListener("input", () => { if (state.audioGain) state.audioGain.gain.value = Number($("#audio-volume").value); });
@@ -1830,6 +1988,11 @@ $("#user-create-form").addEventListener("submit", async (e) => {
   } catch (error) { $("#user-create-status").textContent = error.message; }
 });
 $("#assessment").append($("#assessment-config-form"));
+$("#user-management").append($("#user-management-content"));
+$("#live-sound-access").append($("#audio-permissions"));
+$("#tenant-management-view").append($("#tenant-management"));
+$("#website-access").append($("#website-analytics"));
+$("#class-management-view").append($("#class-management-content"));
 $("#assessment-config-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {

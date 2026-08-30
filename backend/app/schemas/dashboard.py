@@ -74,6 +74,30 @@ class LiveAudioPermissionRead(BaseModel):
     device_ids: list[str]
 
 
+class DocumentationAssetUpload(BaseModel):
+    kind: Literal["image", "document"]
+    title: str = Field(min_length=1, max_length=160)
+    category: str = Field(min_length=1, max_length=80)
+    occurred_at: str | None = None
+    filename: str = Field(min_length=1, max_length=240)
+    mime_type: str = Field(min_length=1, max_length=80)
+    content_base64: str
+
+
+class DocumentationAssetRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    kind: str
+    title: str
+    category: str
+    occurred_at: str
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    uploaded_by: str
+    created_at: str
+
+
 class DeviceCreate(BaseModel):
     device_id: str = Field(min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=120)

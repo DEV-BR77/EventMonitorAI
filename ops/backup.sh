@@ -14,7 +14,8 @@ while true; do
   mkdir -p "$temporary"
   if PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f "$temporary/database.dump"; then
     tar -C /data/clips -czf "$temporary/clips.tar.gz" .
-    (cd "$temporary" && sha256sum database.dump clips.tar.gz > SHA256SUMS)
+    tar -C /data/documentation -czf "$temporary/documentation.tar.gz" .
+    (cd "$temporary" && sha256sum database.dump clips.tar.gz documentation.tar.gz > SHA256SUMS)
     mv "$temporary" "$target"
     echo "Backup completed: $target"
   else

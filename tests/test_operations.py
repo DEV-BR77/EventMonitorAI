@@ -25,8 +25,14 @@ def test_compose_contains_automatic_backup_with_read_only_clips() -> None:
 
     assert "backup:" in compose
     assert "eventmonitor_clips_data:/data/clips:ro" in compose
+    assert "eventmonitor_documentation_data:/data/documentation:ro" in compose
     assert "BACKUP_RETENTION_DAYS" in compose
     assert "./backups:/backups" in compose
+
+    backup_script = (ROOT / "scripts" / "backup.ps1").read_text(encoding="utf-8")
+    restore_script = (ROOT / "scripts" / "restore.ps1").read_text(encoding="utf-8")
+    assert ':/data/documentation"' in backup_script
+    assert "eventmonitor_documentation_data:/data/documentation" in restore_script
 
 
 def test_restore_verifies_manifest_before_stopping_services() -> None:

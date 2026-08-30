@@ -47,8 +47,10 @@ services:
       RESEND_FROM: ${RESEND_FROM:-EventMonitorAI <noreply@eventmonitor.eu>}
       RESEND_REPLY_TO: ${RESEND_REPLY_TO:-kontakt@eventmonitor.eu}
       CLIP_DIRECTORY: /data/clips
+      DOCUMENTATION_DIRECTORY: /data/documentation
     volumes:
       - eventmonitor_clips_data:/data/clips
+      - eventmonitor_documentation_data:/data/documentation
     ports:
       - "${DASHBOARD_PORT:-8015}:8000"
     depends_on:
@@ -71,6 +73,7 @@ services:
       MKL_NUM_THREADS: ${SPEAKER_WORKER_THREADS:-2}
     volumes:
       - eventmonitor_clips_data:/data/clips:ro
+      - eventmonitor_documentation_data:/data/documentation:ro
       - eventmonitor_speaker_models:/models
     depends_on:
       postgres:
@@ -101,3 +104,4 @@ volumes:
   eventmonitor_postgres_data:
   eventmonitor_clips_data:
   eventmonitor_speaker_models:
+  eventmonitor_documentation_data:

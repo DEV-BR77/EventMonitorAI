@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
+from app.api.documentation import router as documentation_router
 from app.api.events import router as events_router
 from app.api.health import router as health_router
-from app.api.push import router as push_router
 from app.api.public import router as public_router
+from app.api.push import router as push_router
 from app.core.config import settings
 from app.core.security import decode_token
 from app.database.init_db import init_db
@@ -49,6 +50,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(events_router)
 app.include_router(dashboard_router)
+app.include_router(documentation_router)
 app.include_router(push_router)
 app.include_router(public_router)
 
@@ -57,7 +59,7 @@ app.include_router(public_router)
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
         "script-src 'self'; connect-src 'self' ws: wss:; object-src 'none'; "
         "base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
     )

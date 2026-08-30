@@ -10,7 +10,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system eventmonitor \
     && adduser --system --ingroup eventmonitor --home /app eventmonitor \
-    && mkdir -p /data/clips /data/person-media \
+    && mkdir -p /data/clips /data/person-media /data/documentation \
     && chown -R eventmonitor:eventmonitor /data
 
 COPY backend/requirements.txt /app/requirements.txt

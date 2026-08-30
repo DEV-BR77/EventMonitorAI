@@ -88,6 +88,11 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
 
 ## Phase 6 – Dashboard Erweiterungen
 
+  - [x] aufklappbare und verkleinerbare Navigation mit getrennten Seiten für
+        Benutzerverwaltung, Live-Sound-Rechte, Kundenbereiche, Webseiten-Zugriffe,
+        Lärmbewertung, Klassenverwaltung, Audioeinstellungen und Lernregeln
+  - [x] tenant-isolierte Bildnachweise und PDF-Dokumente mit Upload, Kategorien,
+        chronologischer Ansicht, Zeitfilter, Dateiprüfung sowie Backup und Restore
   - [x] Mikrofon Verwaltung - Namen, Position, Aktiv/Inaktiv, Kalibrierung
   - [x] Live-Soundausgabe je Mikrofon anwählbar und pro User durch Admin freizugeben, ohne Freigabe Funktion nicht sichtbar beim User
   - [x] Karte Bild für Positionierung der Mikrofone und Darstellung von Messergebnissen ![Messbereich](image-1.png) Die Mikrofone sollen auf dem Bild positioniert werden und Messergebnisse und Anzahl Überschreitungen darstellen, zusäzlich Erstellung einer Heatmap der Schallpegelausbreitung
