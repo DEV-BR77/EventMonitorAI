@@ -314,10 +314,11 @@ kein veröffentlichungsfähiges Store-Artefakt.
 - [x] Build-Artefakte, lokale SDK-Pfade, Keystores und Geheimnisse bleiben von
       Git ausgeschlossen
 
-Aktueller lokaler Testpfad nach `flutter build apk --debug`:
+Aktueller lokaler Testpfad nach
+`flutter build apk --flavor production --debug`:
 
 ```text
-mobile/build/app/outputs/flutter-apk/app-debug.apk
+mobile/build/app/outputs/flutter-apk/app-production-debug.apk
 ```
 
 Die Datei ist flüchtiges lokales Build-Artefakt und wird bei Bedarf neu gebaut.

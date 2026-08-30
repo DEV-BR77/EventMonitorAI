@@ -26,8 +26,13 @@ Die numerische Pegelanzeige ist erst nach Vergleichskalibrierung sinnvoll.
 flutter pub get
 flutter analyze
 flutter test
-flutter run
+flutter run --flavor production
+flutter build apk --flavor production --debug
 ```
+
+Die Android-Konfiguration verwendet bewusst eine nicht inkrementelle
+Kotlin-Kompilierung. Dadurch bleiben Builds unter Windows stabil, wenn der
+globale Pub-Cache auf `C:` und der Repository-Worktree auf `D:` liegt.
 
 Auch Entwicklungsserver müssen per HTTPS erreichbar sein. Android und iOS
 fragen die Mikrofonberechtigung beim ersten Start einer Messsitzung an.
