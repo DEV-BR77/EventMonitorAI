@@ -125,14 +125,17 @@ def ensure_assessment_class_rules_column() -> None:
     if "assessment_config" not in inspector.get_table_names():
         return
     column_names = {column["name"] for column in inspector.get_columns("assessment_config")}
-    if "class_rules_json" not in column_names:
-        with engine.begin() as connection:
-            connection.execute(
-                text(
-                    "ALTER TABLE assessment_config ADD COLUMN "
-                    "class_rules_json TEXT NOT NULL DEFAULT '{}'"
+    definitions = {
+        "class_rules_json": "TEXT NOT NULL DEFAULT '{}'",
+        "reference_rules_json": "TEXT NOT NULL DEFAULT 'null'",
+        "sensitive_periods_json": "TEXT NOT NULL DEFAULT 'null'",
+    }
+    with engine.begin() as connection:
+        for column, definition in definitions.items():
+            if column not in column_names:
+                connection.execute(
+                    text(f"ALTER TABLE assessment_config ADD COLUMN {column} {definition}")
                 )
-            )
 
 
 def ensure_classification_revision_columns() -> None:

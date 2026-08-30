@@ -84,7 +84,11 @@ from app.services.calibration import (
     parse_reference_csv,
 )
 from app.services.kpi_export import create_kpi_workbook
-from app.services.noise_assessment import assessment_for
+from app.services.noise_assessment import (
+    DEFAULT_REFERENCE_RULES,
+    DEFAULT_SENSITIVE_PERIODS,
+    assessment_for_config,
+)
 from app.services.person_media import store_photo, store_video_and_compare
 from app.services.speaker_clustering import (
     create_cluster_from_event,
@@ -253,10 +257,22 @@ def _event_is_assessment_included(event: Event, config: AssessmentConfig) -> boo
 
 
 def _assessment_config_payload(config: AssessmentConfig) -> dict[str, object]:
+    def list_value(value: str, default: list[dict[str, object]]) -> list[dict[str, object]]:
+        try:
+            parsed = json.loads(value or "[]")
+        except (TypeError, ValueError):
+            parsed = []
+        return parsed if isinstance(parsed, list) else default
+
     return {
         "sensitive_surcharge_db": config.sensitive_surcharge_db,
         "apply_to_live": config.apply_to_live,
         "class_rules": _assessment_class_rules(config),
+        "reference_rules": list_value(config.reference_rules_json, DEFAULT_REFERENCE_RULES),
+        "sensitive_periods": list_value(
+            config.sensitive_periods_json,
+            DEFAULT_SENSITIVE_PERIODS,
+        ),
         "updated_at": config.updated_at,
     }
 
@@ -380,12 +396,7 @@ def calendar(
     for event in _events_since(db, days, device, date, date_from, date_to):
         values = daily[event.timestamp[:10]]
         values[event.category] += 1
-        if assessment_for(
-            event.timestamp,
-            event.db_level,
-            config.sensitive_surcharge_db,
-            config.apply_to_live,
-        )["exceeded"]:
+        if assessment_for_config(event.timestamp, event.db_level, config)["exceeded"]:
             values["__exceeded__"] += 1
     return [
         {
@@ -429,13 +440,22 @@ def _validate_kpi_interval(interval_minutes: int) -> int:
 
 
 def _filter_kpi_events(
-    events: list[Event], start_hour: int, end_hour: int, category: str | None
+    events: list[Event],
+    start_hour: int,
+    end_hour: int,
+    category: str | None,
+    class_codes: set[str] | None = None,
 ) -> list[Event]:
     hours = set(_selected_hours(start_hour, end_hour))
     return [
         event
         for event in events
         if (category is None or event.category == category)
+        and (
+            not class_codes
+            or event.primary_class_code in class_codes
+            or event.subclass_code in class_codes
+        )
         and (local := _event_local_time(event)) is not None
         and local.hour in hours
     ]
@@ -445,18 +465,65 @@ def _event_mean_level(event: Event) -> float:
     return event.avg_db_level if event.avg_db_level is not None else event.db_level
 
 
+def _event_end_local(event: Event, start: datetime) -> datetime:
+    if event.end_timestamp:
+        try:
+            value = datetime.fromisoformat(event.end_timestamp.replace("Z", "+00:00"))
+            return value.replace(tzinfo=BERLIN) if value.tzinfo is None else value.astimezone(BERLIN)
+        except ValueError:
+            pass
+    return start + timedelta(seconds=max(0, event.duration_seconds))
+
+
+def _burden_periods(
+    events: list[Event],
+    exceeded_ids: set[int],
+    quiet_gap_seconds: int,
+) -> list[dict[str, object]]:
+    points: list[tuple[datetime, datetime, Event]] = []
+    for event in events:
+        start = _event_local_time(event)
+        if start is not None:
+            points.append((start, _event_end_local(event, start), event))
+    periods: list[dict[str, object]] = []
+    gap = timedelta(seconds=quiet_gap_seconds)
+    for start, end, event in sorted(points, key=lambda item: item[0]):
+        if periods and start <= periods[-1]["end"] + gap:
+            current = periods[-1]
+            current["end"] = max(current["end"], end)
+            current["event_count"] += 1
+            current["exceeded"] = bool(current["exceeded"] or event.id in exceeded_ids)
+            continue
+        periods.append(
+            {
+                "start": start,
+                "end": max(start, end),
+                "event_count": 1,
+                "exceeded": event.id in exceeded_ids,
+            }
+        )
+    for period in periods:
+        period["duration_seconds"] = round(
+            (period["end"] - period["start"]).total_seconds(),
+            1,
+        )
+    return periods
+
+
 def _kpi_analysis(
     events: list[Event],
     config: AssessmentConfig,
     hours: list[int],
     interval_minutes: int = 60,
+    quiet_gap_seconds: int = 30,
 ) -> dict[str, object]:
     interval_minutes = _validate_kpi_interval(interval_minutes)
     exceeded_ids = {
         event.id
         for event in events
-        if assessment_for(event.timestamp, event.db_level, config.sensitive_surcharge_db, config.apply_to_live)["exceeded"]
+        if assessment_for_config(event.timestamp, event.db_level, config)["exceeded"]
     }
+    periods = _burden_periods(events, exceeded_ids, quiet_gap_seconds)
     levels = sorted(event.db_level for event in events)
     percentile_index = (
         max(0, min(len(levels) - 1, round((len(levels) - 1) * 0.95))) if levels else 0
@@ -466,6 +533,9 @@ def _kpi_analysis(
     timeline_events: dict[str, list[Event]] = defaultdict(list)
     slot_events: dict[int, list[Event]] = defaultdict(list)
     interval_events: dict[str, list[Event]] = defaultdict(list)
+    slot_periods: dict[int, list[dict[str, object]]] = defaultdict(list)
+    interval_periods: dict[str, list[dict[str, object]]] = defaultdict(list)
+    daily_periods: dict[str, list[dict[str, object]]] = defaultdict(list)
     for event in events:
         local = _event_local_time(event)
         if local is None:
@@ -478,13 +548,20 @@ def _kpi_analysis(
         bucket_time = local.replace(minute=bucket_minute, second=0, microsecond=0)
         slot_events[minute_of_day].append(event)
         interval_events[bucket_time.isoformat()].append(event)
+    for period in periods:
+        start = period["start"]
+        bucket_minute = start.minute // interval_minutes * interval_minutes
+        slot_periods[start.hour * 60 + bucket_minute].append(period)
+        bucket_time = start.replace(minute=bucket_minute, second=0, microsecond=0)
+        interval_periods[bucket_time.isoformat()].append(period)
+        daily_periods[start.date().isoformat()].append(period)
     top_hour = max(hours, key=lambda hour: len(hourly_events[hour])) if events else None
     selected_slots = [
         hour * 60 + minute
         for hour in hours
         for minute in range(0, 60, interval_minutes)
     ]
-    top_slot = max(selected_slots, key=lambda slot: len(slot_events[slot])) if events else None
+    top_slot = max(selected_slots, key=lambda slot: len(slot_periods[slot])) if periods else None
 
     def aggregate(bucket: list[Event]) -> dict[str, object]:
         mean_levels = [_event_mean_level(event) for event in bucket]
@@ -497,6 +574,17 @@ def _kpi_analysis(
             "share": round(len(bucket) / len(events), 4) if events else 0,
         }
 
+    def period_values(bucket: list[dict[str, object]]) -> dict[str, object]:
+        return {
+            "period_count": len(bucket),
+            "exceeded_periods": sum(bool(period["exceeded"]) for period in bucket),
+            "period_share": round(len(bucket) / len(periods), 4) if periods else 0,
+            "burden_duration_seconds": round(
+                sum(float(period["duration_seconds"]) for period in bucket),
+                1,
+            ),
+        }
+
     return {
         "total": len(events),
         "exceeded": len(exceeded_ids),
@@ -504,11 +592,17 @@ def _kpi_analysis(
         "average_db": round(sum(_event_mean_level(event) for event in events) / len(events), 1) if events else 0,
         "maximum_db": round(max(levels), 1) if levels else 0,
         "p95_db": round(levels[percentile_index], 1) if levels else 0,
-        "total_duration_seconds": round(sum(event.duration_seconds for event in events), 1),
+        "raw_duration_seconds": round(sum(event.duration_seconds for event in events), 1),
+        "burden_period_count": len(periods),
+        "total_duration_seconds": round(
+            sum(float(period["duration_seconds"]) for period in periods),
+            1,
+        ),
+        "quiet_gap_seconds": quiet_gap_seconds,
         "top_hour": top_hour,
         "top_hour_events": len(hourly_events[top_hour]) if top_hour is not None else 0,
         "top_slot": top_slot,
-        "top_slot_events": len(slot_events[top_slot]) if top_slot is not None else 0,
+        "top_slot_events": len(slot_periods[top_slot]) if top_slot is not None else 0,
         "interval_minutes": interval_minutes,
         "categories": dict(Counter(event.category for event in events).most_common(10)),
         "labels": dict(Counter(event.label_de or event.label for event in events).most_common(10)),
@@ -523,11 +617,16 @@ def _kpi_analysis(
                 "minute_of_day": slot,
                 "label": f"{slot // 60:02d}:{slot % 60:02d}",
                 **aggregate(slot_events[slot]),
+                **period_values(slot_periods[slot]),
             }
             for slot in selected_slots
         ],
         "interval_timeline": [
-            {"timestamp": timestamp, **aggregate(values)}
+            {
+                "timestamp": timestamp,
+                **aggregate(values),
+                **period_values(interval_periods[timestamp]),
+            }
             for timestamp, values in sorted(interval_events.items())
         ],
         "daily": [
@@ -535,6 +634,7 @@ def _kpi_analysis(
                 "date": day,
                 "total": len(values),
                 **aggregate(values),
+                **period_values(daily_periods[day]),
             }
             for day, values in sorted(daily.items())
         ],
@@ -552,17 +652,27 @@ def noise_kpis(
     start_hour: int = Query(default=0, ge=0, le=23),
     end_hour: int = Query(default=0, ge=0, le=23),
     category: str | None = None,
+    class_codes: str | None = None,
     interval_minutes: int = Query(default=60),
+    quiet_gap_seconds: int = Query(default=30, ge=0, le=300),
 ) -> dict[str, object]:
     interval_minutes = _validate_kpi_interval(interval_minutes)
     base_events = _events_since(db, days, device, None, date_from, date_to)
     categories = Counter(event.category for event in base_events)
-    events = _filter_kpi_events(base_events, start_hour, end_hour, category)
+    selected_class_codes = {code for code in (class_codes or "").split(",") if code}
+    events = _filter_kpi_events(
+        base_events,
+        start_hour,
+        end_hour,
+        category,
+        selected_class_codes,
+    )
     result = _kpi_analysis(
         events,
         _assessment_config(db),
         _selected_hours(start_hour, end_hour),
         interval_minutes,
+        quiet_gap_seconds,
     )
     result["available_categories"] = [
         {"code": code, "count": count} for code, count in sorted(categories.items())
@@ -575,18 +685,15 @@ def noise_kpis(
         "category": category,
         "device": device,
         "interval_minutes": interval_minutes,
+        "class_codes": sorted(selected_class_codes),
+        "quiet_gap_seconds": quiet_gap_seconds,
     }
     return result
 
 
 def _event_export_row(event: Event, config: AssessmentConfig) -> list[object]:
     local = _event_local_time(event)
-    assessment = assessment_for(
-        event.timestamp,
-        event.db_level,
-        config.sensitive_surcharge_db,
-        config.apply_to_live,
-    )
+    assessment = assessment_for_config(event.timestamp, event.db_level, config)
     return [
         event.id,
         local.isoformat() if local else event.timestamp,
@@ -615,14 +722,29 @@ def export_kpis(
     start_hour: int = Query(default=0, ge=0, le=23),
     end_hour: int = Query(default=0, ge=0, le=23),
     category: str | None = None,
+    class_codes: str | None = None,
     interval_minutes: int = Query(default=60),
+    quiet_gap_seconds: int = Query(default=30, ge=0, le=300),
 ) -> Response:
     interval_minutes = _validate_kpi_interval(interval_minutes)
     base_events = _events_since(db, days, device, None, date_from, date_to)
     hours = _selected_hours(start_hour, end_hour)
-    events = _filter_kpi_events(base_events, start_hour, end_hour, category)
+    selected_class_codes = {code for code in (class_codes or "").split(",") if code}
+    events = _filter_kpi_events(
+        base_events,
+        start_hour,
+        end_hour,
+        category,
+        selected_class_codes,
+    )
     config = _assessment_config(db)
-    analysis = _kpi_analysis(events, config, hours, interval_minutes)
+    analysis = _kpi_analysis(
+        events,
+        config,
+        hours,
+        interval_minutes,
+        quiet_gap_seconds,
+    )
     event_header = [
         "Ereignis-ID",
         "Zeitpunkt (Europe/Berlin)",
@@ -651,7 +773,8 @@ def export_kpis(
 
     interval_rows: list[list[object]] = [[
         f"Tagesintervall ({interval_minutes} Minuten)",
-        "Anzahl Ereignisse",
+        "Rohdetektionen",
+        f"Belastungsphasen (Ruhepause {quiet_gap_seconds} Sekunden)",
         "Anteil Prozent",
         "Durchschnitt dB(A)",
         "Maximum dB(A)",
@@ -661,6 +784,7 @@ def export_kpis(
     interval_rows.extend([
         item["label"],
         item["count"],
+        item["period_count"],
         round(float(item["share"]) * 100, 2),
         item["average_db"],
         item["maximum_db"],
@@ -693,6 +817,14 @@ def update_assessment_config(
     config.class_rules_json = json.dumps(
         {code: included for code, included in data.class_rules.items() if code in valid_codes},
         sort_keys=True,
+    )
+    config.reference_rules_json = json.dumps(
+        [rule.model_dump() for rule in data.reference_rules],
+        ensure_ascii=False,
+    )
+    config.sensitive_periods_json = json.dumps(
+        [period.model_dump() for period in data.sensitive_periods],
+        ensure_ascii=False,
     )
     config.updated_at = datetime.now(UTC).isoformat()
     db.commit()

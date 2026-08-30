@@ -69,7 +69,7 @@ from app.services.clips import (
 from app.services.event_aggregation import merge_candidate
 from app.services.label_translation import translate_label
 from app.services.live import live_hub
-from app.services.noise_assessment import assessment_for
+from app.services.noise_assessment import assessment_for_config
 from app.services.notifications import trigger_notifications
 from app.services.push import send_event_pushes
 from app.services.review import process_review_run
@@ -1007,12 +1007,7 @@ def event_assessment(event_id: int, db: DatabaseSession, _: CurrentUser) -> dict
     if event is None:
         raise HTTPException(status_code=404, detail="Ereignis nicht gefunden")
     config = db.scalar(select(AssessmentConfig).order_by(AssessmentConfig.id)) or AssessmentConfig()
-    return assessment_for(
-        event.timestamp,
-        event.db_level,
-        config.sensitive_surcharge_db,
-        config.apply_to_live,
-    )
+    return assessment_for_config(event.timestamp, event.db_level, config)
 
 
 @router.put("/{event_id}/person", status_code=204)

@@ -104,6 +104,7 @@ async function loadView(view) {
     support: [loadSupport],
     account: [loadAccount],
     administration: [loadUsers, loadAssessmentConfig, loadAudioPermissions, ...(state.role === "admin" ? [loadTenants, loadWebsiteAnalytics] : [])],
+    assessment: [loadAssessmentConfig],
     devices: [loadTelemetry, loadCalibrations, loadCalibrationReferenceRuns],
     people: [loadPeople, loadSpeakerClusters, loadSpeakerAnalysisProgress],
     review: [loadReview],
@@ -380,7 +381,68 @@ async function loadAssessmentConfig() {
   state.assessmentConfig = config;
   $("#surcharge-db").value = config.sensitive_surcharge_db;
   $("#surcharge-live").checked = config.apply_to_live;
+  renderAssessmentTimeRules();
   renderAssessmentClassRules();
+}
+
+function referenceRuleRow(rule = { name: "Zeitfenster", start_time: "00:00", end_time: "00:00", reference_db: 50 }) {
+  return `<div class="assessment-time-rule assessment-reference-rule">
+    <label>Bezeichnung<input name="name" value="${escapeHtml(rule.name)}" maxlength="60" required></label>
+    <label>Von<input name="start_time" type="time" value="${escapeHtml(rule.start_time)}" required></label>
+    <label>Bis<input name="end_time" type="time" value="${escapeHtml(rule.end_time)}" required></label>
+    <label>Grenzwert dB(A)<input name="reference_db" type="number" min="0" max="140" step="0.5" value="${Number(rule.reference_db)}" required></label>
+    <button type="button" class="ghost" data-remove-assessment-rule title="Zeitregel entfernen">Entfernen</button>
+  </div>`;
+}
+
+function sensitiveScope(period) {
+  const days = (period.weekdays || []).join(",");
+  if (period.include_holidays && days === "0,1,2,3,4,5,6") return "all";
+  if (!period.include_holidays && days === "0,1,2,3,4") return "weekdays";
+  if (!period.include_holidays && days === "5") return "saturday";
+  if (!period.include_holidays && days === "6") return "sunday";
+  return "sunday_holiday";
+}
+
+function sensitivePeriodRow(period = { name: "Ruhezeit", start_time: "20:00", end_time: "22:00", weekdays: [0, 1, 2, 3, 4, 5, 6], include_holidays: true }) {
+  const scope = sensitiveScope(period);
+  const scopes = { all: "Alle Tage inkl. Feiertage", weekdays: "Montag bis Freitag", saturday: "Samstag", sunday: "Sonntag", sunday_holiday: "Sonn- und Feiertage" };
+  return `<div class="assessment-time-rule assessment-sensitive-rule">
+    <label>Bezeichnung<input name="name" value="${escapeHtml(period.name)}" maxlength="60" required></label>
+    <label>Von<input name="start_time" type="time" value="${escapeHtml(period.start_time)}" required></label>
+    <label>Bis<input name="end_time" type="time" value="${escapeHtml(period.end_time)}" required></label>
+    <label>Gültig an<select name="scope">${Object.entries(scopes).map(([value, label]) => `<option value="${value}" ${scope === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+    <button type="button" class="ghost" data-remove-assessment-rule title="Empfindliche Zeit entfernen">Entfernen</button>
+  </div>`;
+}
+
+function renderAssessmentTimeRules() {
+  if (!state.assessmentConfig) return;
+  $("#assessment-reference-rules").innerHTML = state.assessmentConfig.reference_rules.map(referenceRuleRow).join("");
+  $("#assessment-sensitive-periods").innerHTML = state.assessmentConfig.sensitive_periods.map(sensitivePeriodRow).join("") || "<p class=\"management-help\">Keine empfindlichen Zeiten konfiguriert.</p>";
+}
+
+function readAssessmentTimeRules() {
+  const referenceRules = Array.from(document.querySelectorAll(".assessment-reference-rule"), (row) => ({
+    name: row.querySelector('[name="name"]').value,
+    start_time: row.querySelector('[name="start_time"]').value,
+    end_time: row.querySelector('[name="end_time"]').value,
+    reference_db: Number(row.querySelector('[name="reference_db"]').value),
+  }));
+  const scopes = {
+    all: { weekdays: [0, 1, 2, 3, 4, 5, 6], include_holidays: true },
+    weekdays: { weekdays: [0, 1, 2, 3, 4], include_holidays: false },
+    saturday: { weekdays: [5], include_holidays: false },
+    sunday: { weekdays: [6], include_holidays: false },
+    sunday_holiday: { weekdays: [6], include_holidays: true },
+  };
+  const sensitivePeriods = Array.from(document.querySelectorAll(".assessment-sensitive-rule"), (row) => ({
+    name: row.querySelector('[name="name"]').value,
+    start_time: row.querySelector('[name="start_time"]').value,
+    end_time: row.querySelector('[name="end_time"]').value,
+    ...scopes[row.querySelector('[name="scope"]').value],
+  }));
+  return { referenceRules, sensitivePeriods };
 }
 
 function renderAssessmentClassRules() {
@@ -425,6 +487,7 @@ async function loadEventClasses() {
       <button type="submit">Speichern</button>
     </form>`).join("");
   renderAssessmentClassRules();
+  renderKpiClassFilter();
 }
 
 async function initializeAudioOutput() {
@@ -597,6 +660,8 @@ async function refresh() {
   $("#m-average").textContent = stats.average_db;
   $("#m-max").textContent = stats.max_db;
   $("#m-confidence").textContent = `${Math.round(stats.average_confidence * 100)} %`;
+  $("#overview-empty-status").classList.toggle("hidden", stats.total !== 0);
+  $("#overview-empty-status").textContent = `Für ${rangeLabel()} liegen keine in die Lärmbewertung einbezogenen Ereignisse vor. Der Mikrofonstatus wird unabhängig davon oben angezeigt.`;
   renderTimeline(calendar);
   renderCategories(stats.categories, stats.total);
   renderHeatmap(heatmap);
@@ -664,24 +729,33 @@ function kpiQuery() {
     days: String(Math.min(366, dayCount)), date_from: ordered[0], date_to: ordered[1],
     start_hour: $("#kpi-hour-from").value, end_hour: $("#kpi-hour-to").value,
     interval_minutes: $("#kpi-interval").value,
+    quiet_gap_seconds: $("#kpi-quiet-gap").value,
   });
   if (device()) query.set("device", device());
   if ($("#kpi-category").value) query.set("category", $("#kpi-category").value);
+  const classCodes = Array.from(document.querySelectorAll("[data-kpi-class]:checked"), (item) => item.value);
+  if (classCodes.length) query.set("class_codes", classCodes.join(","));
   return query;
 }
 
-function renderKpiChart(target, data, series, mode = "line", suffix = "") {
+function renderKpiChart(target, data, series, mode = "line", suffix = "", axis = {}) {
   const element = $(target);
   if (!data.length) { element.innerHTML = "<p>Keine Daten für diese Auswahl.</p>"; return; }
   const width = Math.max(840, data.length * (mode === "bar" ? 7 : 5));
   const height = 250, left = 48, right = 16, top = 18, bottom = 34;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
   const values = data.flatMap((item) => series.map((entry) => Number(item[entry.key] ?? 0)));
-  const maximum = Math.max(1, ...values);
+  const rawMaximum = Math.max(1, ...values);
+  const axisStep = rawMaximum >= 80 ? 10 : 5;
+  const minimum = Number(axis.minimum ?? 0);
+  const maximum = axis.paddedMaximum
+    ? Math.max(minimum + axisStep, Math.ceil(rawMaximum / axisStep) * axisStep + axisStep)
+    : rawMaximum;
   const x = (index) => left + (data.length === 1 ? plotWidth / 2 : index / (data.length - 1) * plotWidth);
-  const y = (value) => top + plotHeight - Number(value || 0) / maximum * plotHeight;
-  const labelIndexes = new Set(Array.from({ length: Math.min(6, data.length) }, (_, index) => Math.round(index * (data.length - 1) / Math.max(1, Math.min(6, data.length) - 1))));
-  const grid = [0, .25, .5, .75, 1].map((ratio) => `<line class="chart-grid" x1="${left}" y1="${top + ratio * plotHeight}" x2="${left + plotWidth}" y2="${top + ratio * plotHeight}"/><text class="chart-axis" x="2" y="${top + ratio * plotHeight + 4}">${(maximum * (1 - ratio)).toFixed(maximum < 10 ? 1 : 0)}</text>`).join("");
+  const y = (value) => top + plotHeight - Math.max(0, Number(value || 0) - minimum) / (maximum - minimum) * plotHeight;
+  const labelCount = Math.min(24, data.length);
+  const labelIndexes = new Set(Array.from({ length: labelCount }, (_, index) => Math.round(index * (data.length - 1) / Math.max(1, labelCount - 1))));
+  const grid = [0, .25, .5, .75, 1].map((ratio) => `<line class="chart-grid" x1="${left}" y1="${top + ratio * plotHeight}" x2="${left + plotWidth}" y2="${top + ratio * plotHeight}"/><text class="chart-axis" x="2" y="${top + ratio * plotHeight + 4}">${(maximum - (maximum - minimum) * ratio).toFixed(maximum < 10 ? 1 : 0)}</text>`).join("");
   let graphics = "";
   if (mode === "bar") {
     const groupWidth = Math.max(1.5, Math.min(24, plotWidth / data.length * .72));
@@ -750,31 +824,45 @@ function updateKpiCategories(items) {
   if ([...select.options].some((option) => option.value === selected)) select.value = selected;
 }
 
+function renderKpiClassFilter() {
+  const target = $("#kpi-class-filter");
+  if (!target) return;
+  const selected = new Set(Array.from(target.querySelectorAll("[data-kpi-class]:checked"), (item) => item.value));
+  const group = (level, title) => `<section><strong>${title}</strong>${state.eventClasses.filter((item) => item.active && item.level === level).map((item) => `<label><input type="checkbox" data-kpi-class value="${escapeHtml(item.code)}" ${selected.has(item.code) ? "checked" : ""}> <span>${escapeHtml(item.name)}</span></label>`).join("")}</section>`;
+  target.innerHTML = group("base", "Basisklassen") + group("fine", "Feinzuordnungen");
+}
+
+function updateKpiClassSummary() {
+  const selected = document.querySelectorAll("[data-kpi-class]:checked").length;
+  $("#kpi-class-summary").textContent = selected ? `${selected} Klassen ausgewählt` : "Alle Basis- und Feinklassen";
+}
+
 async function loadKpis() {
   initializeKpiFilters();
   const data = await api(`/api/kpis?${kpiQuery()}`);
   updateKpiCategories(data.available_categories);
   $("#k-total").textContent = data.total.toLocaleString("de-DE");
+  $("#k-periods").textContent = data.burden_period_count.toLocaleString("de-DE");
   $("#k-exceeded").textContent = data.exceeded.toLocaleString("de-DE");
   $("#k-exceeded-rate").textContent = `${Math.round(data.exceeded_rate * 100)} % der Ereignisse`;
   $("#k-average").textContent = `${data.average_db.toFixed(1)} dB`;
   $("#k-maximum").textContent = `${data.maximum_db.toFixed(1)} dB`;
   $("#k-p95").textContent = `${data.p95_db.toFixed(1)} dB`;
   $("#k-duration").textContent = data.total_duration_seconds >= 3600 ? `${(data.total_duration_seconds / 3600).toFixed(1)} h` : `${Math.round(data.total_duration_seconds / 60)} min`;
-  $("#kpi-selection-label").textContent = `${new Date(`${data.filters.date_from}T12:00:00`).toLocaleDateString("de-DE")} – ${new Date(`${data.filters.date_to}T12:00:00`).toLocaleDateString("de-DE")} · ${String(data.filters.start_hour).padStart(2, "0")}:00–${data.filters.end_hour === 0 ? "24:00" : `${String(data.filters.end_hour).padStart(2, "0")}:00`} · ${data.filters.interval_minutes}-Min.-Raster`;
+  $("#kpi-selection-label").textContent = `${new Date(`${data.filters.date_from}T12:00:00`).toLocaleDateString("de-DE")} – ${new Date(`${data.filters.date_to}T12:00:00`).toLocaleDateString("de-DE")} · ${String(data.filters.start_hour).padStart(2, "0")}:00–${data.filters.end_hour === 0 ? "24:00" : `${String(data.filters.end_hour).padStart(2, "0")}:00`} · ${data.filters.interval_minutes}-Min.-Raster · ${data.filters.quiet_gap_seconds}s Ruhepause`;
   renderRanked("#kpi-labels", data.labels);
   renderRanked("#kpi-categories", data.categories, true);
   renderRanked("#kpi-devices", data.devices);
   const topSlotLabel = data.top_slot == null ? null : `${String(Math.floor(data.top_slot / 60)).padStart(2, "0")}:${String(data.top_slot % 60).padStart(2, "0")}`;
-  $("#kpi-top-hour").textContent = topSlotLabel == null ? "keine Daten" : `Spitze ${topSlotLabel} · ${data.top_slot_events}`;
+  $("#kpi-top-hour").textContent = topSlotLabel == null ? "keine Daten" : `Spitze ${topSlotLabel} · ${data.top_slot_events} Phasen`;
   const hours = data.time_slots.map((item) => ({ ...item, tooltip: `${item.label} Uhr` }));
   const timeline = data.interval_timeline.map((item) => ({ ...item, label: new Date(item.timestamp).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }), tooltip: new Date(item.timestamp).toLocaleString("de-DE") }));
-  renderKpiChart("#kpi-level-timeline", timeline, [{ key: "average_db", name: "Ø dB(A)", color: "#70e0ae" }], "line", " dB");
-  renderKpiChart("#kpi-hours", hours, [{ key: "count", name: "Ereignisse", color: "#72a7ff" }], "bar");
-  renderKpiChart("#kpi-event-timeline", timeline, [{ key: "count", name: "Ereignisse", color: "#72a7ff" }, { key: "exceeded", name: "Überschreitungen", color: "#ee6c67" }], "bar");
-  renderKpiChart("#kpi-hour-share", hours.map((item) => ({ ...item, share_percent: Math.round(item.share * 1000) / 10 })), [{ key: "share_percent", name: "Anteil", color: "#f6bd60" }], "bar", " %");
-  const dailyMax = Math.max(1, ...data.daily.map((item) => item.total));
-  $("#kpi-daily").innerHTML = data.daily.length ? `<div class="daily-bars">${data.daily.map((item) => `<div title="${new Date(`${item.date}T12:00:00`).toLocaleDateString("de-DE")}: ${item.total} Ereignisse, ${item.exceeded} Überschreitungen, Ø ${item.average_db} dB"><span style="height:${Math.max(2, item.total / dailyMax * 100)}%"><i style="height:${item.total ? item.exceeded / item.total * 100 : 0}%"></i></span><small>${item.date.slice(5)}</small></div>`).join("")}</div>` : "<p>Keine Daten im Zeitraum.</p>";
+  renderKpiChart("#kpi-level-timeline", timeline, [{ key: "average_db", name: "Ø dB(A)", color: "#70e0ae" }], "line", " dB", { minimum: 30, paddedMaximum: true });
+  renderKpiChart("#kpi-hours", hours, [{ key: "period_count", name: "Belastungsphasen", color: "#72a7ff" }], "bar");
+  renderKpiChart("#kpi-event-timeline", timeline, [{ key: "period_count", name: "Belastungsphasen", color: "#72a7ff" }, { key: "exceeded_periods", name: "Überschreitungsphasen", color: "#ee6c67" }], "bar");
+  renderKpiChart("#kpi-hour-share", hours.map((item) => ({ ...item, share_percent: Math.round(item.period_share * 1000) / 10 })), [{ key: "share_percent", name: "Anteil", color: "#f6bd60" }], "bar", " %");
+  const dailyMax = Math.max(1, ...data.daily.map((item) => item.period_count));
+  $("#kpi-daily").innerHTML = data.daily.length ? `<div class="daily-bars">${data.daily.map((item) => `<div title="${new Date(`${item.date}T12:00:00`).toLocaleDateString("de-DE")}: ${item.period_count} Belastungsphasen, ${item.exceeded_periods} mit Überschreitung, ${(item.burden_duration_seconds / 3600).toFixed(1)} Stunden Lärmdauer"><span style="height:${Math.max(2, item.period_count / dailyMax * 100)}%"><i style="height:${item.period_count ? item.exceeded_periods / item.period_count * 100 : 0}%"></i></span><small>${item.date.slice(5)}</small></div>`).join("")}</div>` : "<p>Keine Daten im Zeitraum.</p>";
 }
 
 async function downloadKpiExport(format) {
@@ -1365,6 +1453,7 @@ $("#notification-list").addEventListener("click", async (event) => {
 $("#logout").addEventListener("click", logout);
 $("#push-enable").addEventListener("click", () => enablePush().catch((error) => { $("#push-enable").textContent = error.message; }));
 $("#kpi-filter-form").addEventListener("submit", (event) => { event.preventDefault(); loadKpis().catch((error) => { $("#kpi-selection-label").textContent = error.message; }); });
+$("#kpi-class-filter").addEventListener("change", updateKpiClassSummary);
 initializeKpiExpanders();
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeKpiExpandedPanel(); });
 document.querySelectorAll("[data-kpi-days]").forEach((button) => button.addEventListener("click", () => {
@@ -1740,15 +1829,29 @@ $("#user-create-form").addEventListener("submit", async (e) => {
     await Promise.all([loadUsers(), loadAudioPermissions()]);
   } catch (error) { $("#user-create-status").textContent = error.message; }
 });
+$("#assessment").append($("#assessment-config-form"));
 $("#assessment-config-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   try {
     const classRules = Object.fromEntries(Array.from(document.querySelectorAll("[data-assessment-class]"), (item) => [item.dataset.assessmentClass, item.checked]));
-    state.assessmentConfig = await api("/api/assessment-config", { method: "PUT", body: JSON.stringify({ sensitive_surcharge_db: Number($("#surcharge-db").value), apply_to_live: $("#surcharge-live").checked, class_rules: classRules }) });
+    const { referenceRules, sensitivePeriods } = readAssessmentTimeRules();
+    state.assessmentConfig = await api("/api/assessment-config", { method: "PUT", body: JSON.stringify({ sensitive_surcharge_db: Number($("#surcharge-db").value), apply_to_live: $("#surcharge-live").checked, class_rules: classRules, reference_rules: referenceRules, sensitive_periods: sensitivePeriods }) });
     $("#assessment-config-status").textContent = "Beurteilungseinstellung gespeichert.";
+    renderAssessmentTimeRules();
     renderAssessmentClassRules();
     await refresh();
   } catch (error) { $("#assessment-config-status").textContent = error.message; }
+});
+$("#assessment-add-reference").addEventListener("click", () => {
+  $("#assessment-reference-rules").insertAdjacentHTML("beforeend", referenceRuleRow());
+});
+$("#assessment-add-sensitive").addEventListener("click", () => {
+  if ($("#assessment-sensitive-periods").querySelector("p")) $("#assessment-sensitive-periods").innerHTML = "";
+  $("#assessment-sensitive-periods").insertAdjacentHTML("beforeend", sensitivePeriodRow());
+});
+$("#assessment-config-form").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-assessment-rule]");
+  if (button) button.closest(".assessment-time-rule").remove();
 });
 $("#user-list").addEventListener("submit", async (e) => {
   e.preventDefault();

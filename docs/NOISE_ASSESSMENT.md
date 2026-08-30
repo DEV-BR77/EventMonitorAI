@@ -42,6 +42,23 @@ Zusätzlich zu den Klassenregeln bleiben ausdrückliche Ausschlüsse einzelner E
 der Ausschluss über eine Personenzuordnung wirksam. Der Beurteilungszuschlag für
 empfindliche Tageszeiten ist eine separate Einstellung.
 
+## Zeitabhängige Grenzwerte und empfindliche Zeiten
+
+Unter **Administration → Lärmbewertung** pflegen Administratoren zwei getrennte
+Regelarten. Grenzwert-Zeitregeln legen für jedes tägliche Zeitfenster den zulässigen
+Pegel in dB(A) fest und müssen 00:00 bis 24:00 lückenlos und ohne Überschneidung
+abdecken. Empfindliche Zeiten bestimmen für alle Tage, Montag bis Freitag, Samstag,
+Sonntag oder Sonn-/Feiertage, wann der konfigurierbare Zuschlag angewendet wird.
+
+Der Zuschlag verändert keine Originalmessung. Überschreitungsquote, Kalender,
+KPI-Diagramme, Exporte und historische Ereignisse werden bei jedem Abruf anhand der
+aktuellen Regeln neu bewertet. Änderungen wirken damit rückwirkend, ohne Messdaten
+umzuschreiben.
+
+Die Einbeziehung von Basis- und Feinklassen wird auf derselben Seite verwaltet. In der
+KPI-Auswahl lassen sich darüber hinaus mehrere Basis- und Feinklassen gleichzeitig als
+temporärer Analysefilter kombinieren.
+
 ## Flugzeug zuordnen
 
 Ein Flugzeug wird als Hauptkategorie **Fahrzeuge** und Feinklasse

@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -291,10 +291,44 @@ class RuleRead(RuleCreate):
     last_triggered_at: str | None
 
 
+class AssessmentReferenceRule(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    start_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    end_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    reference_db: float = Field(ge=0, le=140)
+
+
+class AssessmentSensitivePeriod(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    start_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    end_time: str = Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    weekdays: list[Annotated[int, Field(ge=0, le=6)]] = Field(default_factory=list)
+    include_holidays: bool = False
+
+
 class AssessmentConfigWrite(BaseModel):
     sensitive_surcharge_db: float = Field(default=6.0, ge=0, le=20)
     apply_to_live: bool = False
     class_rules: dict[str, bool] = Field(default_factory=dict)
+    reference_rules: list[AssessmentReferenceRule] = Field(min_length=1)
+    sensitive_periods: list[AssessmentSensitivePeriod] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_reference_coverage(self) -> "AssessmentConfigWrite":
+        coverage = [0] * 1440
+        for rule in self.reference_rules:
+            start_hour, start_minute = (int(value) for value in rule.start_time.split(":"))
+            end_hour, end_minute = (int(value) for value in rule.end_time.split(":"))
+            start = start_hour * 60 + start_minute
+            end = end_hour * 60 + end_minute
+            minutes = range(1440) if start == end else (
+                range(start, end) if start < end else [*range(start, 1440), *range(end)]
+            )
+            for minute in minutes:
+                coverage[minute] += 1
+        if any(value != 1 for value in coverage):
+            raise ValueError("Grenzwert-Zeitregeln müssen den ganzen Tag lückenlos und ohne Überschneidung abdecken")
+        return self
 
 
 class AssessmentConfigRead(AssessmentConfigWrite):

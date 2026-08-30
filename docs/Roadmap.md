@@ -67,6 +67,9 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
       Lärmkategoriefilter, Mittelpegel, Ereignisanzahl, Verhältnis- und
       Überschreitungsdiagrammen, vergrößerbaren Auswertungskacheln sowie CSV- und
       Excel-Export der exakt selektierten Daten
+- [x] kombinierbarer Mehrfachfilter für Basis- und Feinklassen sowie fachliche
+      Belastungsphasen mit frei wählbarer Ruhepausen-Toleranz, getrennter Anzeige von
+      Rohdetektionen, Phasen, Überschreitungsphasen und realistischer Phasendauer
 - [x] Live-Ereignisansicht
 - [x] Home-Assistant-Integration
 - [x] Benachrichtigungsregeln
@@ -79,6 +82,9 @@ Die Roadmap beschreibt die angestrebte Reihenfolge. Termine werden erst festgele
       KI-Klassifizierung bleiben davon getrennt, bestehende Ereignisse werden ohne erneute
       Klassifizierung in Kennzahlen und Überschreitungen neu bewertet. Siehe
       `docs/NOISE_ASSESSMENT.md`.
+- [x] eigene Administrationsseite für tägliche Grenzwert-Zeitfenster, empfindliche
+      Wochen-/Sonn-/Feiertagszeiten und konfigurierbaren Bewertungszuschlag; historische
+      Daten werden ohne Änderung der Originalmesswerte dynamisch neu bewertet
 
 ## Phase 6 – Dashboard Erweiterungen
 

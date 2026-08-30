@@ -48,6 +48,7 @@
         <div id="admin-navigation" class="admin-navigation hidden" aria-label="Administration">
           <span>Administration</span>
           <button id="admin-nav" class="nav" data-view="administration">Benutzer &amp; Einstellungen</button>
+          <button id="assessment-nav" class="nav" data-view="assessment">Lärmbewertung</button>
           <button id="devices-nav" class="nav" data-view="devices">Mikrofone</button>
           <button id="people-nav" class="nav" data-view="people">Personen</button>
           <button id="review-nav" class="nav" data-view="review">Audio-Lab</button>
@@ -75,6 +76,7 @@
           <article><span>Spitzenpegel</span><strong id="m-max">–</strong><small>dB</small></article>
           <article><span>Ø Konfidenz</span><strong id="m-confidence">–</strong><small>Modellwert</small></article>
         </div>
+        <p id="overview-empty-status" class="overview-empty-status hidden"></p>
         <div class="grid">
           <article class="panel span2"><div class="panel-head"><h2>Timeline</h2><span>tägliche Ereignisse</span></div><div id="timeline" class="timeline"></div></article>
           <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="categories"></div></article>
@@ -100,6 +102,8 @@
             <label>Täglich bis<select id="kpi-hour-to"></select></label>
             <label>Intervall<select id="kpi-interval"><option value="1">1 Minute</option><option value="5">5 Minuten</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option><option value="60" selected>1 Stunde</option></select></label>
             <label>Lärmkategorie<select id="kpi-category"><option value="">Alle Kategorien</option></select></label>
+            <details class="kpi-class-picker"><summary id="kpi-class-summary">Alle Basis- und Feinklassen</summary><div id="kpi-class-filter"></div></details>
+            <label>Ruhepause trennt Phasen<select id="kpi-quiet-gap"><option value="5">5 Sekunden</option><option value="10">10 Sekunden</option><option value="20">20 Sekunden</option><option value="30" selected>30 Sekunden</option><option value="60">1 Minute</option><option value="120">2 Minuten</option><option value="300">5 Minuten</option></select></label>
             <button type="submit">Auswertung aktualisieren</button>
           </form>
           <div class="kpi-export-actions">
@@ -109,19 +113,20 @@
           </div>
         </article>
         <div class="metrics kpi-metrics">
-          <article><span>Gesamtereignisse</span><strong id="k-total">–</strong><small>im gewählten Zeitraum</small></article>
+          <article><span>Rohdetektionen</span><strong id="k-total">–</strong><small>KI-Einzelmeldungen</small></article>
+          <article><span>Belastungsphasen</span><strong id="k-periods">–</strong><small>durch Ruhepause getrennt</small></article>
           <article><span>Überschreitungen</span><strong id="k-exceeded">–</strong><small id="k-exceeded-rate">–</small></article>
           <article><span>Ø Lautstärke</span><strong id="k-average">–</strong><small>dB(A) je Ereignis</small></article>
           <article><span>Spitzenpegel</span><strong id="k-maximum">–</strong><small>dB(A) maximal</small></article>
           <article><span>95-%-Pegel</span><strong id="k-p95">–</strong><small>dB · nur 5 % lauter</small></article>
-          <article><span>Lärmdauer</span><strong id="k-duration">–</strong><small>kumulierte Ereignisdauer</small></article>
+          <article><span>Lärmdauer</span><strong id="k-duration">–</strong><small>inklusive kurzer Pausen innerhalb einer Phase</small></article>
         </div>
         <div class="grid kpi-grid">
           <article class="panel span2"><div class="panel-head"><div><h2>Ø Lautstärke je Intervall</h2><span>Mittelpegel im gewählten Zeitraster</span></div></div><div id="kpi-level-timeline" class="kpi-chart"></div></article>
-          <article class="panel"><div class="panel-head"><div><h2>Ereignisse je Tagesintervall</h2><span id="kpi-top-hour"></span></div></div><div id="kpi-hours" class="kpi-chart"></div></article>
-          <article class="panel span2"><div class="panel-head"><div><h2>Anzahl Ereignisse und Überschreitungen</h2><span>jedes belegte Kalenderintervall</span></div></div><div id="kpi-event-timeline" class="kpi-chart"></div></article>
-          <article class="panel"><div class="panel-head"><div><h2>Anteil am Gesamtaufkommen</h2><span>Ereignisse je Tagesintervall in Prozent</span></div></div><div id="kpi-hour-share" class="kpi-chart"></div></article>
-          <article class="panel span2"><div class="panel-head"><h2>Belastungsverlauf</h2><span>Ereignisse und Überschreitungen je Tag</span></div><div id="kpi-daily" class="kpi-chart"></div></article>
+          <article class="panel"><div class="panel-head"><div><h2>Belastungsphasen je Tagesintervall</h2><span id="kpi-top-hour"></span></div></div><div id="kpi-hours" class="kpi-chart"></div></article>
+          <article class="panel span2"><div class="panel-head"><div><h2>Belastungs- und Überschreitungsphasen</h2><span>Blau = Belastungsphasen · Rot = davon mit Überschreitung · jedes belegte Kalenderintervall</span></div></div><div id="kpi-event-timeline" class="kpi-chart"></div></article>
+          <article class="panel"><div class="panel-head"><div><h2>Anteil am Gesamtaufkommen</h2><span>Belastungsphasen je Tagesintervall in Prozent</span></div></div><div id="kpi-hour-share" class="kpi-chart"></div></article>
+          <article class="panel span2"><div class="panel-head"><h2>Belastungsverlauf</h2><span>Belastungs- und Überschreitungsphasen je Tag</span></div><div id="kpi-daily" class="kpi-chart"></div></article>
           <article class="panel"><div class="panel-head"><h2>Top-Lärmarten</h2><span>häufigste erkannte Geräusche</span></div><div id="kpi-labels"></div></article>
           <article class="panel"><div class="panel-head"><h2>Kategorien</h2></div><div id="kpi-categories"></div></article>
           <article class="panel"><div class="panel-head"><h2>Mikrofonvergleich</h2></div><div id="kpi-devices"></div></article>
@@ -357,6 +362,8 @@
         <article class="panel"><div class="panel-head"><h2 id="account-tenant">Mein Kundenbereich</h2><span id="account-role"></span></div><p class="management-help">Alle Dashboard-KPIs, Ereignisse, Mikrofone, Kalibrierungen, Audioaufnahmen und Lärmprotokolle werden ausschließlich diesem Kundenbereich zugeordnet. Abonnementstatus und Benutzerrolle sind getrennte Einstellungen.</p></article>
       </section>
 
+      <section id="assessment" class="view hidden"></section>
+
       <section id="administration" class="view hidden">
         <article id="tenant-management" class="panel hidden">
           <div class="panel-head"><h2>Kundenbereiche und Abonnements</h2><span>Plattformverwaltung</span></div>
@@ -370,8 +377,15 @@
           <div id="website-analytics-list"></div>
         </article>
         <form id="assessment-config-form" class="panel assessment-config">
-          <div class="panel-head"><h2>Beurteilungszuschlag</h2><span>Empfindliche Tageszeiten</span></div>
-          <p class="management-help">Der Zuschlag bleibt im Lärmprotokoll ausgewiesen. Hier wird festgelegt, ob er zusätzlich in die aktuelle Dashboard-Bewertung eingerechnet wird.</p>
+          <div class="panel-head"><h2>Zeitabhängige Lärmbewertung</h2><span>Mandantenspezifische Grenzwerte und Ruhezeiten</span></div>
+          <p class="management-help">Die Grenzwert-Zeitregeln müssen den gesamten Tag lückenlos abdecken. Ein Ereignis ist eine Überschreitung, wenn sein bewerteter Pegel über dem Grenzwert des betreffenden Zeitfensters liegt.</p>
+          <h3>Grenzwerte nach Uhrzeit</h3>
+          <div id="assessment-reference-rules" class="assessment-time-rules"></div>
+          <button id="assessment-add-reference" type="button" class="ghost">Zeitregel hinzufügen</button>
+          <div class="panel-head assessment-classes-head"><h2>Empfindliche Zeiten</h2><span>Optionaler Zuschlag zur Bewertung</span></div>
+          <p class="management-help">Während dieser Zeiten wird der unten festgelegte Zuschlag auf den gemessenen Pegel aufgeschlagen. Originalmesswerte bleiben unverändert; KPIs und historische Ereignisse werden bei jeder Anzeige mit den aktuellen Regeln neu bewertet.</p>
+          <div id="assessment-sensitive-periods" class="assessment-time-rules"></div>
+          <button id="assessment-add-sensitive" type="button" class="ghost">Empfindliche Zeit hinzufügen</button>
           <div class="config-row"><label>Zuschlag (dB)<input id="surcharge-db" type="number" min="0" max="20" step="0.5" value="6"></label><label class="active-toggle"><input id="surcharge-live" type="checkbox"> In aktueller/live Bewertung einrechnen</label><button type="submit">Einstellung speichern</button></div>
           <div class="panel-head assessment-classes-head"><h2>Lärmbelastung nach Klasse</h2><span>Mandantenspezifisch</span></div>
           <p class="management-help">Nur aktivierte Klassen fließen in Kennzahlen, Überschreitungen, Kalender und Belastungsstatistik ein. Die Erkennung und Anzeige der Ereignisse bleibt davon unberührt. Bei Feinklassen gilt deren eigene Einstellung vor der Hauptkategorie.</p>

@@ -46,12 +46,23 @@ Die Detailansicht zeigt Mittelpegel, Spitzenpegel, Ereigniszahl, Überschreitung
 Anteil am Gesamtaufkommen im gewählten Raster sowie Tagesverlauf, Lärmarten und
 Gerätevergleich. Jede Auswertungskachel besitzt eine Großansicht; lange Zeitreihen können
 dort horizontal durchlaufen und über den Schließen-Button oder `Esc` verlassen werden.
+Die dB-Zeitreihe beginnt zur besseren Erkennbarkeit bei 30 dB(A); ihre Obergrenze liegt
+dynamisch mindestens 5 beziehungsweise 10 dB über dem höchsten selektierten Messwert.
+Zeitachsen beschriften bis zu 24 gleichmäßig verteilte Rasterpunkte.
 Der Mittelpegel verwendet `avg_db_level`, sofern dieser Messwert am
 Ereignis vorliegt, und fällt nur bei historischen Datensätzen auf den Spitzenpegel zurück.
 CSV exportiert die selektierten Einzelereignisse als UTF-8 mit Semikolontrennung. Der
 Excel-Export ist eine native `.xlsx`-Datei mit den Tabellenblättern **Intervallanalyse** und
 **Ereignisse**. Beide Exporte wenden Zeitraum, Stundenfenster, Intervall, Kategorie, Mikrofon,
 Mandantenisolation und die konfigurierten Ausschlussregeln identisch zur Anzeige an.
+
+Rohdetektionen bleiben für KI und Nachvollziehbarkeit erhalten. Für die fachliche
+Auswertung fasst eine einstellbare Ruhepause von 5 Sekunden bis 5 Minuten aufeinander
+folgende Detektionen zu Belastungsphasen zusammen. Die Lärmdauer einer Phase reicht vom
+ersten bis zum letzten Geräusch und schließt die kurzen Zwischenpausen innerhalb der
+gewählten Toleranz ein. So kann dieselbe Auswahl mit verschiedenen Pausengrenzen geprüft
+werden, ohne Ereignisse oder das Modell umzuschreiben. KPI-Diagramme zeigen Phasen und
+Überschreitungsphasen; der Export weist Rohdetektionen und Phasen getrennt aus.
 
 Im KI-Klassenkatalog bilden Basisklassen die Hauptkategorien und Feinzuordnungen deren
 Unterarten. `Aktiv` steuert die Verfügbarkeit in Auswahlfeldern, `Trainierbar` die

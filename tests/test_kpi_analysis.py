@@ -53,6 +53,7 @@ def test_kpis_filter_local_hours_and_category_and_aggregate_mean_levels() -> Non
             end_hour=10,
             category="VOICE",
             interval_minutes=30,
+            quiet_gap_seconds=30,
         )
 
         assert result["total"] == 1
@@ -110,6 +111,7 @@ def test_kpi_exports_contain_only_selected_events_and_valid_xlsx() -> None:
             end_hour=9,
             category="VOICE",
             interval_minutes=5,
+            quiet_gap_seconds=30,
         )
 
         csv_response = export_kpis(db, SimpleNamespace(), file_format="csv", **common)
@@ -139,6 +141,8 @@ def test_dashboard_exposes_flexible_kpi_filters_charts_and_exports() -> None:
         "kpi-hour-from",
         "kpi-hour-to",
         "kpi-interval",
+        "kpi-class-filter",
+        "kpi-quiet-gap",
         "kpi-category",
         "kpi-level-timeline",
         "kpi-event-timeline",
@@ -150,6 +154,42 @@ def test_dashboard_exposes_flexible_kpi_filters_charts_and_exports() -> None:
     assert 'query.set("category", $("#kpi-category").value)' in javascript
     assert 'start_hour: $("#kpi-hour-from").value' in javascript
     assert 'interval_minutes: $("#kpi-interval").value' in javascript
+    assert 'quiet_gap_seconds: $("#kpi-quiet-gap").value' in javascript
     assert "initializeKpiExpanders" in javascript
     assert "kpi-panel-expanded" in javascript
+    assert "minimum: 30, paddedMaximum: true" in javascript
     assert "/api/kpis/export?format=${format}" in javascript
+
+
+def test_kpis_group_short_gaps_into_burden_periods() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        db.add_all(
+            [
+                _event("2026-08-11T06:00:00+00:00", "VOICE", 61, 54, "Rufen"),
+                _event("2026-08-11T06:00:12+00:00", "VOICE", 62, 55, "Rufen"),
+                _event("2026-08-11T06:01:00+00:00", "VOICE", 63, 56, "Rufen"),
+            ]
+        )
+        db.commit()
+
+        result = noise_kpis(
+            db,
+            SimpleNamespace(),
+            days=1,
+            device="hof",
+            date_from=date(2026, 8, 11),
+            date_to=date(2026, 8, 11),
+            start_hour=8,
+            end_hour=9,
+            interval_minutes=1,
+            quiet_gap_seconds=30,
+        )
+
+        assert result["total"] == 3
+        assert result["burden_period_count"] == 2
+        assert result["raw_duration_seconds"] == 7.5
+        assert result["total_duration_seconds"] == 17.0
+        assert result["time_slots"][0]["period_count"] == 1
+        assert result["time_slots"][1]["period_count"] == 1
