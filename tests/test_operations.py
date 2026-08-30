@@ -26,6 +26,9 @@ def test_compose_contains_automatic_backup_with_read_only_clips() -> None:
     assert "backup:" in compose
     assert "eventmonitor_clips_data:/data/clips:ro" in compose
     assert "eventmonitor_documentation_data:/data/documentation:ro" in compose
+    backup_start = compose.index("  backup:")
+    backup_section = compose[backup_start:compose.index("    entrypoint:", backup_start)]
+    assert "eventmonitor_documentation_data:/data/documentation:ro" in backup_section
     assert "BACKUP_RETENTION_DAYS" in compose
     assert "./backups:/backups" in compose
 

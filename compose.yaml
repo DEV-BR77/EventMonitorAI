@@ -73,7 +73,6 @@ services:
       MKL_NUM_THREADS: ${SPEAKER_WORKER_THREADS:-2}
     volumes:
       - eventmonitor_clips_data:/data/clips:ro
-      - eventmonitor_documentation_data:/data/documentation:ro
       - eventmonitor_speaker_models:/models
     depends_on:
       postgres:
@@ -92,6 +91,7 @@ services:
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
     volumes:
       - eventmonitor_clips_data:/data/clips:ro
+      - eventmonitor_documentation_data:/data/documentation:ro
       - ./backups:/backups
       - ./ops/backup.sh:/usr/local/bin/eventmonitor-backup:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/eventmonitor-backup"]
