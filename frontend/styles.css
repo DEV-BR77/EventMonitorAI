@@ -64,3 +64,15 @@ body.menu-collapsed .app{grid-template-columns:76px 1fr}body.menu-collapsed .app
 @media(max-width:1100px){.documentation-upload{grid-template-columns:1fr 1fr}.documentation-upload button{grid-column:1/-1}.document-row{grid-template-columns:1fr 1fr}.document-row button{justify-self:start}}
 @media(max-width:900px){.sidebar-collapse{display:none}.nav-group{display:flex;align-items:center;border:0;padding:0}.nav-group-toggle{display:none}.nav-group-items,.nav-group:not(.open) .nav-group-items{display:flex}.app>aside nav{overflow-x:auto;overflow-y:hidden}.documentation-upload{grid-template-columns:1fr}.documentation-upload button{grid-column:auto}.image-gallery{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.image-gallery{grid-template-columns:1fr}.document-row{grid-template-columns:1fr}}
+/* Lernregel-Klassen auf dunklem Hintergrund lesbar halten */
+.class-tile strong{color:#fff}
+/* Modernes Stahl-/Blaugrau-Thema */
+:root{--bg:#111923;--panel:#1d2936;--panel2:#263543;--line:#46596a;--text:#fff;--muted:#a9bacb;--accent:#9bb8d0;--warn:#e8c27a;--danger:#ef8790}
+body{background:radial-gradient(circle at 80% 0,#34495b 0,transparent 30%),var(--bg);color:#fff}
+aside{background:#151f2acc;border-color:var(--line)}
+.metrics article,.panel{background:linear-gradient(145deg,#253442,#1a2632);border-color:var(--line)}
+input,select{background:#17222d;color:#fff;border-color:var(--line)}
+button{background:#9bb8d0;color:#14202b}.ghost{color:#b9c9d8;border-color:var(--line)}
+.nav{color:#a9bacb}.nav:hover,.nav.active{background:#2b3b4b;color:#fff}
+.panel-head span,.metrics span,.metrics small,.review-event span,.class-tile small{color:#a9bacb}
+.class-tile{background:#263543;border-color:#526679}.class-tile.active{border-color:#c2d8e8;box-shadow:0 0 0 1px #c2d8e8}

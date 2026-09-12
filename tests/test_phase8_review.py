@@ -111,6 +111,33 @@ def test_review_run_updates_automatic_events_and_keeps_manual_assignments(
         assert db.get(Event, context_only_id).primary_class_code == "AMBIENT"
 
 
+def test_review_run_applies_confirmed_learning_rule_to_matching_label(tmp_path, monkeypatch) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'learned-review.db'}")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(engine)
+    monkeypatch.setattr(review_service, "SessionLocal", factory)
+    with factory() as db:
+        first = event("Ball hit metal")
+        second = event("Ball hit metal")
+        target = event("Ball hit metal")
+        for item in (first, second):
+            item.primary_class_code = "IMPACT"
+            item.subclass_code = "BALL_METAL"
+            item.classification_status = "manual"
+        run = ReviewRun(kind="automatic", requested_by="operator")
+        db.add_all([first, second, target, run])
+        db.commit()
+        run_id, target_id = run.id, target.id
+
+    review_service.process_review_run(run_id)
+
+    with factory() as db:
+        learned = db.get(Event, target_id)
+        assert learned.primary_class_code == "IMPACT"
+        assert learned.subclass_code == "BALL_METAL"
+        assert learned.classification_status == "learned"
+
+
 def test_clipless_events_become_context_only_without_changing_their_class() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)

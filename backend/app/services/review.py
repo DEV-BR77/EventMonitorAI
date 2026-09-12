@@ -1,4 +1,5 @@
 import asyncio
+from collections import Counter
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -10,6 +11,31 @@ from app.database.session import SessionLocal
 from app.models.dashboard import AudioClip, EventClassificationRevision, ReviewRun, Tenant
 from app.models.event import Event
 from app.services.taxonomy import base_class_for_detection
+
+
+def _learned_class_for_detection(db: Session, label: str) -> tuple[str, str | None] | None:
+    """Return a stable manual label mapping once it has enough agreement."""
+    rows = list(
+        db.execute(
+            select(Event.primary_class_code, Event.subclass_code).where(
+                Event.label == label,
+                Event.classification_status == "manual",
+                Event.primary_class_code.is_not(None),
+            )
+        ).all()
+    )
+    if len(rows) < 2:
+        return None
+    primary_counts = Counter(primary for primary, _ in rows)
+    pair_counts = Counter(rows)
+    primary, primary_count = primary_counts.most_common(1)[0]
+    required_ratio = 1.0 if len(rows) == 2 else 0.8
+    if primary_count / len(rows) < required_ratio:
+        return None
+    learned, pair_count = pair_counts.most_common(1)[0]
+    if learned[0] == primary and pair_count / primary_count >= required_ratio:
+        return learned
+    return primary, None
 
 
 def mark_clipless_events_context_only(db: Session, *, actor: str = "system") -> int:
@@ -89,25 +115,36 @@ def process_review_run(run_id: int, batch_size: int = 100) -> None:
             for event in events:
                 run.cursor_event_id = event.id
                 run.processed += 1
-                if event.classification_status in {
-                    "manual",
-                    "learned",
-                    "suggested",
-                    "context_only",
-                }:
+                if event.classification_status in {"manual", "context_only"}:
                     continue
-                mapped = base_class_for_detection(event.label, event.category)
-                if mapped and mapped != event.primary_class_code:
-                    event.primary_class_code = mapped
+                mapped = _learned_class_for_detection(db, event.label)
+                learned = mapped is not None
+                mapped = mapped or (
+                    base_class_for_detection(event.label, event.category), None
+                )
+                target_primary, target_subclass = mapped
+                if target_primary and (
+                    target_primary != event.primary_class_code
+                    or target_subclass != event.subclass_code
+                ):
+                    event.primary_class_code = target_primary
+                    event.subclass_code = target_subclass
+                    event.classification_status = "learned" if learned else event.classification_status
+                    event.corrected_by = f"review:{run.kind}"
+                    event.corrected_at = datetime.now(UTC).isoformat()
                     run.changed += 1
                     db.add(
                         EventClassificationRevision(
                             event_id=event.id,
-                            primary_class_code=mapped,
-                            subclass_code=event.subclass_code,
-                            status="automatic",
+                            primary_class_code=target_primary,
+                            subclass_code=target_subclass,
+                            status="learned" if learned else "automatic",
                             actor=f"review:{run.kind}",
-                            reason="Automatischer Prüflauf mit aktuellem Klassenkatalog",
+                            reason=(
+                                "Automatisch aus bestätigten Lernbeispielen gelernt"
+                                if learned
+                                else "Automatischer Prüflauf mit aktuellem Klassenkatalog"
+                            ),
                         )
                     )
             db.commit()
