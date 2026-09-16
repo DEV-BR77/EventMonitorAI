@@ -17,6 +17,7 @@ COPY backend/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend/app /app/app
+COPY scripts/export_golden_candidates.py /app/scripts/export_golden_candidates.py
 COPY VERSION /app/VERSION
 COPY frontend /frontend
 COPY docs/image-1.png /frontend/messbereich.png

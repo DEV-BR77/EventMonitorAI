@@ -4,15 +4,15 @@ Golden Dataset v1 ist derzeit blockiert.
 
 | Bereich | Befund | Erforderliche Maßnahme |
 |---|---|---|
-| Samples | 0 reale Aufnahmen/Segmente | AudioLab-Datenbestand bereitstellen |
-| Ground Truth | keine bestätigten, unsicheren oder ungelösten Samples vorhanden | fachliche Review erfassen |
-| Provenienz | keine Recording-, Source-, Session- oder Reviewer-Daten vorhanden | Original- und Reviewreferenzen erhalten |
-| Klassen | keine reale Klassenverteilung bestimmbar | Klassen aus tatsächlichen Samples ableiten |
+| Samples | 3 reale Clip-Kandidaten exportiert | weitere unabhängige Samples je Klasse sammeln |
+| Ground Truth | 3 manuell klassifizierte Kandidaten, erneute Golden-Review erforderlich | Reviewstatus und Begründung bestätigen |
+| Provenienz | Ereignis-, Geräte-, Trigger- und Reviewdaten im Manifest vorhanden | Original-/Session-/Aufnahmeverbund ergänzen |
+| Klassen | CONVERSATION, OTHER_NOISE, FIRECRACKER; je 1 Sample | reale Klassenbreite erweitern |
 | Training-Overlap | nicht prüfbar, da kein Modell/Manifest und keine Samples vorhanden | Modellartefakte und Trainingsmanifeste bereitstellen |
 | Input-Hashes | keine Hashes vorhanden | Candidate-Samples hashen |
 | Near Duplicates | nicht prüfbar | mindestens Recording-/Session-/Zeitbezug prüfen; Audio-Near-Duplicate bleibt Limitierung |
-| Support | für alle Klassen 0 | keine künstliche Balance; unabhängige Samples sammeln |
+| Support | je Klasse 1, unter Support-Hinweis 5 | keine künstliche Balance; weitere reale Samples sammeln |
 | Dataset-Freeze | technisch vorhanden, fachlich nicht freigabefähig | erst nach erfüllten Gates einfrieren |
-| Test-Gate | blockiert durch SciPy-DLL-Policy | vorgesehene Container-/CI-Umgebung verwenden oder Policyursache administrativ klären |
+| Test-Gate | AudioLab-Regressionssuite bestanden (`40 passed`, Exit-Code `0`) | für den Baseline-Run dieselbe reproduzierbare Umgebung verwenden |
 
 Unbekannte Zustände werden nicht als `independent` interpretiert.

@@ -880,7 +880,11 @@ def review_queue(
         statement = statement.where(Event.timestamp >= start)
     if end:
         statement = statement.where(Event.timestamp < end)
-    events = list(db.scalars(statement.order_by(desc(Event.id)).limit(limit)))
+    if class_code:
+        ordering = (desc(Event.confidence), desc(Event.db_level), desc(Event.id))
+    else:
+        ordering = (desc(Event.id),)
+    events = list(db.scalars(statement.order_by(*ordering).limit(limit)))
     event_ids = {event.id for event in events}
     audio_event_ids = (
         set(db.scalars(select(AudioClip.event_id).where(AudioClip.event_id.in_(event_ids))).all())

@@ -4,25 +4,35 @@ Stand: 16. September 2026
 
 ## Ergebnis
 
-Im untersuchten Repository-Arbeitsstand ist kein realer AudioLab-Datenbestand
-vorhanden, aus dem ein Golden Dataset aufgebaut werden könnte. Es wurden keine
-Samples automatisch übernommen und keine Benchmarkzahlen erzeugt.
+Aus dem produktiven PostgreSQL-/Clip-Bestand wurde ein kleiner, noch nicht
+freigegebener Kandidatenexport erstellt. Es wurden keine Samples automatisch
+als Golden Dataset übernommen und keine Benchmarkzahlen erzeugt.
+
+Export: `golden-candidate-v1/manifest.csv` mit drei WAV-Dateien. Alle drei
+Dateien stimmen mit dem im Manifest gespeicherten SHA-256 überein und sind
+untereinander verschieden.
+
+Die AudioLab-Regressionssuite wurde am 16. September 2026 mit
+`python -m pytest -q tests/test_audio_lab_*.py` ausgeführt und bestand mit
+`40 passed` und Exit-Code `0`. Dieses technische Test-Gate ersetzt weder reale
+Evaluation-Samples noch fachlich geprüfte Ground Truth.
 
 ## Tatsächlich untersuchte Datenbanken
 
 | Datenbank | Aufnahmen | Segmente | Predictions | Modelle |
 |---|---:|---:|---:|---:|
 | `data/eventmonitor.sqlite3` | 0 | 0 | 0 | 0 |
+| produktive PostgreSQL-Datenbank | 590 manuell klassifizierte Clip-Ereignisse mit Audioverknüpfung | Kandidatenexport: 3 | 3 | nicht relevant |
 | `backend/data/eventmonitorai.db` | keine AudioLab-Tabellen | keine | keine | keine |
 
-Die AudioLab-Schemata und Foundation-Tabellen sind im Code vorhanden, aber die
-Arbeitsdatenbank enthält noch keine `recordings`, `segments`, `predictions` oder
-`model_registry`-Zeilen. Daher existiert keine reale Klasse mit belegtem
-Support, keine menschlich bestätigte Ground Truth und keine Provenienz.
+Die lokale AudioLab-SQLite bleibt leer; die relevanten Produktionsdaten liegen
+in PostgreSQL und im Clip-Volume. Der Export enthält die drei Klassen
+`CONVERSATION`, `OTHER_NOISE` und `FIRECRACKER`, jeweils mit Support 1.
+Die Ereignisse sind als `manual` markiert und haben Reviewer sowie Reviewzeitpunkt.
 
 ## Klasseninventar
 
-Reale Klassen: keine bestimmbar.
+Exportierte Klassen: `CONVERSATION` (1), `OTHER_NOISE` (1), `FIRECRACKER` (1).
 
 Die in Taxonomie, Roadmap oder Beispielen genannten Klassen wurden bewusst
 nicht als vorhandene Datenklassen gezählt. Ohne reale gelabelte Segmente wären
@@ -44,16 +54,15 @@ eine Near-Duplicate-Audioanalyse ist weiterhin nicht implementiert.
 
 ## Support-Gate
 
-Alle Klassen liegen außerhalb der Support-Kategorien, weil keine realen
-Evaluation-Samples vorhanden sind. `Golden v1` darf daher nicht eingefroren
-werden. Ein Candidate-Dataset ohne Samples wäre kein belastbarer Benchmark.
+Alle drei Klassen liegen unterhalb des bestehenden Support-Hinweises von 5
+Samples. `Golden v1` darf daher noch nicht eingefroren werden. Der Export ist
+ein realer Kandidatenpool, aber noch kein belastbarer Benchmark.
 
 ## Konkrete Voraussetzungen
 
-1. Audioaufnahmen in der AudioLab-Datenbank importieren.
-2. Segmente mit stabiler Recording- und Originalreferenz erzeugen.
-3. Menschlich eindeutige Ground Truth mit Herkunft erfassen.
-4. Bereits im Training verwendete Aufnahmen und Artefakte nachvollziehbar
-   markieren.
-5. Klassen-Support und schwierige Bedingungen prüfen.
+1. Pro Klasse weitere unabhängige reale Clips sammeln.
+2. Ground Truth und Begründungen fachlich gegen die drei Kandidaten prüfen.
+3. Modellartefakte und Trainingsmanifeste für den Overlap-Abgleich bereitstellen.
+4. Recording-/Session-/Zeitnähe und Near-Duplicates prüfen.
+5. Erst bei ausreichendem Support Golden v1 einfrieren.
 6. Erst danach einen Candidate kontrolliert zusammenstellen und einfrieren.

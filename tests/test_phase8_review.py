@@ -78,6 +78,39 @@ def test_bulk_review_summary_and_class_filter() -> None:
         assert len(list(db.scalars(select(EventClassificationRevision)))) == 2
 
 
+def test_class_filtered_review_queue_prioritizes_confidence_then_db() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as db:
+        seed_event_classes(db)
+        user = User(username="operator", password_hash="x", role="operator")
+        events = [event(f"candidate-{index}", "IMPACT") for index in range(3)]
+        events[0].confidence, events[0].db_level = 0.91, 55
+        events[1].confidence, events[1].db_level = 0.91, 72
+        events[2].confidence, events[2].db_level = 0.86, 90
+        db.add_all([user, *events])
+        db.flush()
+        db.add_all(
+            [
+                AudioClip(
+                    device_id="mic",
+                    trigger_id=f"candidate-{item.id}",
+                    received_at=item.timestamp,
+                    sha256=str(item.id).zfill(64),
+                    path=f"audio/{item.id}.wav",
+                    frame_count=16000,
+                    sample_rate=16000,
+                    event_id=item.id,
+                )
+                for item in events
+            ]
+        )
+        db.commit()
+
+        ordered = review_queue(db, user, "IMPACT", "open", 20)
+        assert [item.id for item in ordered] == [events[1].id, events[0].id, events[2].id]
+
+
 def test_review_run_updates_automatic_events_and_keeps_manual_assignments(
     tmp_path, monkeypatch
 ) -> None:

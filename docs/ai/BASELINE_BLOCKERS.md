@@ -2,6 +2,14 @@
 
 Stand: 16. September 2026
 
+## 3B-K-Prüfung
+
+Der Folgeauftrag 3B-K wurde im Repository erneut geprüft. Die AudioLab-
+Regressionssuite ist weiterhin technisch bestanden (`40 passed`, Exit-Code `0`),
+aber der fachliche Daten-Gate bleibt blockiert. Unter `data` ist kein realer
+Audioimport oder sonstiger verwertbarer Audiodatenbestand vorhanden; die
+Datenbankzählungen bleiben bei null.
+
 ## Golden Dataset
 
 Kein Baseline-Run wurde gestartet. Der reale AudioLab-Datenbestand ist leer:
@@ -9,22 +17,28 @@ Kein Baseline-Run wurde gestartet. Der reale AudioLab-Datenbestand ist leer:
 - `data/eventmonitor.sqlite3`: 0 Recordings, 0 Segmente, 0 Predictions, 0 Modelle;
 - `backend/data/eventmonitorai.db`: keine AudioLab-Tabellen.
 
+Ein separater Export aus der produktiven PostgreSQL-/Clip-Umgebung enthält
+inzwischen 3 reale Kandidaten mit drei unterschiedlichen, hashgeprüften WAV-
+Dateien. Er ist noch nicht Golden v1: Die Klassen haben jeweils nur Support 1
+und der Training-Overlap ist noch nicht anhand von Modellmanifesten geprüft.
+
 Damit fehlen unabhängige Samples, Ground Truth, Klassen-Support, Provenienz,
 Input-Hashes und ein Trainingsmanifest. `Golden v1` kann nicht eingefroren
 werden, ohne einen unzulässigen künstlichen Benchmark zu erzeugen.
 
 ## Test-Gate
 
-Status: `blocked`.
+Status: `passed` für den AudioLab-Regressions-Testlauf.
 
-Der relevante AudioLab-Testlauf wurde versucht. Die lokale Python-Umgebung
-scheitert bereits beim Import von scikit-learn/SciPy mit einer durch die
-Windows-Anwendungssteuerungsrichtlinie blockierten SciPy-DLL (`_lbfgsb` bzw.
-`_ellip_harm_2`). Es wurde keine Sicherheitsrichtlinie umgangen.
+Am 16. September 2026 wurde reproduzierbar ausgeführt:
 
-Die korrekte Fortsetzung ist eine bereits vorgesehene Container- oder CI-
-Umgebung beziehungsweise eine administrative Klärung von Installation,
-Architektur/ABI und Policy. Der Status ist nicht `passed`.
+```text
+python -m pytest -q tests/test_audio_lab_*.py
+```
+
+Ergebnis: `40 passed`, Exit-Code `0`. Die zuvor dokumentierte SciPy-DLL-
+Blockade ist für diesen Testlauf nicht mehr reproduzierbar. Der produktive
+Baseline-Run bleibt unabhängig davon wegen des leeren Datenbestands blockiert.
 
 ## Nicht ausgeführt
 
