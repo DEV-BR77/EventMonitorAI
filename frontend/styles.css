@@ -76,3 +76,4 @@ button{background:#9bb8d0;color:#14202b}.ghost{color:#b9c9d8;border-color:var(--
 .nav{color:#a9bacb}.nav:hover,.nav.active{background:#2b3b4b;color:#fff}
 .panel-head span,.metrics span,.metrics small,.review-event span,.class-tile small{color:#a9bacb}
 .class-tile{background:#263543!important;border-color:#526679}.class-tile strong,.class-tile small{color:#fff!important}.class-tile.active{border-color:#c2d8e8;box-shadow:0 0 0 1px #c2d8e8}
+.review-class-tools,.review-date-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}.review-class-tools label{min-width:210px}.review-class-tools span,.review-date-nav strong{color:var(--muted);font-size:12px}.review-date-nav{justify-content:center;border-top:1px solid var(--line);padding-top:10px}.review-date-nav strong{min-width:180px;text-align:center}.class-tile.active{min-width:210px}.class-tile em{color:var(--muted);font-size:11px}.review-skip{justify-self:end}

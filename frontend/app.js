@@ -3,7 +3,8 @@ function loadListenedEvents() {
   try { return new Set(JSON.parse(localStorage.getItem("em_listened_events") || "[]").map(String)); }
   catch (_) { return new Set(); }
 }
-const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], calibrationDrafts: new Map(), telemetryLoading: false, people: [], personMediaUrls: [], documentationUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), listenedEvents: loadListenedEvents(), kpiInitialized: false };
+function loadSkippedReviewEvents() { try { return new Set(JSON.parse(localStorage.getItem("em_skipped_review_events") || "[]").map(String)); } catch (_) { return new Set(); } }
+const state = { token: localStorage.getItem("em_token"), socket: null, audioSocket: null, audioContext: null, audioGain: null, audioHighpass: null, audioLowpass: null, audioElement: null, audioDestination: null, audioPackets: 0, clipSource: null, clipContext: null, clipButton: null, clipAudioElement: null, clipAudioDestination: null, clipNoiseReduction: localStorage.getItem("em_clip_noise_filter") !== "false", nextAudioTime: 0, devices: [], audioDevices: [], eventClasses: [], soundMap: [], telemetry: [], calibrations: [], calibrationDrafts: new Map(), telemetryLoading: false, people: [], personMediaUrls: [], documentationUrls: [], speakerClusters: [], speakerClusterId: null, speakerSampleOffset: 0, speakerSampleTotal: 0, calibrationRuns: [], role: null, reviewClass: "", reviewEvents: [], liveEvents: [], classificationDrafts: new Map(), skippedReviewEvents: loadSkippedReviewEvents(), listenedEvents: loadListenedEvents(), kpiInitialized: false };
 const days = () => $("#days-filter").value;
 const device = () => $("#device-filter").value;
 const localDate = (value) => value.toLocaleDateString("sv-SE");
@@ -1128,11 +1129,17 @@ async function loadReview() {
   $("#r-done-unknown").textContent = summary.completed_unknown;
   $("#r-done-recognized").textContent = summary.completed_recognized;
   $("#r-context-only").textContent = summary.excluded_context_only;
-  const classes = [{ code: "UNKNOWN", name: "Unbekannt" }, ...state.eventClasses.filter((item) => item.active)];
+  const classStatus = $("#review-class-status").value;
+  const classes = [{ code: "UNKNOWN", name: "Unbekannt" }, ...state.eventClasses.filter((item) => item.active)].filter((item) => {
+    const counts = summary.by_class[item.code] || { open: 0, completed: 0 };
+    return classStatus === "all" || (classStatus === "open" ? counts.open > 0 : counts.completed > 0);
+  });
   $("#review-classes").innerHTML = classes.map((item) => {
     const counts = summary.by_class[item.code] || { open: 0, completed: 0 };
-    return `<button type="button" class="class-tile ${state.reviewClass === item.code ? "active" : ""}" data-review-class="${escapeHtml(item.code)}"><strong>${escapeHtml(item.name)}</strong><small>${counts.open} offen · ${counts.completed} erledigt</small></button>`;
+    return `<button type="button" class="class-tile ${state.reviewClass === item.code ? "active" : ""}" data-review-class="${escapeHtml(item.code)}"><strong>${escapeHtml(item.name)}</strong><small>${counts.open} offen · ${counts.completed} erledigt</small>${state.reviewClass === item.code ? "<em>geöffnet</em>" : ""}</button>`;
   }).join("");
+  $("#review-class-hint").textContent = state.reviewClass ? "Kachel geöffnet · erneut anklicken zum Schließen." : "Klasse auswählen, um die Kachel zu öffnen.";
+  $("#review-date-label").textContent = rangeLabel();
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
   $("#review-primary").innerHTML = bases.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
   $("#review-secondary").innerHTML = state.eventClasses.filter((item) => item.active && item.level === "fine").map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
@@ -1151,8 +1158,9 @@ async function loadReviewQueue() {
   const range = eventRangeQuery(); query.set("start", range.start); query.set("end", range.end);
   if (state.reviewClass) query.set("class_code", state.reviewClass);
   state.reviewEvents = await api(`/events/review/queue?${query}`);
+  if ($("#review-status").value === "open") state.reviewEvents = state.reviewEvents.filter((event) => !state.skippedReviewEvents.has(String(event.id)));
   const personOptions = `<option value="">Keine Person</option>${state.people.filter((person) => person.active).map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("")}`;
-  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}">${"▶ Anhören"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %${event.secondary_class_codes?.length ? `<small>Nebenquellen: ${event.secondary_class_codes.map((code) => escapeHtml(state.eventClasses.find((item) => item.code === code)?.name || code)).join(", ")}</small>` : ""}<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select>${event.assessment_excluded ? '<small class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</small>' : ""}</span></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
+  $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}">${"▶ Anhören"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %${event.secondary_class_codes?.length ? `<small>Nebenquellen: ${event.secondary_class_codes.map((code) => escapeHtml(state.eventClasses.find((item) => item.code === code)?.name || code)).join(", ")}</small>` : ""}<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select>${event.assessment_excluded ? '<small class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</small>' : ""}</span><button type="button" class="ghost review-skip" data-skip-review="${event.id}">Überspringen</button></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
   updateReviewSelection();
 }
 
@@ -1757,6 +1765,7 @@ $("#review-classes").addEventListener("click", async (e) => {
   await loadReview();
 });
 $("#review-status").addEventListener("change", loadReviewQueue);
+$("#review-class-status").addEventListener("change", () => loadReview().catch(() => {}));
 $("#review-primary").addEventListener("change", reviewSubclassOptions);
 $("#review-secondary").addEventListener("change", () => {
   const selected = Array.from($("#review-secondary").selectedOptions, (item) => item.value);
@@ -1777,6 +1786,25 @@ $("#review-select-all").addEventListener("click", () => {
   document.querySelectorAll("#review-events input").forEach((item) => { item.checked = true; });
   updateReviewSelection();
 });
+$("#review-events").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-skip-review]");
+  if (!button) return;
+  e.preventDefault();
+  state.skippedReviewEvents.add(String(button.dataset.skipReview));
+  localStorage.setItem("em_skipped_review_events", JSON.stringify([...state.skippedReviewEvents]));
+  await loadReviewQueue();
+});
+function shiftReviewDay(offset) {
+  const current = new Date(`${($("#date-from-filter").value || localDate(new Date()))}T12:00:00`);
+  current.setDate(current.getDate() + offset);
+  const value = localDate(current);
+  $("#days-filter").value = "single";
+  $("#date-from-filter").value = value;
+  $("#date-to-filter").value = value;
+  applyGlobalFilter().catch(() => {});
+}
+$("#review-date-prev").addEventListener("click", () => shiftReviewDay(-1));
+$("#review-date-next").addEventListener("click", () => shiftReviewDay(1));
 $("#review-bulk-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const eventIds = Array.from(document.querySelectorAll("#review-events input:checked"), (item) => Number(item.value));
