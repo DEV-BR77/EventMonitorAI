@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+# ruff: noqa: E501
+
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS recordings (
@@ -36,6 +38,37 @@ CREATE TABLE IF NOT EXISTS predictions (
  reviewed_label TEXT, was_correct INTEGER, uncertainty_score REAL,
  informativeness_score REAL, active_learning_score REAL
 );
+CREATE TABLE IF NOT EXISTS evaluation_datasets (
+ id INTEGER PRIMARY KEY, dataset_key TEXT NOT NULL, version INTEGER NOT NULL,
+ name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'draft',
+ frozen INTEGER NOT NULL DEFAULT 0, manifest_json TEXT NOT NULL DEFAULT '{}',
+ fingerprint TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(dataset_key, version), UNIQUE(dataset_key, fingerprint)
+);
+CREATE TABLE IF NOT EXISTS evaluation_samples (
+ id INTEGER PRIMARY KEY, dataset_id INTEGER NOT NULL REFERENCES evaluation_datasets(id) ON DELETE CASCADE,
+ segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE RESTRICT, recording_id INTEGER NOT NULL,
+ input_hash TEXT NOT NULL, ground_truth_class TEXT, ground_truth_status TEXT NOT NULL DEFAULT 'unresolved',
+ ground_truth_source TEXT, reviewed_at TEXT, reviewer_ref TEXT, notes TEXT NOT NULL DEFAULT '',
+ UNIQUE(dataset_id, segment_id), UNIQUE(dataset_id, input_hash)
+);
+CREATE TABLE IF NOT EXISTS evaluation_runs (
+ id INTEGER PRIMARY KEY, model_id INTEGER NOT NULL REFERENCES model_registry(id),
+ dataset_id INTEGER NOT NULL REFERENCES evaluation_datasets(id), model_version TEXT NOT NULL,
+ pipeline_fingerprint TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+ started_at TEXT, finished_at TEXT, sample_count INTEGER NOT NULL DEFAULT 0,
+ evaluated_count INTEGER NOT NULL DEFAULT 0, excluded_count INTEGER NOT NULL DEFAULT 0,
+ error_count INTEGER NOT NULL DEFAULT 0, contamination_status TEXT NOT NULL DEFAULT 'unchecked',
+ metrics_json TEXT NOT NULL DEFAULT '{}', report_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS evaluation_predictions (
+ id INTEGER PRIMARY KEY, run_id INTEGER NOT NULL REFERENCES evaluation_runs(id) ON DELETE CASCADE,
+ sample_id INTEGER NOT NULL REFERENCES evaluation_samples(id) ON DELETE RESTRICT,
+ predicted_class TEXT, confidence REAL, inference_time_ms REAL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ raw_output_reference TEXT, evaluation_status TEXT NOT NULL DEFAULT 'ok', error_message TEXT,
+ UNIQUE(run_id, sample_id)
+);
+CREATE INDEX IF NOT EXISTS idx_evaluation_predictions_run ON evaluation_predictions(run_id);
 CREATE INDEX IF NOT EXISTS idx_predictions_segment_created
 ON predictions(segment_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS segment_embeddings (
