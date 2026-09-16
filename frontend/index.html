@@ -67,6 +67,7 @@
             <button id="website-access-nav" class="nav" data-view="website-access" data-short="W">Webseiten-Zugriffe</button>
             <button id="assessment-nav" class="nav" data-view="assessment" data-short="L">Lärmbewertung</button>
             <button class="nav" data-view="class-management-view" data-short="K">Klassenverwaltung</button>
+            <button class="nav" data-view="class-learning" data-short="L">Klassenlernen</button>
             <button id="devices-nav" class="nav" data-view="devices" data-short="A">Audioeinstellungen</button>
             <button id="people-nav" class="nav" data-view="people" data-short="P">Personen</button>
             <button id="review-nav" class="nav" data-view="review" data-short="L">Lernregeln</button>
@@ -212,10 +213,6 @@
           <p class="management-help">WAV-Dateien werden mit Pegelwert und Wiedergabe in die Sammelprüfung übernommen. CSV unterstützt die Spalten timestamp, db_level, label, confidence und device.</p>
           <span id="import-status"></span>
         </article>
-        <article class="panel learning-guide">
-          <div class="panel-head"><h2>So lernt die Klassifizierung</h2><span>Bestätigen → lernen → automatisch anwenden</span></div>
-          <ol><li>Ereignis anhören und Basis- sowie Feinzuordnung bestätigen.</li><li>Ab drei übereinstimmenden Bestätigungen mit mindestens 80 % Eindeutigkeit wird das ursprüngliche KI-Label künftig automatisch zugeordnet.</li><li>„Wind“, „Umgebung/Natur“ und technische Störungen werden gelernt, aber standardmäßig aus Übersicht, Karte und Live-Strom ausgeblendet.</li><li>„Kein Lärm / verwerfen“ löscht Ereignis und Aufnahme. Nach drei Bestätigungen wird dasselbe Modellmuster bereits beim Eingang verworfen.</li><li>Der Prüflauf arbeitet offene automatische Vorschläge erneut ab; manuelle Bestätigungen bleiben unverändert.</li></ol>
-        </article>
         <div class="metrics review-metrics">
           <article><span>Offen · unbekannt</span><strong id="r-open-unknown">–</strong></article>
           <article><span>Offen · KI erkannt</span><strong id="r-open-recognized">–</strong></article>
@@ -226,10 +223,11 @@
         <article class="panel">
           <div class="panel-head"><h2>Klassenprüfung</h2><span>Klasse wählen und identische Ereignisse gesammelt bestätigen</span></div>
           <div class="review-class-tools"><label>Klassen anzeigen<select id="review-class-status"><option value="open">Nur offene Klassen</option><option value="completed">Nur erledigte Klassen</option><option value="all">Alle Klassen</option></select></label><span id="review-class-hint">Klasse auswählen, um die Kachel zu öffnen.</span></div>
-          <div id="review-classes" class="class-tiles"></div>
+          <details class="review-collapsible" open><summary>Klassen anzeigen</summary><div id="review-classes" class="class-tiles"></div></details>
           <div class="review-date-nav"><button type="button" class="ghost" id="review-date-prev" aria-label="Vorheriger Tag">‹</button><strong id="review-date-label">Tag</strong><button type="button" class="ghost" id="review-date-next" aria-label="Nächster Tag">›</button></div>
           <div class="review-toolbar">
             <select id="review-status"><option value="open">Offen</option><option value="completed">Erledigt</option><option value="all">Alle</option></select>
+            <select id="review-predicted-class"><option value="">Alle KI-Klassen</option></select>
             <button id="review-select-all" type="button" class="ghost">Alle sichtbaren wählen</button>
             <label class="noise-toggle"><input type="checkbox" data-clip-noise-filter> Störgeräusche beim Anhören reduzieren</label>
             <span id="review-selection">0 ausgewählt</span>
@@ -249,15 +247,9 @@
           </form>
           <span id="review-status-text"></span>
         </article>
-        <article class="panel">
+        <article class="panel review-runs-panel">
           <div class="panel-head"><h2>Automatisierte Prüfläufe</h2><span>Nächtlich um 03:00 Uhr · manuelle Zuordnungen bleiben unverändert</span></div>
-          <div class="review-toolbar"><button id="review-run" type="button">Prüflauf starten</button></div>
-          <div id="review-runs"></div>
-        </article>
-        <article class="panel assessment-reference">
-          <div class="panel-head"><h2>Beurteilungszeiten und Referenzwerte</h2><span>Zeitzone Europe/Berlin</span></div>
-          <p>Tag 06:00–19:00: 50 dB(A) · Abend 19:00–22:00: 35 dB(A) · Nacht 22:00–06:00: 35 dB(A)</p>
-          <p>+6 dB zu empfindlichen Zeiten: werktags 06:00–07:00 und 20:00–22:00; sonn- und bundesweite Feiertage 06:00–09:00, 13:00–15:00 und 20:00–22:00.</p>
+          <details class="review-collapsible"><summary>Prüfläufe anzeigen</summary><div class="review-toolbar"><button id="review-run" type="button">Prüflauf starten</button></div><div id="review-runs"></div></details>
         </article>
       </section>
 
@@ -420,6 +412,7 @@
       <section id="tenant-management-view" class="view hidden"></section>
       <section id="website-access" class="view hidden"></section>
       <section id="class-management-view" class="view hidden"></section>
+      <section id="class-learning" class="view hidden"><article class="panel learning-guide"><div class="panel-head"><h2>So lernt die Klassifizierung</h2><span>Bestätigen → lernen → automatisch anwenden</span></div><ol><li>Ereignis anhören und Basis- sowie Feinzuordnung bestätigen.</li><li>Ab drei übereinstimmenden Bestätigungen mit mindestens 80 % Eindeutigkeit wird das ursprüngliche KI-Label künftig automatisch zugeordnet.</li><li>Wind, Umgebung/Natur und technische Störungen können gelernt, aber standardmäßig ausgeblendet werden.</li><li>„Kein Lärm / verwerfen“ löscht Ereignis und Aufnahme. Nach drei Bestätigungen wird dasselbe Modellmuster beim Eingang verworfen.</li><li>Der Prüflauf arbeitet offene automatische Vorschläge erneut ab; manuelle Bestätigungen bleiben unverändert.</li></ol></article></section>
 
       <section id="administration" class="view hidden">
         <article id="tenant-management" class="panel hidden">

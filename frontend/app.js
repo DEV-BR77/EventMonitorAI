@@ -110,6 +110,7 @@ async function loadView(view) {
     "tenant-management-view": [loadTenants],
     "website-access": [loadWebsiteAnalytics],
     "class-management-view": [loadEventClasses],
+    "class-learning": [],
     assessment: [loadAssessmentConfig],
     devices: [loadTelemetry, loadCalibrations, loadCalibrationReferenceRuns],
     people: [loadPeople, loadSpeakerClusters, loadSpeakerAnalysisProgress],
@@ -1140,6 +1141,7 @@ async function loadReview() {
   }).join("");
   $("#review-class-hint").textContent = state.reviewClass ? "Kachel geöffnet · erneut anklicken zum Schließen." : "Klasse auswählen, um die Kachel zu öffnen.";
   $("#review-date-label").textContent = rangeLabel();
+  $("#review-predicted-class").innerHTML = `<option value="">Alle KI-Klassen</option>${state.eventClasses.filter((item) => item.active).map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("")}`;
   const bases = state.eventClasses.filter((item) => item.active && item.level === "base");
   $("#review-primary").innerHTML = bases.map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
   $("#review-secondary").innerHTML = state.eventClasses.filter((item) => item.active && item.level === "fine").map((item) => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
@@ -1159,8 +1161,15 @@ async function loadReviewQueue() {
   if (state.reviewClass) query.set("class_code", state.reviewClass);
   state.reviewEvents = await api(`/events/review/queue?${query}`);
   if ($("#review-status").value === "open") state.reviewEvents = state.reviewEvents.filter((event) => !state.skippedReviewEvents.has(String(event.id)));
+  const predictedClass = $("#review-predicted-class").value;
+  if (predictedClass) state.reviewEvents = state.reviewEvents.filter((event) => event.primary_class_code === predictedClass || event.subclass_code === predictedClass || event.secondary_class_codes?.includes(predictedClass));
   const personOptions = `<option value="">Keine Person</option>${state.people.filter((person) => person.active).map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("")}`;
   $("#review-events").innerHTML = state.reviewEvents.length ? state.reviewEvents.map((event) => `<label class="review-event"><input type="checkbox" value="${event.id}"><button type="button" class="ghost" data-play-event="${event.id}">${"▶ Anhören"}</button><strong>${escapeHtml(event.label_de || event.label)}</strong><span>${escapeHtml(event.device)} · ${event.db_level.toFixed(1)} dB<br>Start ${formatTime(event.timestamp)}<br>Ende ${formatTime(event.end_timestamp || event.timestamp)} · ${formatDuration(event.duration_seconds)}</span><span>${escapeHtml(event.subclass_code || event.primary_class_code || "Unbekannt")} · ${Math.round(event.confidence * 100)} %${event.secondary_class_codes?.length ? `<small>Nebenquellen: ${event.secondary_class_codes.map((code) => escapeHtml(state.eventClasses.find((item) => item.code === code)?.name || code)).join(", ")}</small>` : ""}<select data-person-event="${event.id}">${personOptions.replace(`value="${event.person_id || ""}"`, `value="${event.person_id || ""}" selected`)}</select>${event.assessment_excluded ? '<small class="person-monitoring-status excluded">Aus Lärmbewertung ausgeschlossen</small>' : ""}</span><button type="button" class="ghost review-skip" data-skip-review="${event.id}">Überspringen</button></label>`).join("") : "<p>Keine passenden Ereignisse.</p>";
+  document.querySelectorAll("#review-events .review-event").forEach((row, index) => {
+    const event = state.reviewEvents[index];
+    const meta = row.querySelector("span");
+    if (event && meta?.firstChild) meta.firstChild.textContent = `${reviewDeviceName(event.device)} · ${event.db_level.toFixed(1)} dB`;
+  });
   updateReviewSelection();
 }
 
@@ -1765,6 +1774,7 @@ $("#review-classes").addEventListener("click", async (e) => {
   await loadReview();
 });
 $("#review-status").addEventListener("change", loadReviewQueue);
+$("#review-predicted-class").addEventListener("change", loadReviewQueue);
 $("#review-class-status").addEventListener("change", () => loadReview().catch(() => {}));
 $("#review-primary").addEventListener("change", reviewSubclassOptions);
 $("#review-secondary").addEventListener("change", () => {
@@ -1803,6 +1813,7 @@ function shiftReviewDay(offset) {
   $("#date-to-filter").value = value;
   applyGlobalFilter().catch(() => {});
 }
+function reviewDeviceName(deviceId) { return state.devices.find((item) => item.device_id === deviceId)?.name || deviceId; }
 $("#review-date-prev").addEventListener("click", () => shiftReviewDay(-1));
 $("#review-date-next").addEventListener("click", () => shiftReviewDay(1));
 $("#review-bulk-form").addEventListener("submit", async (e) => {
